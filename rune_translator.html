@@ -1199,65 +1199,94 @@ function processSentence(sentence) {
   // Step 7: apply V2 (Verb-Second) word order for fronted adverbs
   // Only applies to restricted set: þá, nú, svá (then, now, so)
   // Pattern: [Adverb] [Finite Verb] [Subject] [Rest]
+  // Re-triggers after conjunctions (and, but, or) for each clause
   {
-    // Find first content token (non-space, non-punct)
-    let firstContentIdx = -1;
-    let firstContentTok = null;
-    for(let i = 0; i < reorderedTokens.length; i++) {
-      if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
-        firstContentIdx = i;
-        firstContentTok = reorderedTokens[i];
-        break;
-      }
-    }
+    // Find all potential V2 adverb positions (including after conjunctions)
+    let searchStartIdx = 0;
 
-    // Check if first content token is a V2 adverb
-    if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
-      // Find the adverb's trailing space
-      let adverbSpaceIdx = -1;
-      for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
-        if(reorderedTokens[i].type === 'space') {
-          adverbSpaceIdx = i;
+    while(searchStartIdx < reorderedTokens.length) {
+      // Find first content token from searchStartIdx (non-space, non-punct)
+      let firstContentIdx = -1;
+      let firstContentTok = null;
+      for(let i = searchStartIdx; i < reorderedTokens.length; i++) {
+        if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
+          firstContentIdx = i;
+          firstContentTok = reorderedTokens[i];
           break;
         }
       }
 
-      if(adverbSpaceIdx !== -1) {
-        // Find the first verb after the adverb+space
-        let verbIdx = -1;
-        for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
-          if(reorderedTokens[i].type === 'verb') {
-            verbIdx = i;
-            break;
-          }
-          // Stop at punctuation (end of clause)
-          if(reorderedTokens[i].type === 'punct') {
+      if(firstContentIdx === -1) break; // No more content
+
+      // Check if this content token is a V2 adverb
+      if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
+        // Find the adverb's trailing space
+        let adverbSpaceIdx = -1;
+        for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
+          if(reorderedTokens[i].type === 'space') {
+            adverbSpaceIdx = i;
             break;
           }
         }
 
-        // If verb found and not already in position 2 (adverb + space + verb)
-        if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
-          // Extract verb token and check for trailing space
-          const verbTok = reorderedTokens[verbIdx];
-          let trailingSpace = null;
-
-          if(verbIdx + 1 < reorderedTokens.length &&
-             reorderedTokens[verbIdx + 1].type === 'space') {
-            trailingSpace = reorderedTokens[verbIdx + 1];
+        if(adverbSpaceIdx !== -1) {
+          // Find the first verb after the adverb+space (stop at conjunction or punctuation)
+          let verbIdx = -1;
+          for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
+            if(reorderedTokens[i].type === 'verb') {
+              verbIdx = i;
+              break;
+            }
+            // Stop at clause boundaries
+            if(reorderedTokens[i].type === 'punct' ||
+               (reorderedTokens[i].type === 'word' && ['and','but','or'].includes(reorderedTokens[i].en))) {
+              break;
+            }
           }
 
-          // Remove verb (and trailing space if exists) from original position
-          const removeCount = trailingSpace ? 2 : 1;
-          reorderedTokens.splice(verbIdx, removeCount);
+          // If verb found and not already in position 2 (adverb + space + verb)
+          if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
+            // Extract verb token and check for trailing space
+            const verbTok = reorderedTokens[verbIdx];
+            let trailingSpace = null;
 
-          // Insert verb right after adverb+space
-          const insertPos = adverbSpaceIdx + 1;
-          if(trailingSpace) {
-            reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+            if(verbIdx + 1 < reorderedTokens.length &&
+               reorderedTokens[verbIdx + 1].type === 'space') {
+              trailingSpace = reorderedTokens[verbIdx + 1];
+            }
+
+            // Remove verb (and trailing space if exists) from original position
+            const removeCount = trailingSpace ? 2 : 1;
+            reorderedTokens.splice(verbIdx, removeCount);
+
+            // Insert verb right after adverb+space
+            const insertPos = adverbSpaceIdx + 1;
+            if(trailingSpace) {
+              reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+            } else {
+              reorderedTokens.splice(insertPos, 0, verbTok);
+            }
+
+            // Update searchStartIdx to continue searching after this verb position
+            searchStartIdx = insertPos + (trailingSpace ? 2 : 1);
           } else {
-            reorderedTokens.splice(insertPos, 0, verbTok);
+            // No suitable verb found, move past this adverb
+            searchStartIdx = adverbSpaceIdx + 2;
           }
+        } else {
+          // No space after adverb, move on
+          searchStartIdx = firstContentIdx + 1;
+        }
+      } else {
+        // Not a V2 adverb. If it's a conjunction, continue from next position
+        // Otherwise, skip to next sentence boundary
+        if(firstContentTok && firstContentTok.type === 'word' &&
+           ['and','but','or'].includes(firstContentTok.en)) {
+          // Found conjunction, continue searching from after it
+          searchStartIdx = firstContentIdx + 1;
+        } else {
+          // Not a V2 adverb and not a conjunction, stop searching
+          break;
         }
       }
     }
