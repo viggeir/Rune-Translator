@@ -1231,6 +1231,9 @@ function processSentence(sentence) {
 
         if(adverbSpaceIdx !== -1) {
           // Find the first verb after the adverb+space (stop at conjunction or punctuation)
+          // NOTE: Currently grabs first verb (suitable for present tense system)
+          // Future: may need to distinguish auxiliaries (will, shall, can) from main verbs
+          // for proper handling of compound verb forms in past tense
           let verbIdx = -1;
           for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
             if(reorderedTokens[i].type === 'verb') {
