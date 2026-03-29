@@ -1030,12 +1030,33 @@ function processSentence(sentence) {
     return tok;
   });
 
-  // Step 6: fix word order (negation: do + not + verb → verb + eigi)
-  const reorderedTokens = [];
+  // Step 5b: Handle "to" + noun pattern
+  // Old Norse expresses motion/goal with accusative alone, not preposition + dative
+  // So "go to hall" becomes "fara höll" (not "fara til hallar")
+  // Remove "to" when followed by a noun, keeping noun as accusative object
+  const withoutToPrep = [];
   for(let i = 0; i < withAgreement.length; i++) {
     const tok = withAgreement[i];
     const next = withAgreement[i + 1];
     const next2 = withAgreement[i + 2];
+
+    // Pattern: "to" + space + noun (or other word)
+    if(tok.type === 'word' && tok.en === 'to' &&
+       next && next.type === 'space' &&
+       next2 && (next2.type === 'noun' || next2.type === 'word')) {
+      // Skip the "to" but keep the space and noun
+      // The noun will already be in accusative due to motion verb
+      continue;
+    }
+    withoutToPrep.push(tok);
+  }
+
+  // Step 6: fix word order (negation: do + not + verb → verb + eigi)
+  const reorderedTokens = [];
+  for(let i = 0; i < withoutToPrep.length; i++) {
+    const tok = withoutToPrep[i];
+    const next = withoutToPrep[i + 1];
+    const next2 = withoutToPrep[i + 2];
 
     // Pattern: "do" + (space) + "not" + (space) + verb
     if(tok.type === 'word' && tok.en === 'do' &&
@@ -1043,12 +1064,12 @@ function processSentence(sentence) {
        next2 && next2.type === 'word' && next2.en === 'not') {
       // Look for the verb after "not"
       let verbIdx = i + 3;
-      while(verbIdx < withAgreement.length &&
-            (withAgreement[verbIdx].type === 'space' ||
-             withAgreement[verbIdx].type === 'punct')) {
+      while(verbIdx < withoutToPrep.length &&
+            (withoutToPrep[verbIdx].type === 'space' ||
+             withoutToPrep[verbIdx].type === 'punct')) {
         verbIdx++;
       }
-      if(verbIdx < withAgreement.length && withAgreement[verbIdx].type === 'verb') {
+      if(verbIdx < withoutToPrep.length && withoutToPrep[verbIdx].type === 'verb') {
         // Skip "do" and "not", output verb then "eigi"
         i += 2; // skip to "not"
         continue;
