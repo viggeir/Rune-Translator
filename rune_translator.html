@@ -755,14 +755,61 @@ function runTranslate() {
     return tok;
   });
 
-  // Step 6: collect unknowns and build strings
+  // Step 6: fix word order (negation: do + not + verb → verb + eigi)
+  const reorderedTokens = [];
+  for(let i = 0; i < withAgreement.length; i++) {
+    const tok = withAgreement[i];
+    const next = withAgreement[i + 1];
+    const next2 = withAgreement[i + 2];
+
+    // Pattern: "do" + (space) + "not" + (space) + verb
+    if(tok.type === 'word' && tok.en === 'do' &&
+       next && next.type === 'space' &&
+       next2 && next2.type === 'word' && next2.en === 'not') {
+      // Look for the verb after "not"
+      let verbIdx = i + 3;
+      while(verbIdx < withAgreement.length &&
+            (withAgreement[verbIdx].type === 'space' ||
+             withAgreement[verbIdx].type === 'punct')) {
+        verbIdx++;
+      }
+      if(verbIdx < withAgreement.length && withAgreement[verbIdx].type === 'verb') {
+        // Skip "do" and "not", output verb then "eigi"
+        i += 2; // skip to "not"
+        continue;
+      }
+    }
+
+    // Pattern: "not" after a verb → output verb first, then eigi
+    if(tok.type === 'word' && tok.en === 'not') {
+      // Check if previous word was a verb
+      let prevVerb = null;
+      for(let j = reorderedTokens.length - 1; j >= 0; j--) {
+        if(reorderedTokens[j].type !== 'space' && reorderedTokens[j].type !== 'punct') {
+          if(reorderedTokens[j].type === 'verb') {
+            prevVerb = reorderedTokens[j];
+          }
+          break;
+        }
+      }
+      if(prevVerb) {
+        // Output "eigi" instead of "not"
+        reorderedTokens.push({type: 'word', en: 'not', on: 'eigi'});
+        continue;
+      }
+    }
+
+    reorderedTokens.push(tok);
+  }
+
+  // Step 7: collect unknowns and build strings
   const unknowns = [];
-  withAgreement.forEach(t => {
+  reorderedTokens.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
   let onStr = '';
-  withAgreement.forEach(t => {
+  reorderedTokens.forEach(t => {
     if     (t.type === 'space')   onStr += ' ';
     else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
             t.type === 'adjective' || t.type === 'possessive') onStr += (t.on || t.en) + ' ';
@@ -773,7 +820,7 @@ function runTranslate() {
 
   // Render ON with unknowns underlined
   let onHTML = '';
-  withAgreement.forEach(t => {
+  reorderedTokens.forEach(t => {
     if     (t.type === 'space')   onHTML += ' ';
     else if(t.type === 'punct')   onHTML += t.val;
     else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
