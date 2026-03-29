@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rune Translator — Endrborninn</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;color:#d4c9a8;font-family:'Cinzel',serif;padding:2rem 1.5rem 3rem;min-height:100vh}
+.title-rune{font-size:22px;color:#c9a84c;letter-spacing:5px;margin-bottom:6px}
+h1{font-family:'Cinzel',serif;font-size:20px;font-weight:600;color:#e8dfc0;letter-spacing:3px;text-transform:uppercase;margin-bottom:4px}
+.subtitle{font-family:'IM Fell English',serif;font-size:13px;color:#7a6e52;font-style:italic;margin-bottom:1.5rem;letter-spacing:.5px}
+textarea{width:100%;min-height:90px;background:#0d0b06;border:1px solid #3a3020;border-radius:8px;padding:14px 16px;font-family:'IM Fell English',serif;font-size:16px;color:#d4c9a8;resize:vertical;line-height:1.6;outline:none;margin-bottom:.85rem;transition:border-color .2s}
+textarea:focus{border-color:#6b5230}
+textarea::placeholder{color:#3d3525;font-style:italic}
+.step-block{background:#0a0804;border:1px solid #2e2516;border-radius:8px;padding:14px 16px;margin-bottom:.85rem;position:relative}
+.step-label{font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#4a3e28;margin-bottom:8px}
+.on-output{font-family:'IM Fell English',serif;font-size:18px;color:#a08840;line-height:1.6;min-height:28px;word-break:break-word}
+.on-output .unknown{color:#5c4e2a;font-style:italic;text-decoration:underline;text-decoration-style:dotted;cursor:help}
+.rune-output{font-family:'IM Fell English',serif;font-size:30px;letter-spacing:7px;color:#c9a84c;line-height:1.5;word-break:break-all;display:flex;flex-wrap:wrap;align-items:center;min-height:44px}
+.rune-char{display:inline-block;cursor:default;transition:color .12s,transform .1s}
+.rune-char:hover{color:#e8c76a;transform:scale(1.18)}
+.rune-char.space{width:14px}
+.tooltip-wrap{position:relative;display:inline-block}
+.tooltip-wrap:hover .tip{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.tip{position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%) translateY(0);background:#1a1408;border:1px solid #4a3e20;border-radius:5px;padding:4px 9px;font-size:10px;font-family:'Cinzel',serif;color:#a08840;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s,transform .15s;z-index:20;letter-spacing:.5px}
+.copy-btn{position:absolute;top:10px;right:10px;background:transparent;border:1px solid #2e2516;border-radius:5px;padding:4px 10px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#4a3e28;cursor:pointer;transition:all .15s}
+.copy-btn:hover{border-color:#8a6d2f;color:#c9a84c}
+.placeholder-text{font-family:'IM Fell English',serif;font-size:14px;color:#3d3525;font-style:italic}
+.unknown-key{margin-top:8px;font-family:'IM Fell English',serif;font-size:11px;color:#4a3e28;font-style:italic;line-height:1.5}
+.divider{height:1px;background:#1e1a0e;margin:1.25rem 0 1rem}
+.ref-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.ref-toggle .label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#4a3e28;transition:color .15s}
+.ref-toggle:hover .label{color:#8a6d2f}
+.ref-toggle .arrow{font-size:9px;color:#3d3220;transition:transform .2s}
+.ref-toggle.open .arrow{transform:rotate(90deg)}
+.futhark-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;margin-top:1rem}
+.rune-card{display:flex;flex-direction:column;align-items:center;padding:9px 4px 7px;border:1px solid #2a2010;border-radius:7px;background:#0a0804}
+.rune-card .r{font-size:22px;color:#c9a84c;margin-bottom:3px;line-height:1}
+.rune-card .l{font-size:9px;color:#7a6e52;font-family:'Cinzel',serif;letter-spacing:1px;text-transform:uppercase}
+.rune-card .n{font-size:8px;color:#4a3e28;font-family:'IM Fell English',serif;font-style:italic;margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="title-rune">ᚠᚢᚦᚬᚱᚴᚼᚾᛁᛋᛏᛒᛚᛘ</div>
+<h1>Rune Translator</h1>
+<p class="subtitle">English → Old Norse → Younger Futhark</p>
+
+<textarea id="inp" placeholder="Enter English text..." oninput="runTranslate()"></textarea>
+
+<div class="step-block">
+  <div class="step-label">Old Norse</div>
+  <div class="on-output" id="onOut"><span class="placeholder-text">Old Norse will appear here</span></div>
+  <div class="unknown-key" id="unknownKey" style="display:none"></div>
+  <button class="copy-btn" onclick="copyON()">Copy</button>
+</div>
+
+<div class="step-block">
+  <div class="step-label">Younger Futhark</div>
+  <div class="rune-output" id="runeOut"><span class="placeholder-text">Runes will appear here</span></div>
+  <button class="copy-btn" onclick="copyRunes()">Copy</button>
+</div>
+
+<div class="ref-toggle" id="refToggle" onclick="toggleRef()">
+  <span class="arrow">▶</span>
+  <span class="label">Younger Futhark Reference</span>
+</div>
+<div id="refSection" style="display:none">
+  <div class="divider"></div>
+  <div class="futhark-grid" id="futharkGrid"></div>
+</div>
+
+<script>
+// ─── YOUNGER FUTHARK — 16 runes, Viking Age ─────────────────────────────────
+// Historically correct: Younger Futhark intentionally collapses distinctions.
+// One rune covers multiple sounds — ambiguity is a feature, not a bug.
+const FUTHARK = [
+  {r:'ᚠ', sounds:['f','v'],        name:'Fé'},
+  {r:'ᚢ', sounds:['u','o','w'],    name:'Úr'},
+  {r:'ᚦ', sounds:['th','dh'],      name:'Þurs'},
+  {r:'ᚬ', sounds:['a','æ','o2'],   name:'Óss'},
+  {r:'ᚱ', sounds:['r'],            name:'Reið'},
+  {r:'ᚴ', sounds:['k','g'],        name:'Kaun'},
+  {r:'ᚼ', sounds:['h'],            name:'Hagall'},
+  {r:'ᚾ', sounds:['n'],            name:'Nauðr'},
+  {r:'ᛁ', sounds:['i','e','j','y'],name:'Íss'},
+  {r:'ᛋ', sounds:['s','z'],        name:'Sól'},
+  {r:'ᛏ', sounds:['t','d'],        name:'Týr'},
+  {r:'ᛒ', sounds:['b','p'],        name:'Bjarkan'},
+  {r:'ᛚ', sounds:['l'],            name:'Lögr'},
+  {r:'ᛘ', sounds:['m'],            name:'Maðr'},
+];
+
+// Build sound → rune lookup (first assignment wins)
+const soundToRune = {};
+FUTHARK.forEach(f => {
+  f.sounds.forEach(s => { if(!soundToRune[s]) soundToRune[s] = {r:f.r, name:f.name}; });
+});
+
+// ─── OLD NORSE PHONEME RULES → YOUNGER FUTHARK SOUNDS ───────────────────────
+// Sorted longest-first so digraphs match before single chars.
+const ON_RULES = [
+  // Digraphs & special sequences
+  ['ng', 'n'],    // ng → n (YF has no separate ng rune)
+  ['nk', 'n'],    // nk → n+k but often simplified
+  ['kk', 'k'], ['gg', 'k'],
+  ['tt', 't'], ['dd', 't'],
+  ['nn', 'n'], ['ll', 'l'], ['rr', 'r'],
+  ['ff', 'f'], ['ss', 's'], ['mm', 'm'],
+  ['bb', 'b'], ['pp', 'b'],
+  ['ei', 'i'], ['ey', 'i'],
+  ['au', 'u'],
+  ['kv', 'k'],   // kv = k sound in YF
+  // ON special characters
+  ['þ',  'th'], ['ð',  'th'],
+  ['æ',  'a'],  ['œ',  'i'],
+  ['ø',  'u'],  ['ö',  'u'], ['ǫ', 'u'],
+  ['á',  'a'],  ['é',  'i'], ['í', 'i'],
+  ['ó',  'u'],  ['ú',  'u'], ['ý', 'i'],
+  // Plain letters — YF collapses
+  ['a','a'], ['b','b'], ['d','t'], ['e','i'], ['f','f'],
+  ['g','k'], ['h','h'], ['i','i'], ['j','i'], ['k','k'],
+  ['l','l'], ['m','m'], ['n','n'], ['o','u'], ['p','b'],
+  ['r','r'], ['s','s'], ['t','t'], ['u','u'], ['v','f'],
+  ['w','u'], ['y','i'], ['z','s'],
+];
+const ON_SORTED = [...ON_RULES].sort((a,b) => b[0].length - a[0].length);
+
+function onToRunes(text) {
+  const lower = text.toLowerCase();
+  let i = 0;
+  const result = [];
+  while(i < lower.length) {
+    if(lower[i] === ' ') { result.push({space:true}); i++; continue; }
+    // Skip true geminates (already handled by rules, catch any remaining)
+    if(i > 0 && lower[i] === lower[i-1] && !'aeiouáéíóúýæøöǫ'.includes(lower[i])) { i++; continue; }
+    let matched = false;
+    for(const [pat, sound] of ON_SORTED) {
+      if(lower.slice(i, i+pat.length) === pat) {
+        const entry = soundToRune[sound];
+        if(entry) result.push({rune:entry.r, name:entry.name});
+        i += pat.length; matched = true; break;
+      }
+    }
+    if(!matched) i++;
+  }
+  return result;
+}
+
+// ─── PRONOUN CASE TABLE ──────────────────────────────────────────────────────
+// Each personal pronoun has nominative (subject) and accusative (object) forms.
+// Dative included for prepositional contexts (to me, with him, etc.)
+const PRONOUNS = {
+  'i':    { nom:'ek',   acc:'mik',   dat:'mér' },
+  'you':  { nom:'þú',   acc:'þik',   dat:'þér' },
+  'he':   { nom:'hann', acc:'hann',  dat:'honum' },
+  'she':  { nom:'hon',  acc:'hana',  dat:'henni' },
+  'it':   { nom:'þat',  acc:'þat',   dat:'því' },
+  'we':   { nom:'vér',  acc:'oss',   dat:'oss' },
+  'they': { nom:'þeir', acc:'þá',    dat:'þeim' },
+};
+
+// English subject pronouns — used to detect nominative position
+const SUBJECT_PRONOUNS = new Set(['i','you','he','she','it','we','they','who']);
+
+// English object/preposition pronouns — used to detect accusative position
+const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom']);
+
+// Prepositions that trigger dative in ON
+const DATIVE_PREPS = new Set(['with','to','at','from','by','beside','between','against','within','toward']);
+
+// ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
+// Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
+// Pronouns: ek, þú, hann/hon/þat, vér, þér (plural you), þeir
+// Structure: [ek, þú, hann, vér, þér, þeir]
+const CONJ = {
+  // vera — to be (irregular)
+  'be':     ['em',    'ert',   'er',    'erum',   'eruð',   'eru'],
+  // hafa — to have (weak)
+  'have':   ['hefi',  'hefir', 'hefir', 'höfum',  'hafið',  'hafa'],
+  // elska — to love (weak class 2)
+  'love':   ['elska', 'elskar','elskar','elskum',  'elskið', 'elska'],
+  // sjá — to see (strong class 5)
+  'see':    ['sé',    'sér',   'sér',   'séum',   'séið',   'sjá'],
+  // fara — to go (strong class 6)
+  'go':     ['fer',   'ferr',  'ferr',  'förum',  'farið',  'fara'],
+  // koma — to come (strong class 4)
+  'come':   ['kem',   'kemr',  'kemr',  'komum',  'komið',  'koma'],
+  // vita — to know (preterite-present)
+  'know':   ['veit',  'veizt', 'veit',  'vitum',  'vitið',  'vitu'],
+  // gefa — to give (strong class 5)
+  'give':   ['gef',   'gefr',  'gefr',  'gefum',  'gefið',  'gefa'],
+  // taka — to take (strong class 6)
+  'take':   ['tek',   'tekr',  'tekr',  'tökum',  'takið',  'taka'],
+  // segja — to say (weak)
+  'say':    ['segi',  'segir', 'segir', 'segjum', 'segið',  'segja'],
+  // gera — to do/make (weak)
+  'do':     ['geri',  'gerir', 'gerir', 'gerum',  'gerið',  'gera'],
+  'make':   ['geri',  'gerir', 'gerir', 'gerum',  'gerið',  'gera'],
+  // vilja — to want (preterite-present)
+  'want':   ['vil',   'vilt',  'vill',  'viljum', 'vilið',  'vilja'],
+  // munu — will (modal)
+  'will':   ['mun',   'munt',  'mun',   'munum',  'munuð',  'munu'],
+  // skulu — shall (modal)
+  'shall':  ['skal',  'skalt', 'skal',  'skulum', 'skuluð', 'skulu'],
+  // mega — may (preterite-present)
+  'may':    ['má',    'mátt',  'má',    'megum',  'megið',  'mega'],
+  // kunna — can (preterite-present)
+  'can':    ['kann',  'kannt', 'kann',  'kunnum', 'kunnið', 'kunna'],
+  // þurfa — must/need (preterite-present)
+  'must':   ['þarf',  'þarft', 'þarf',  'þurfum', 'þurfið', 'þurfa'],
+  'need':   ['þarf',  'þarft', 'þarf',  'þurfum', 'þurfið', 'þurfa'],
+  // finna — to find/feel (strong class 3)
+  'find':   ['finn',  'finnr', 'finnr', 'finnum', 'finnið', 'finna'],
+  'feel':   ['finn',  'finnr', 'finnr', 'finnum', 'finnið', 'finna'],
+  // halda — to hold/keep (strong class 7)
+  'hold':   ['held',  'heldr', 'heldr', 'höldum', 'haldið', 'halda'],
+  'keep':   ['held',  'heldr', 'heldr', 'höldum', 'haldið', 'halda'],
+  // standa — to stand (strong class 6)
+  'stand':  ['stend', 'stendr','stendr','stöndum','standið','standa'],
+  // ganga — to walk/go (strong class 7)
+  'walk':   ['geng',  'gengr', 'gengr', 'göngum', 'gangið', 'ganga'],
+  // ríða — to ride (strong class 1)
+  'ride':   ['ríð',   'ríðr',  'ríðr',  'ríðum',  'ríðið',  'ríða'],
+  // berjast — to fight (mediopassive)
+  'fight':  ['berjumk','bersk', 'bersk', 'berjumk','berjisk','berjask'],
+  // vinna — to win (strong class 3)
+  'win':    ['vinn',  'vinnr', 'vinnr', 'vinnum', 'vinnið', 'vinna'],
+  // elska repeated entries for adore/cherish handled via alias
+  'adore':  ['elska', 'elskar','elskar','elskum',  'elskið', 'elska'],
+  'cherish':['elska', 'elskar','elskar','elskum',  'elskið', 'elska'],
+  // mæla — to speak (weak)
+  'speak':  ['mæli',  'mælir', 'mælir', 'mælum',  'mælið',  'mæla'],
+  // heyra — to hear (weak)
+  'hear':   ['heyri', 'heyrir','heyrir','heyrum',  'heyriðr','heyra'],
+  // lifa — to live (weak)
+  'live':   ['lifi',  'lifir', 'lifir', 'lifum',  'lifið',  'lifa'],
+  // sofa — to sleep (strong class 4)
+  'sleep':  ['sef',   'sefr',  'sefr',  'sofum',  'sofið',  'sofa'],
+  // drekka — to drink (strong class 3)
+  'drink':  ['drekk', 'drekkr','drekkr','drekkum','drekkið','drekka'],
+  // eta — to eat (strong class 5)
+  'eat':    ['et',    'etr',   'etr',   'etum',   'etið',   'eta'],
+  // trúa — to trust/believe (weak)
+  'trust':  ['trúi',  'trúir', 'trúir', 'trúum',  'trúið',  'trúa'],
+  'believe':['trúi',  'trúir', 'trúir', 'trúum',  'trúið',  'trúa'],
+  // vita again for 'know'
+  'fear':   ['ottumk','ottusk','ottusk','ottumsk','ottisk','ottask'],
+  // sœkja — to seek (weak)
+  'seek':   ['sœki',  'sœkir', 'sœkir', 'sœkjum','sœkið',  'sœkja'],
+};
+
+// Map ON nominative pronoun → conjugation index (for CONJ arrays)
+const PRON_TO_IDX = {
+  'ek':1, 'þú':2, 'hann':3, 'hon':3, 'þat':3, 'vér':4, 'þér':5, 'þeir':6,
+};
+// Adjust to 0-based
+Object.keys(PRON_TO_IDX).forEach(k => PRON_TO_IDX[k]--);
+
+// ─── ENGLISH → OLD NORSE DICTIONARY ─────────────────────────────────────────
+// "the" removed — ON definite article is a suffix, not a standalone word.
+// Pronouns handled separately via PRONOUNS table above.
+// Verbs in present tense conjugated via CONJ table when subject is known.
+const EN_TO_ON = {
+  // ── Greetings ──
+  'hello':'heil', 'hi':'heil', 'hail':'heil',
+  'greetings':'heill ok sæl', 'welcome':'velkominn',
+  'farewell':'far vel', 'goodbye':'far vel', 'be well':'ver heil',
+  // ── Non-personal pronouns & determiners ──
+  'my':'minn', 'mine':'minn', 'your':'þinn', 'yours':'þinn',
+  'his':'hans', 'hers':'hennar', 'its':'þess',
+  'our':'várr', 'ours':'várr', 'their':'þeirra', 'theirs':'þeirra',
+  'myself':'sjálfr mér', 'yourself':'sjálfr þér', 'himself':'sjálfr honum',
+  'herself':'sjálfr henni', 'itself':'sjálft þat', 'ourselves':'sjálfir oss',
+  'this':'þetta', 'that':'þat', 'these':'þessi', 'those':'þeir',
+  'who':'hverr', 'whom':'hverjum', 'which':'hvert', 'what':'hvat',
+  'where':'hvar', 'when':'hvenær', 'why':'hví', 'how':'hvernig',
+  'someone':'nokkverr', 'something':'nokkut', 'anyone':'hverr sem',
+  'anything':'hvat sem', 'everyone':'allir', 'everything':'allt', 'nothing':'ekkert',
+  // ── Articles & Particles ──
+  // "the" intentionally omitted — ON uses suffixed articles
+  'a':'einn', 'an':'einn',
+  'and':'ok', 'or':'eða', 'but':'en', 'if':'ef', 'then':'þá', 'so':'svá',
+  'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjök', 'too':'of', 'also':'ok',
+  'now':'nú', 'here':'hér', 'there':'þar', 'still':'enn',
+  'ever':'jafnan', 'never':'aldri', 'always':'jafnan', 'often':'opt',
+  'much':'mjök', 'many':'margr', 'more':'meir', 'most':'mest',
+  'few':'fár', 'less':'minna', 'all':'allr', 'some':'nokkurr', 'any':'hverr',
+  'own':'eiginn', 'same':'sami', 'other':'annarr', 'another':'annarr',
+  'such':'slíkr', 'only':'einn', 'even':'jafnvel',
+  // ── Prepositions ──
+  'in':'í', 'on':'á', 'at':'at', 'to':'til', 'of':'af', 'from':'frá',
+  'with':'með', 'by':'við', 'for':'fyrir', 'about':'um', 'as':'sem',
+  'into':'í', 'through':'þverr', 'over':'yfir', 'under':'undir',
+  'before':'fyrir', 'after':'eptir', 'between':'milli', 'against':'gegn',
+  'without':'án', 'within':'innan', 'above':'ofan', 'below':'neðan', 'beside':'hjá',
+  // ── Verbs — present tense conjugated dynamically via CONJ table ──
+  // Past tense & participles kept here as static lookups
+  'loved':'elskaði', 'loving':'elskandi',
+  'adored':'elskaði', 'cherished':'elskaði',
+  'been':'verit', 'being':'verandi',
+  'had':'hafði',
+  'did':'gerði', 'done':'gert', 'made':'gerði',
+  'would':'mundi', 'should':'skyldi', 'might':'mætti', 'could':'kunni',
+  'went':'gekk', 'gone':'farit',
+  'came':'kom',
+  'saw':'sá', 'seen':'séð',
+  'knew':'vissi', 'known':'vitað',
+  'thought':'þótti',
+  'said':'sagði', 'told':'taldi',
+  'spoke':'mælti', 'asked':'spurði', 'answered':'svaraði',
+  'gave':'gaf', 'given':'gefið',
+  'took':'tók', 'taken':'tekit',
+  'put':'lagði', 'set':'setti', 'kept':'hélt',
+  'became':'varð',
+  'showed':'sýndi', 'felt':'fann',
+  'found':'fann', 'left':'fór',
+  'called':'kallaði', 'tried':'freisti', 'wanted':'vildi',
+  'lived':'lifði', 'died':'dó',
+  'killed':'drap', 'fought':'barðist',
+  'won':'vann', 'lost':'tapað',
+  'rode':'reið', 'ran':'rann',
+  'fell':'fell',
+  'stood':'stóð', 'sat':'sat',
+  'lay':'lá', 'rose':'reis',
+  'held':'hélt', 'bore':'bar',
+  'brought':'fœrði', 'sent':'sendi',
+  'sought':'sótti', 'heard':'heyrði',
+  'followed':'fylgði', 'led':'leiddi',
+  'swore':'sór', 'swear':'sverja', 'vow':'heitast',
+  'protect':'verja', 'guard':'gæta', 'serve':'þjóna',
+  'returned':'sneri aftr', 'rested':'hvíldist', 'slept':'svaf',
+  'ate':'át', 'drank':'drakk',
+  'forge':'smíða', 'forged':'smíðaði',
+  'carve':'rista', 'carved':'risti', 'mark':'merkja', 'marked':'merkti',
+  'await':'bíða', 'awaited':'beið',
+  'remembered':'mundi', 'forgot':'gleymdi', 'forget':'gleyma',
+  'feared':'ottaðist', 'hoped':'vonaðist',
+  'hated':'hataði', 'betrayed':'svék', 'betray':'svíkja',
+  // ── Nouns: People ──
+  'man':'maðr', 'men':'menn', 'woman':'kona', 'women':'konur',
+  'child':'barn', 'children':'börn', 'boy':'sveinn', 'girl':'mær',
+  'king':'konungr', 'queen':'dróttning', 'lord':'dróttinn', 'lady':'frú',
+  'warrior':'kappi', 'jarl':'jarl', 'thane':'þegn', 'carl':'karl', 'thrall':'þræll',
+  'shield maiden':'skjaldmær', 'shieldmaiden':'skjaldmær', 'shield-maiden':'skjaldmær',
+  'warrior-woman':'skjaldmær',
+  'friend':'vinr', 'foe':'óvinr', 'enemy':'úvinr',
+  'brother':'bróðir', 'sister':'systir', 'father':'faðir', 'mother':'móðir',
+  'son':'sonr', 'daughter':'dóttir', 'wife':'kona', 'husband':'bóndi',
+  'family':'fjölskylda', 'kin':'frændr', 'clan':'ætt', 'tribe':'þjóð',
+  // ── Gods & Myth ──
+  'god':'guð', 'gods':'goðin', 'goddess':'gyðja',
+  'norns':'nornir', 'valkyrie':'valkyrja', 'valkyries':'valkyrjur',
+  'odin':'óðinn', 'thor':'þórr', 'freya':'freyja', 'loki':'loki',
+  'tyr':'týr', 'baldur':'baldr', 'heimdall':'heimdallr', 'njord':'njörðr',
+  'yggdrasil':'yggdrasill', 'bifrost':'bifröst', 'valhalla':'valhöll',
+  'asgard':'ásgarðr', 'midgard':'miðgarðr', 'niflheim':'niflheimr',
+  'helheim':'helheimr', 'jotunheim':'jötunheimr',
+  // ── Nature ──
+  'world':'heimr', 'earth':'jörð', 'sky':'himinn', 'sea':'haf', 'ocean':'úthaf',
+  'land':'land', 'island':'ey', 'forest':'skógr', 'mountain':'fjall',
+  'river':'á', 'fire':'eldr', 'water':'vatn', 'ice':'ís',
+  'wind':'vindr', 'storm':'stormr', 'snow':'snjór', 'rain':'regn',
+  'sun':'sól', 'moon':'máni', 'star':'stjarna', 'stars':'stjörnur',
+  'night':'nótt', 'day':'dagr', 'dawn':'dagrenning', 'dusk':'rökkr',
+  'year':'ár', 'winter':'vetr', 'summer':'sumar', 'spring':'vár', 'autumn':'haust',
+  'tree':'tré', 'ash':'askr', 'oak':'eik', 'root':'rót', 'branch':'kvistr',
+  'darkness':'myrkr', 'shadow':'skuggi', 'light':'ljós', 'flame':'logi',
+  'void':'ginnungagap', 'morning':'morgunn', 'evening':'aptan',
+  // ── Animals ──
+  'wolf':'úlfr', 'raven':'hrafn', 'bear':'björn', 'horse':'hestr',
+  'eagle':'örn', 'serpent':'ormr', 'dragon':'dreki', 'ox':'uxi',
+  // ── War & Weapons ──
+  'sword':'sverð', 'axe':'øx', 'spear':'spjót', 'shield':'skjöldr',
+  'bow':'bogi', 'arrow':'ör', 'helm':'hjálmr', 'mail':'brynja',
+  'war':'orrusta', 'battle':'bardagi', 'victory':'sigr', 'death':'dauði',
+  'life':'líf', 'birth':'burðr',
+  // ── Ship ──
+  'ship':'skip', 'boat':'bátr', 'sail':'segl',
+  // ── Place ──
+  'hall':'höll', 'house':'hús', 'home':'heimr', 'gate':'hlið',
+  'road':'vegr', 'path':'stígr', 'bridge':'brú',
+  // ── Materials ──
+  'gold':'gull', 'silver':'silfr', 'iron':'járn', 'steel':'stál',
+  'wood':'viðr', 'stone':'steinn', 'blood':'blóð', 'bone':'bein',
+  // ── Abstract ──
+  'heart':'hjarta', 'soul':'sál', 'spirit':'andi', 'mind':'hugr',
+  'name':'nafn', 'word':'orð', 'oath':'eiðr',
+  'honor':'drengskapr', 'glory':'dýrð', 'shame':'skömm', 'courage':'hugrekki',
+  'strength':'styrkr', 'power':'máttr', 'wisdom':'vísdómr', 'truth':'sannr',
+  // love as noun/concept vs verb (elska) distinguished:
+  'affection':'ást', 'devotion':'ást',
+  'hate':'hatur', 'anger':'reiði', 'grief':'harmi', 'joy':'gleði',
+  'sorrow':'sorg', 'hope':'vón', 'dream':'draumr', 'memory':'minni',
+  'rune':'rún', 'runes':'rúnar', 'magic':'galdrar', 'spell':'galdur',
+  'time':'tími', 'fate':'örlög', 'destiny':'wyrd', 'doom':'dómr',
+  'saga':'saga', 'song':'söngr',
+  // ── Body ──
+  'hand':'hönd', 'eye':'auga', 'eyes':'augu', 'head':'höfuð',
+  'mouth':'munnr', 'tongue':'tunga', 'voice':'rödd',
+  // ── Adjectives ──
+  'great':'mikill', 'old':'gamall', 'young':'ungr',
+  'high':'hár', 'deep':'djúpr', 'long':'langr', 'strong':'sterkr',
+  'true':'sannr', 'free':'frjáls', 'dark':'dökkr', 'bright':'bjártr',
+  'cold':'kaldr', 'hot':'heitr', 'hard':'harðr', 'sharp':'hvass',
+  'holy':'heilagr', 'sacred':'heilagr', 'good':'góðr', 'evil':'illr',
+  'dead':'dauðr', 'alive':'lifandi', 'brave':'hugaðr', 'noble':'göfugr',
+  'swift':'skjótr', 'silent':'þögull', 'wise':'víss',
+  'mighty':'máttugr', 'fierce':'grimmr', 'proud':'stórr',
+  'beautiful':'fagr', 'fair':'fagr', 'black':'svartr', 'white':'hvítr',
+  'red':'rauðr', 'blue':'blár', 'green':'grœnn',
+  'new':'nýr', 'first':'fyrstr', 'last':'síðastr',
+};
+
+// ─── GRAMMAR-AWARE TOKENISER ─────────────────────────────────────────────────
+// Strategy:
+//   1. Split input into word tokens
+//   2. Identify each word as: pronoun, verb (conjugable), or dictionary word
+//   3. Resolve pronoun case based on position relative to verbs
+//   4. Conjugate verbs based on nearest preceding subject pronoun
+
+function runTranslate() {
+  const inp     = document.getElementById('inp').value.trim();
+  const onOutEl = document.getElementById('onOut');
+  const runeEl  = document.getElementById('runeOut');
+  const ukEl    = document.getElementById('unknownKey');
+
+  if(!inp) {
+    onOutEl.innerHTML  = '<span class="placeholder-text">Old Norse will appear here</span>';
+    runeEl.innerHTML   = '<span class="placeholder-text">Runes will appear here</span>';
+    ukEl.style.display = 'none';
+    return;
+  }
+
+  // Step 1: raw tokenise
+  const raw = inp.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
+
+  // Step 2: classify each word token
+  // types: 'space', 'punct', 'subj_pron', 'obj_pron', 'verb', 'word', 'unknown'
+  const classified = [];
+  let i = 0;
+  while(i < raw.length) {
+    const tok = raw[i];
+    if(/^\s+$/.test(tok))                        { classified.push({type:'space'}); i++; continue; }
+    if(!/[a-záéíóúýæøöǫþðä]/.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
+
+    // Two-word phrase check first
+    let phraseMatched = false;
+    if(i+2 < raw.length && /^\s+$/.test(raw[i+1]) && /[a-z]/.test(raw[i+2])) {
+      const phrase = tok + ' ' + raw[i+2];
+      if(EN_TO_ON[phrase]) {
+        classified.push({type:'word', en:phrase, on:EN_TO_ON[phrase]});
+        i += 3; phraseMatched = true;
+      }
+    }
+    if(phraseMatched) continue;
+
+    const clean = tok.replace(/^'+|'+$/g,'');
+
+    if(PRONOUNS[clean]) {
+      // Classify as subject or object pronoun — will resolve case in step 3
+      classified.push({type:'pronoun', en:clean, pron:PRONOUNS[clean]});
+    } else if(CONJ[clean]) {
+      classified.push({type:'verb', en:clean});
+    } else if(EN_TO_ON[clean]) {
+      classified.push({type:'word', en:clean, on:EN_TO_ON[clean]});
+    } else {
+      classified.push({type:'unknown', en:clean});
+    }
+    i++;
+  }
+
+  // Step 3: resolve pronoun case
+  // Rule: a pronoun is nominative (subject) if it comes before a verb in the same clause.
+  //       It's accusative if it follows a verb or follows a preposition.
+  //       Dative if directly preceded by a dative-triggering preposition.
+  const wordToks = classified.filter(t => t.type !== 'space' && t.type !== 'punct');
+  const resolved = classified.map((tok, absIdx) => {
+    if(tok.type !== 'pronoun') return tok;
+
+    // Find the word tokens around this pronoun
+    const wordIdx = wordToks.indexOf(tok);
+    const prev = wordToks[wordIdx - 1];
+    const next = wordToks[wordIdx + 1];
+
+    let caseForm = 'nom'; // default to nominative
+
+    // If preceded by a dative preposition → dative
+    if(prev && prev.type === 'word' && DATIVE_PREPS.has(prev.en)) {
+      caseForm = 'dat';
+    }
+    // If preceded by a verb → accusative (object position)
+    else if(prev && prev.type === 'verb') {
+      caseForm = 'acc';
+    }
+    // If followed by a verb (subject position) → nominative
+    else if(next && next.type === 'verb') {
+      caseForm = 'nom';
+    }
+    // If preceded by another noun or pronoun and no verb yet seen → accusative
+    else if(prev && (prev.type === 'word' || prev.type === 'pronoun')) {
+      caseForm = 'acc';
+    }
+
+    return { ...tok, on: tok.pron[caseForm] };
+  });
+
+  // Step 4: conjugate verbs
+  // Find the most recent preceding subject pronoun's ON form and use it to pick conjugation.
+  let lastSubjON = null; // ON nominative pronoun string
+  const conjugated = resolved.map(tok => {
+    // Track subject pronouns
+    if(tok.type === 'pronoun' && tok.on) {
+      // Only update lastSubj if this resolved to nominative
+      const p = tok.pron;
+      if(tok.on === p.nom) lastSubjON = tok.on;
+    }
+    if(tok.type !== 'verb') return tok;
+
+    const forms = CONJ[tok.en];
+    if(!forms) return { ...tok, on: tok.en }; // fallback: pass through
+
+    const idx = lastSubjON ? (PRON_TO_IDX[lastSubjON] ?? 0) : 0;
+    return { ...tok, on: forms[idx] };
+  });
+
+  // Step 5: collect unknowns and build strings
+  const unknowns = [];
+  conjugated.forEach(t => {
+    if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
+  });
+
+  let onStr = '';
+  conjugated.forEach(t => {
+    if     (t.type === 'space')   onStr += ' ';
+    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb') onStr += (t.on || t.en) + ' ';
+    else if(t.type === 'unknown') onStr += t.en + ' ';
+    // punct skipped
+  });
+  onStr = onStr.trim();
+
+  // Render ON with unknowns underlined
+  let onHTML = '';
+  conjugated.forEach(t => {
+    if     (t.type === 'space')   onHTML += ' ';
+    else if(t.type === 'punct')   onHTML += t.val;
+    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb')
+      onHTML += (t.on || t.en) + ' ';
+    else onHTML += `<span class="unknown" title="No Old Norse match for &quot;${t.en}&quot;">${t.en}</span> `;
+  });
+  onOutEl.innerHTML = onHTML.trim() || '<span class="placeholder-text">—</span>';
+
+  if(unknowns.length) {
+    ukEl.textContent   = `Dotted underline = no dictionary match, shown as-is: ${unknowns.join(', ')}`;
+    ukEl.style.display = 'block';
+  } else {
+    ukEl.style.display = 'none';
+  }
+
+  // ON → Younger Futhark
+  const runes = onToRunes(onStr);
+  if(!runes.length) { runeEl.innerHTML='<span class="placeholder-text">—</span>'; return; }
+  runeEl.innerHTML = runes.map(r => {
+    if(r.space) return '<span class="rune-char space"> </span>';
+    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
+  }).join('');
+}
+
+// ─── COPY ────────────────────────────────────────────────────────────────────
+function copyON() {
+  navigator.clipboard.writeText(document.getElementById('onOut').textContent).catch(()=>{});
+  flashCopy(document.querySelectorAll('.copy-btn')[0]);
+}
+function copyRunes() {
+  const text = [...document.getElementById('runeOut').querySelectorAll('.rune-char')]
+    .map(el => el.textContent).join('');
+  navigator.clipboard.writeText(text).catch(()=>{});
+  flashCopy(document.querySelectorAll('.copy-btn')[1]);
+}
+function flashCopy(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1400); }
+
+// ─── REFERENCE GRID ──────────────────────────────────────────────────────────
+function toggleRef() {
+  const sec  = document.getElementById('refSection');
+  const tog  = document.getElementById('refToggle');
+  const open = sec.style.display==='none';
+  sec.style.display = open ? 'block' : 'none';
+  tog.classList.toggle('open', open);
+}
+
+(function buildGrid(){
+  document.getElementById('futharkGrid').innerHTML = FUTHARK.map(({r,sounds,name}) =>
+    `<div class="rune-card">
+      <div class="r">${r}</div>
+      <div class="l">${sounds.join('/')}</div>
+      <div class="n">${name}</div>
+    </div>`
+  ).join('');
+})();
+</script>
+</body>
+</html>
