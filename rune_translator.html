@@ -171,10 +171,17 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
 const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
+// "to" is dative EXCEPT after motion verbs (where it's accusative)
+// Motion verbs handle "to" separately in Step 5b
+const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
 
 // V2 (Verb-Second) adverbs that trigger reordering
 // Only these specific adverbs consistently trigger V2 in Old Norse
 const V2_ADVERBS = new Set(['then','now','so']);
+
+// Motion verbs that take accusative object without preposition
+// For these, "to" means motion → remove preposition, use accusative
+const MOTION_VERBS = new Set(['go','come','travel','walk','ride','sail','fly','move','run','return','drive']);
 
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
@@ -1003,8 +1010,31 @@ function processSentence(sentence) {
       }
 
       // 1. Check if preceded by dative preposition (highest priority)
-      if(prevWord && prevWord.type === 'word' && DATIVE_PREPS.has(prevWord.en)) {
-        caseForm = 'dat';
+      if(prevWord && prevWord.type === 'word') {
+        if(DATIVE_PREPS.has(prevWord.en)) {
+          caseForm = 'dat';
+        }
+        // Special case: "to" is dative UNLESS preceded by motion verb
+        else if(prevWord.en === 'to') {
+          // Check if there's a motion verb before "to"
+          let hasMotionVerbBeforeTo = false;
+          for(let j = idx - 1; j >= 0; j--) {
+            if(conjugated[j].type === 'verb') {
+              if(MOTION_VERBS.has(conjugated[j].en)) {
+                hasMotionVerbBeforeTo = true;
+              }
+              break;
+            }
+            if(conjugated[j].type === 'punct') {
+              break;
+            }
+          }
+          // If no motion verb before "to", then "to" is dative
+          if(!hasMotionVerbBeforeTo) {
+            caseForm = 'dat';
+          }
+          // If motion verb before "to", stays nominative (will be accusative from verb detection)
+        }
       }
       // 2. Determine accusative vs nominative based on verb position
       else {
@@ -1081,23 +1111,40 @@ function processSentence(sentence) {
     return tok;
   });
 
-  // Step 5b: Handle "to" + noun pattern
+  // Step 5b: Handle "to" + noun pattern (motion verbs only)
   // Old Norse expresses motion/goal with accusative alone, not preposition + dative
-  // So "go to hall" becomes "fara höll" (not "fara til hallar")
-  // Remove "to" when followed by a noun, keeping noun as accusative object
+  // "to" after motion verb = accusative: "go to hall" → "fara höll"
+  // "to" after other verbs = dative: "give to him" → "gefa honum" (dative)
+  // Remove "to" ONLY for motion verbs; keep for others (treated as regular preposition)
   const withoutToPrep = [];
   for(let i = 0; i < withAgreement.length; i++) {
     const tok = withAgreement[i];
     const next = withAgreement[i + 1];
     const next2 = withAgreement[i + 2];
 
-    // Pattern: "to" + space + noun (or other word)
+    // Pattern: "to" + space + noun
     if(tok.type === 'word' && tok.en === 'to' &&
        next && next.type === 'space' &&
        next2 && (next2.type === 'noun' || next2.type === 'word')) {
-      // Skip the "to" but keep the space and noun
-      // The noun will already be in accusative due to motion verb
-      continue;
+      // Check if there's a motion verb before this "to"
+      let hasMotionVerbBefore = false;
+      for(let j = i - 1; j >= 0; j--) {
+        if(withAgreement[j].type === 'verb') {
+          // Check if this verb is a motion verb
+          if(MOTION_VERBS.has(withAgreement[j].en)) {
+            hasMotionVerbBefore = true;
+          }
+          break; // Stop at first verb
+        }
+        if(withAgreement[j].type === 'punct') {
+          break; // Stop at punctuation
+        }
+      }
+
+      if(hasMotionVerbBefore) {
+        // Skip the "to" for motion verbs (use accusative)
+        continue;
+      }
     }
     withoutToPrep.push(tok);
   }
