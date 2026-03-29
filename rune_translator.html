@@ -172,6 +172,10 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
 const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
 
+// V2 (Verb-Second) adverbs that trigger reordering
+// Only these specific adverbs consistently trigger V2 in Old Norse
+const V2_ADVERBS = new Set(['then','now','so']);
+
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
 // Pronouns: ek, þú, hann/hon/þat, vér, þér (plural you), þeir
@@ -247,8 +251,8 @@ const CONJ = {
   // trúa — to trust/believe (weak)
   'trust':  ['trúi',  'trúir', 'trúir', 'trúum',  'trúið',  'trúa'],
   'believe':['trúi',  'trúir', 'trúir', 'trúum',  'trúið',  'trúa'],
-  // vita again for 'know'
-  'fear':   ['ottumk','ottusk','ottusk','ottumsk','ottisk','ottask'],
+  // ótta — to fear (mediopassive)
+  'fear':   ['óttumk','óttask','óttask','óttumsk','óttisk','óttask'],
   // sœkja — to seek (weak)
   'seek':   ['sœki',  'sœkir', 'sœkir', 'sœkjum','sœkið',  'sœkja'],
 };
@@ -455,7 +459,7 @@ const EN_TO_ON = {
   'anything':'hvat sem', 'everyone':'allir', 'everything':'allt', 'nothing':'ekkert',
   // ── Articles & Particles ──
   // "the" intentionally omitted — ON uses suffixed articles
-  'a':'einn', 'an':'einn',
+  // "a/an" removed — ON usually omits indefinite article
   'and':'ok', 'or':'eða', 'but':'en', 'if':'ef', 'then':'þá', 'so':'svá',
   'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjök', 'too':'of', 'also':'ok',
   'now':'nú', 'here':'hér', 'there':'þar', 'still':'enn',
@@ -767,7 +771,8 @@ function processSentence(sentence) {
     const forms = CONJ[tok.en];
     if(!forms) return { ...tok, on: tok.en }; // fallback: pass through
 
-    const idx = lastSubjON ? (PRON_TO_IDX[lastSubjON] ?? 0) : 0;
+    // If no explicit subject found, default to 3rd person (hann) not 1st person (ek)
+    const idx = lastSubjON ? (PRON_TO_IDX[lastSubjON] ?? 2) : 2;
     return { ...tok, on: forms[idx] };
   });
 
@@ -817,22 +822,72 @@ function processSentence(sentence) {
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
         const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
 
-        // Detect if noun is plural: ends in 's' or in plural noun list
+        // Detect if noun is plural: ends in 's' or is irregular plural
         const isPlural = nextTok.en.endsWith('s') ||
-                        (nextTok.en.includes('men') && nextTok.en !== 'amen') ||
-                        ['children','people','eyes'].includes(nextTok.en);
+                        ['men','children','people','eyes','feet','teeth','oxen'].includes(nextTok.en);
+
+        // Detect case: look back for a verb
+        // If verb found before adjective, noun is likely an object → accusative
+        let caseForm = 'nom';
+        for(let j = idx - 1; j >= 0; j--) {
+          if(conjugated[j].type === 'verb') {
+            caseForm = 'acc';
+            break;
+          }
+          // Stop if we hit another noun/pronoun (new phrase)
+          if(conjugated[j].type === 'noun' || (conjugated[j].type === 'pronoun' && conjugated[j].type !== 'space')) {
+            break;
+          }
+        }
 
         const adjForm = ADJECTIVES[tok.en];
         if(adjForm) {
-          // Apply appropriate form based on noun's gender and plurality
+          // Apply appropriate form based on noun's gender, case, and plurality
           const numberForm = isPlural ? 'pl' : 'sg';
-          const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_nom_${numberForm}`;
+          const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_${caseForm}_${numberForm}`;
           const form = adjForm[key] || adjForm.base;
           return { ...tok, on: form };
         }
       }
       // Fallback: use base form from dictionary
       return { ...tok, on: EN_TO_ON[tok.en] || ADJECTIVES[tok.en]?.base || tok.en };
+    }
+
+    // Handle nouns: detect case and apply basic declension
+    if(tok.type === 'noun') {
+      // Look back for a verb to determine if noun is an object (accusative)
+      let caseForm = 'nom';
+      for(let j = idx - 1; j >= 0; j--) {
+        if(withAgreement[j].type === 'verb') {
+          caseForm = 'acc';
+          break;
+        }
+        // Stop at sentence boundaries or other nouns
+        if(withAgreement[j].type === 'noun' || withAgreement[j].type === 'punct') {
+          break;
+        }
+      }
+
+      // Apply basic accusative form changes (hacky but improves realism)
+      if(caseForm === 'acc') {
+        const gender = tok.gender || NOUN_GENDER[tok.en] || 'm';
+        let accForm = tok.on;
+
+        // Masculine: drop -r for accusative (e.g., kappi → kappa)
+        if(gender === 'm' && accForm.endsWith('i')) {
+          accForm = accForm.slice(0, -1) + 'a';
+        } else if(gender === 'm' && accForm.endsWith('r')) {
+          accForm = accForm.slice(0, -1);
+        }
+        // Feminine: often -u or -a in accusative (e.g., kona → konu)
+        else if(gender === 'f' && accForm === 'kona') {
+          accForm = 'konu';
+        }
+        // Neuter: usually stays same in accusative
+
+        return { ...tok, on: accForm };
+      }
+      return tok;
     }
 
     return tok;
@@ -885,7 +940,74 @@ function processSentence(sentence) {
     reorderedTokens.push(tok);
   }
 
-  // Step 7: collect unknowns and build strings
+  // Step 7: apply V2 (Verb-Second) word order for fronted adverbs
+  // Only applies to restricted set: þá, nú, svá (then, now, so)
+  // Pattern: [Adverb] [Finite Verb] [Subject] [Rest]
+  {
+    // Find first content token (non-space, non-punct)
+    let firstContentIdx = -1;
+    let firstContentTok = null;
+    for(let i = 0; i < reorderedTokens.length; i++) {
+      if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
+        firstContentIdx = i;
+        firstContentTok = reorderedTokens[i];
+        break;
+      }
+    }
+
+    // Check if first content token is a V2 adverb
+    if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
+      // Find the adverb's trailing space
+      let adverbSpaceIdx = -1;
+      for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
+        if(reorderedTokens[i].type === 'space') {
+          adverbSpaceIdx = i;
+          break;
+        }
+      }
+
+      if(adverbSpaceIdx !== -1) {
+        // Find the first verb after the adverb+space
+        let verbIdx = -1;
+        for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
+          if(reorderedTokens[i].type === 'verb') {
+            verbIdx = i;
+            break;
+          }
+          // Stop at punctuation (end of clause)
+          if(reorderedTokens[i].type === 'punct') {
+            break;
+          }
+        }
+
+        // If verb found and not already in position 2 (adverb + space + verb)
+        if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
+          // Extract verb token and check for trailing space
+          const verbTok = reorderedTokens[verbIdx];
+          let trailingSpace = null;
+
+          if(verbIdx + 1 < reorderedTokens.length &&
+             reorderedTokens[verbIdx + 1].type === 'space') {
+            trailingSpace = reorderedTokens[verbIdx + 1];
+          }
+
+          // Remove verb (and trailing space if exists) from original position
+          const removeCount = trailingSpace ? 2 : 1;
+          reorderedTokens.splice(verbIdx, removeCount);
+
+          // Insert verb right after adverb+space
+          const insertPos = adverbSpaceIdx + 1;
+          if(trailingSpace) {
+            reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+          } else {
+            reorderedTokens.splice(insertPos, 0, verbTok);
+          }
+        }
+      }
+    }
+  }
+
+  // Step 8: collect unknowns and build strings
   const unknowns = [];
   reorderedTokens.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
