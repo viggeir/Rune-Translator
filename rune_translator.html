@@ -103,8 +103,8 @@ FUTHARK.forEach(f => {
 // Sorted longest-first so digraphs match before single chars.
 const ON_RULES = [
   // Digraphs & special sequences
-  ['ng', 'n'],    // ng → n (YF has no separate ng rune)
-  ['nk', 'n'],    // nk → n+k but often simplified
+  ['ng', 'nk'],   // ng → nk (historically more accurate for YF)
+  ['nk', 'nk'],   // nk → nk (historically written as n+k)
   ['kk', 'k'], ['gg', 'k'],
   ['tt', 't'], ['dd', 't'],
   ['nn', 'n'], ['ll', 'l'], ['rr', 'r'],
