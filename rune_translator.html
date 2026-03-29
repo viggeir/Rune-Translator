@@ -103,8 +103,8 @@ FUTHARK.forEach(f => {
 // Sorted longest-first so digraphs match before single chars.
 const ON_RULES = [
   // Digraphs & special sequences
-  ['ng', 'n'],    // ng → n (YF has no separate ng rune)
-  ['nk', 'n'],    // nk → n+k but often simplified
+  ['ng', 'nk'],   // ng → nk (historically more accurate for YF)
+  ['nk', 'nk'],   // nk → nk (historically written as n+k)
   ['kk', 'k'], ['gg', 'k'],
   ['tt', 't'], ['dd', 't'],
   ['nn', 'n'], ['ll', 'l'], ['rr', 'r'],
@@ -169,7 +169,8 @@ const SUBJECT_PRONOUNS = new Set(['i','you','he','she','it','we','they','who']);
 const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom']);
 
 // Prepositions that trigger dative in ON
-const DATIVE_PREPS = new Set(['with','to','at','from','by','beside','between','against','within','toward']);
+// Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
 
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
@@ -234,7 +235,7 @@ const CONJ = {
   // mæla — to speak (weak)
   'speak':  ['mæli',  'mælir', 'mælir', 'mælum',  'mælið',  'mæla'],
   // heyra — to hear (weak)
-  'hear':   ['heyri', 'heyrir','heyrir','heyrum',  'heyriðr','heyra'],
+  'hear':   ['heyri', 'heyrir','heyrir','heyrum',  'heyrið','heyra'],
   // lifa — to live (weak)
   'live':   ['lifi',  'lifir', 'lifir', 'lifum',  'lifið',  'lifa'],
   // sofa — to sleep (strong class 4)
@@ -359,14 +360,14 @@ const ADJECTIVES = {
   'beautiful': {
     base: 'fagr',
     masc_nom_sg: 'fagr',     masc_acc_sg: 'fagran',   masc_dat_sg: 'fagrum',
-    fem_nom_sg: 'fgr',       fem_acc_sg: 'fagra',     fem_dat_sg: 'fagri',
+    fem_nom_sg: 'fögur',     fem_acc_sg: 'fagra',     fem_dat_sg: 'fagri',
     neut_nom_sg: 'fagurt',   neut_acc_sg: 'fagurt',   neut_dat_sg: 'fagru',
   },
   'dark': {
     base: 'dökkr',
     masc_nom_sg: 'dökkr',    masc_acc_sg: 'dökkan',   masc_dat_sg: 'dökkum',
     fem_nom_sg: 'dökk',      fem_acc_sg: 'dökka',     fem_dat_sg: 'dökku',
-    neut_nom_sg: 'dokt',     neut_acc_sg: 'dokt',     neut_dat_sg: 'dökktu',
+    neut_nom_sg: 'dokt',     neut_acc_sg: 'dokt',     neut_dat_sg: 'dökkum',
   },
   'bright': {
     base: 'bjártr',
@@ -438,7 +439,7 @@ const EN_TO_ON = {
   // ── Prepositions ──
   'in':'í', 'on':'á', 'at':'at', 'to':'til', 'of':'af', 'from':'frá',
   'with':'með', 'by':'við', 'for':'fyrir', 'about':'um', 'as':'sem',
-  'into':'í', 'through':'þverr', 'over':'yfir', 'under':'undir',
+  'into':'í', 'over':'yfir', 'under':'undir',
   'before':'fyrir', 'after':'eptir', 'between':'milli', 'against':'gegn',
   'without':'án', 'within':'innan', 'above':'ofan', 'below':'neðan', 'beside':'hjá',
   // ── Verbs — present tense conjugated dynamically via CONJ table ──
@@ -491,7 +492,7 @@ const EN_TO_ON = {
   'warrior':'kappi', 'jarl':'jarl', 'thane':'þegn', 'carl':'karl', 'thrall':'þræll',
   'shield maiden':'skjaldmær', 'shieldmaiden':'skjaldmær', 'shield-maiden':'skjaldmær',
   'warrior-woman':'skjaldmær',
-  'friend':'vinr', 'foe':'óvinr', 'enemy':'úvinr',
+  'friend':'vinr', 'foe':'óvinr', 'enemy':'óvinr',
   'brother':'bróðir', 'sister':'systir', 'father':'faðir', 'mother':'móðir',
   'son':'sonr', 'daughter':'dóttir', 'wife':'kona', 'husband':'bóndi',
   'family':'fjölskylda', 'kin':'frændr', 'clan':'ætt', 'tribe':'þjóð',
@@ -671,8 +672,14 @@ function runTranslate() {
 
   // Step 4: conjugate verbs
   // Find the most recent preceding subject pronoun's ON form and use it to pick conjugation.
+  // Reset subject on 'and' to handle compound sentences correctly.
   let lastSubjON = null; // ON nominative pronoun string
   const conjugated = resolved.map(tok => {
+    // Reset subject on conjunction (new clause)
+    if(tok.type === 'word' && tok.en === 'and') {
+      lastSubjON = null;
+    }
+
     // Track subject pronouns
     if(tok.type === 'pronoun' && tok.on) {
       // Only update lastSubj if this resolved to nominative
@@ -695,11 +702,12 @@ function runTranslate() {
   const withAgreement = conjugated.map((tok, idx) => {
     // Handle possessives: find the following noun
     if(tok.type === 'possessive') {
-      // Look ahead for the noun (skip spaces)
+      // Look ahead for the noun (skip spaces, adjectives, punctuation)
       let nextNounIdx = idx + 1;
       while(nextNounIdx < conjugated.length &&
             (conjugated[nextNounIdx].type === 'space' ||
-             conjugated[nextNounIdx].type === 'punct')) {
+             conjugated[nextNounIdx].type === 'punct' ||
+             conjugated[nextNounIdx].type === 'adjective')) {
         nextNounIdx++;
       }
       const nextTok = conjugated[nextNounIdx];
@@ -719,19 +727,19 @@ function runTranslate() {
       return { ...tok, on: EN_TO_ON[tok.en] || tok.en };
     }
 
-    // Handle adjectives: find the preceding noun
+    // Handle adjectives: find the following noun (English: adjective BEFORE noun)
     if(tok.type === 'adjective') {
-      // Look backward for the noun (skip spaces)
-      let prevNounIdx = idx - 1;
-      while(prevNounIdx >= 0 &&
-            (conjugated[prevNounIdx].type === 'space' ||
-             conjugated[prevNounIdx].type === 'punct')) {
-        prevNounIdx--;
+      // Look forward for the noun (skip spaces/punctuation)
+      let nextNounIdx = idx + 1;
+      while(nextNounIdx < conjugated.length &&
+            (conjugated[nextNounIdx].type === 'space' ||
+             conjugated[nextNounIdx].type === 'punct')) {
+        nextNounIdx++;
       }
-      const prevTok = conjugated[prevNounIdx];
+      const nextTok = conjugated[nextNounIdx];
 
-      if(prevTok && (prevTok.type === 'noun' || prevTok.type === 'word')) {
-        const gender = prevTok.gender || NOUN_GENDER[prevTok.en] || 'm';
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+        const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
         const adjForm = ADJECTIVES[tok.en];
         if(adjForm) {
           // Apply appropriate form based on noun's gender, default to nominative
