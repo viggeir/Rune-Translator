@@ -172,6 +172,10 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
 const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
 
+// V2 (Verb-Second) adverbs that trigger reordering
+// Only these specific adverbs consistently trigger V2 in Old Norse
+const V2_ADVERBS = new Set(['then','now','so']);
+
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
 // Pronouns: ek, þú, hann/hon/þat, vér, þér (plural you), þeir
@@ -936,7 +940,74 @@ function processSentence(sentence) {
     reorderedTokens.push(tok);
   }
 
-  // Step 7: collect unknowns and build strings
+  // Step 7: apply V2 (Verb-Second) word order for fronted adverbs
+  // Only applies to restricted set: þá, nú, svá (then, now, so)
+  // Pattern: [Adverb] [Finite Verb] [Subject] [Rest]
+  {
+    // Find first content token (non-space, non-punct)
+    let firstContentIdx = -1;
+    let firstContentTok = null;
+    for(let i = 0; i < reorderedTokens.length; i++) {
+      if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
+        firstContentIdx = i;
+        firstContentTok = reorderedTokens[i];
+        break;
+      }
+    }
+
+    // Check if first content token is a V2 adverb
+    if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
+      // Find the adverb's trailing space
+      let adverbSpaceIdx = -1;
+      for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
+        if(reorderedTokens[i].type === 'space') {
+          adverbSpaceIdx = i;
+          break;
+        }
+      }
+
+      if(adverbSpaceIdx !== -1) {
+        // Find the first verb after the adverb+space
+        let verbIdx = -1;
+        for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
+          if(reorderedTokens[i].type === 'verb') {
+            verbIdx = i;
+            break;
+          }
+          // Stop at punctuation (end of clause)
+          if(reorderedTokens[i].type === 'punct') {
+            break;
+          }
+        }
+
+        // If verb found and not already in position 2 (adverb + space + verb)
+        if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
+          // Extract verb token and check for trailing space
+          const verbTok = reorderedTokens[verbIdx];
+          let trailingSpace = null;
+
+          if(verbIdx + 1 < reorderedTokens.length &&
+             reorderedTokens[verbIdx + 1].type === 'space') {
+            trailingSpace = reorderedTokens[verbIdx + 1];
+          }
+
+          // Remove verb (and trailing space if exists) from original position
+          const removeCount = trailingSpace ? 2 : 1;
+          reorderedTokens.splice(verbIdx, removeCount);
+
+          // Insert verb right after adverb+space
+          const insertPos = adverbSpaceIdx + 1;
+          if(trailingSpace) {
+            reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+          } else {
+            reorderedTokens.splice(insertPos, 0, verbTok);
+          }
+        }
+      }
+    }
+  }
+
+  // Step 8: collect unknowns and build strings
   const unknowns = [];
   reorderedTokens.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
