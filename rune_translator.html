@@ -183,6 +183,12 @@ const V2_ADVERBS = new Set(['then','now','so']);
 // For these, "to" means motion → remove preposition, use accusative
 const MOTION_VERBS = new Set(['go','come','travel','walk','ride','sail','fly','move','run','return','drive']);
 
+// Auxiliary/modal verbs (tense-bearers in compound forms)
+// For V2, prefer to move the MAIN verb, not the auxiliary
+// However, in present tense system, these are finite forms themselves
+// Strategy: if only auxiliary present, move it; if main verb after, move main verb
+const AUXILIARY_VERBS = new Set(['be','have','will','shall','can','may','must','need','want']);
+
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
 // Pronouns: ek, þú, hann/hon/þat, vér, þér (plural you), þeir
@@ -1230,21 +1236,42 @@ function processSentence(sentence) {
         }
 
         if(adverbSpaceIdx !== -1) {
-          // Find the first verb after the adverb+space (stop at conjunction or punctuation)
-          // NOTE: Currently grabs first verb (suitable for present tense system)
-          // Future: may need to distinguish auxiliaries (will, shall, can) from main verbs
-          // for proper handling of compound verb forms in past tense
+          // Find the main verb after the adverb+space (stop at conjunction or punctuation)
+          // Strategy: Skip auxiliaries and find the main content verb
+          // If only auxiliary present, use it; if main verb follows, use main verb
           let verbIdx = -1;
+          let firstVerbIdx = -1;
+          let firstVerbIsAuxiliary = false;
+
           for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
             if(reorderedTokens[i].type === 'verb') {
-              verbIdx = i;
-              break;
+              if(firstVerbIdx === -1) {
+                firstVerbIdx = i;
+                firstVerbIsAuxiliary = AUXILIARY_VERBS.has(reorderedTokens[i].en);
+              } else if(firstVerbIsAuxiliary && !AUXILIARY_VERBS.has(reorderedTokens[i].en)) {
+                // Found a main verb after an auxiliary - prefer the main verb
+                verbIdx = i;
+                break;
+              } else if(!firstVerbIsAuxiliary) {
+                // Already found a main verb, no need to continue
+                verbIdx = firstVerbIdx;
+                break;
+              }
             }
             // Stop at clause boundaries
             if(reorderedTokens[i].type === 'punct' ||
                (reorderedTokens[i].type === 'word' && ['and','but','or'].includes(reorderedTokens[i].en))) {
+              // If we only found an auxiliary, use it
+              if(firstVerbIdx !== -1 && verbIdx === -1) {
+                verbIdx = firstVerbIdx;
+              }
               break;
             }
+          }
+
+          // If no main verb found, use first verb
+          if(verbIdx === -1 && firstVerbIdx !== -1) {
+            verbIdx = firstVerbIdx;
           }
 
           // If verb found and not already in position 2 (adverb + space + verb)
