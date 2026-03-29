@@ -609,8 +609,56 @@ function runTranslate() {
     return;
   }
 
+  // Split into sentences (by periods, exclamation, question marks)
+  const sentences = inp.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+
+  // Process each sentence independently
+  const allOnResults = [];
+  const allUnknowns = [];
+
+  sentences.forEach(sentence => {
+    const result = processSentence(sentence);
+    if(result.onStr) allOnResults.push(result.onStr);
+    allUnknowns.push(...result.unknowns);
+  });
+
+  const onStr = allOnResults.join(' ');
+
+  // Render ON with unknowns underlined
+  let onHTML = '';
+  if(allOnResults.length === 0) {
+    onHTML = '<span class="placeholder-text">—</span>';
+  } else {
+    const onWords = onStr.split(' ');
+    onWords.forEach(word => {
+      if(allUnknowns.some(u => word.includes(u))) {
+        onHTML += `<span class="unknown" title="No Old Norse match">${word}</span> `;
+      } else {
+        onHTML += word + ' ';
+      }
+    });
+  }
+  onOutEl.innerHTML = onHTML.trim() || '<span class="placeholder-text">—</span>';
+
+  if(allUnknowns.length) {
+    ukEl.textContent   = `Dotted underline = no dictionary match: ${[...new Set(allUnknowns)].join(', ')}`;
+    ukEl.style.display = 'block';
+  } else {
+    ukEl.style.display = 'none';
+  }
+
+  // ON → Younger Futhark
+  const runes = onToRunes(onStr);
+  if(!runes.length) { runeEl.innerHTML='<span class="placeholder-text">—</span>'; return; }
+  runeEl.innerHTML = runes.map(r => {
+    if(r.space) return '<span class="rune-char space"> </span>';
+    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
+  }).join('');
+}
+
+function processSentence(sentence) {
   // Step 1: raw tokenise
-  const raw = inp.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
+  const raw = sentence.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
 
   // Step 2: classify each word token
   // types: 'space', 'punct', 'subj_pron', 'obj_pron', 'verb', 'word', 'adjective', 'possessive', 'noun', 'unknown'
@@ -853,32 +901,7 @@ function runTranslate() {
   });
   onStr = onStr.trim();
 
-  // Render ON with unknowns underlined
-  let onHTML = '';
-  reorderedTokens.forEach(t => {
-    if     (t.type === 'space')   onHTML += ' ';
-    else if(t.type === 'punct')   onHTML += t.val;
-    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
-            t.type === 'adjective' || t.type === 'possessive')
-      onHTML += (t.on || t.en) + ' ';
-    else onHTML += `<span class="unknown" title="No Old Norse match for &quot;${t.en}&quot;">${t.en}</span> `;
-  });
-  onOutEl.innerHTML = onHTML.trim() || '<span class="placeholder-text">—</span>';
-
-  if(unknowns.length) {
-    ukEl.textContent   = `Dotted underline = no dictionary match, shown as-is: ${unknowns.join(', ')}`;
-    ukEl.style.display = 'block';
-  } else {
-    ukEl.style.display = 'none';
-  }
-
-  // ON → Younger Futhark
-  const runes = onToRunes(onStr);
-  if(!runes.length) { runeEl.innerHTML='<span class="placeholder-text">—</span>'; return; }
-  runeEl.innerHTML = runes.map(r => {
-    if(r.space) return '<span class="rune-char space"> </span>';
-    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
-  }).join('');
+  return { onStr, unknowns };
 }
 
 // ─── COPY ────────────────────────────────────────────────────────────────────
