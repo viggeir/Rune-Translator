@@ -629,35 +629,41 @@ function runTranslate() {
   }
 
   // Step 3: resolve pronoun case
-  // Rule: a pronoun is nominative (subject) if it comes before a verb in the same clause.
-  //       It's accusative if it follows a verb or follows a preposition.
-  //       Dative if directly preceded by a dative-triggering preposition.
+  // Rule: Track whether we've seen a verb in the clause
+  //   - Before any verb = nominative (subject)
+  //   - After a verb = accusative (object)
+  //   - After dative preposition = dative
   const wordToks = classified.filter(t => t.type !== 'space' && t.type !== 'punct');
+
+  // First pass: find positions of verbs in word tokens
+  const verbPositions = new Set();
+  wordToks.forEach((tok, idx) => {
+    if(tok.type === 'verb') verbPositions.add(idx);
+  });
+
   const resolved = classified.map((tok, absIdx) => {
     if(tok.type !== 'pronoun') return tok;
 
-    // Find the word tokens around this pronoun
+    // Find this pronoun's position in word tokens
     const wordIdx = wordToks.indexOf(tok);
     const prev = wordToks[wordIdx - 1];
-    const next = wordToks[wordIdx + 1];
 
     let caseForm = 'nom'; // default to nominative
 
-    // If preceded by a dative preposition → dative
+    // 1. If preceded by a dative preposition → dative (highest priority)
     if(prev && prev.type === 'word' && DATIVE_PREPS.has(prev.en)) {
       caseForm = 'dat';
     }
-    // If preceded by a verb → accusative (object position)
-    else if(prev && prev.type === 'verb') {
-      caseForm = 'acc';
-    }
-    // If followed by a verb (subject position) → nominative
-    else if(next && next.type === 'verb') {
-      caseForm = 'nom';
-    }
-    // If preceded by another noun or pronoun and no verb yet seen → accusative
-    else if(prev && (prev.type === 'word' || prev.type === 'pronoun')) {
-      caseForm = 'acc';
+    // 2. Check if we've seen a verb before this pronoun
+    else {
+      let seenVerb = false;
+      for(let i = 0; i < wordIdx; i++) {
+        if(verbPositions.has(i)) {
+          seenVerb = true;
+          break;
+        }
+      }
+      caseForm = seenVerb ? 'acc' : 'nom';
     }
 
     return { ...tok, on: tok.pron[caseForm] };
