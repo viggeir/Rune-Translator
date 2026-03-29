@@ -440,8 +440,16 @@ const POSSESSIVES = {
 // Nouns inflect by case (nom/acc/dat), gender (m/f/n), and number (sg/pl)
 // Format: { base: 'nom_sg', nom_sg, acc_sg, dat_sg, nom_pl, acc_pl, dat_pl }
 // Covers most common noun classes in Old Norse
+//
+// OLD NORSE NOUN CLASSES (for reference):
+// Strong (i-stems): -r, -ø, -consonant with strong inflection
+// Weak (n-stems): -i, -a, weak inflection throughout
+// This implementation uses simplified strong forms for most nouns.
+// Future enhancement: could distinguish weak class for linguistic accuracy.
 const NOUN_DECLENSION = {
-  // ── Masculine a-stem consonant nouns ──
+  // ── Masculine strong (a-stem consonant) ──
+  // Class: Strong masculine (like maðr, kappi, konungr)
+  // Pattern: nom -r/-∅, acc -n/-∅, dat -i/-∅ (or -um/-um for plural)
   'man': { base: 'maðr', nom_sg: 'maðr', acc_sg: 'mann', dat_sg: 'manni',
            nom_pl: 'menn', acc_pl: 'menn', dat_pl: 'mönnum' },
   'warrior': { base: 'kappi', nom_sg: 'kappi', acc_sg: 'kappa', dat_sg: 'kappa',
