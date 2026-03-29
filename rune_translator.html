@@ -894,6 +894,14 @@ function processSentence(sentence) {
   });
 
   // Step 5: apply gender agreement (adjectives & possessives)
+  // First, pre-compute verb positions for accurate noun case detection
+  const verbPositions = [];
+  for(let i = 0; i < conjugated.length; i++) {
+    if(conjugated[i].type === 'verb') {
+      verbPositions.push(i);
+    }
+  }
+
   // Strategy:
   //   - Possessive + noun: possessive agrees with noun's gender
   //   - Noun + adjective: adjective agrees with noun's gender & case
@@ -978,19 +986,15 @@ function processSentence(sentence) {
       const isPlural = tok.en.endsWith('s') ||
                        ['men','children','people','eyes','feet','teeth','oxen'].includes(tok.en);
 
-      // Detect case: check for verbs and prepositions
+      // Detect case: dative preposition has highest priority
       let caseForm = 'nom'; // default nominative
       let prevWord = null;
 
-      // Look back to find case clues
+      // Find immediately preceding word (skip spaces/punctuation)
       for(let j = idx - 1; j >= 0; j--) {
-        const prevTok = withAgreement[j];
+        const prevTok = conjugated[j];
         if(prevTok.type === 'word' || prevTok.type === 'pronoun') {
           prevWord = prevTok;
-          break;
-        }
-        if(prevTok.type === 'verb') {
-          caseForm = 'acc'; // After verb → object
           break;
         }
         if(prevTok.type === 'punct') {
@@ -998,9 +1002,48 @@ function processSentence(sentence) {
         }
       }
 
-      // Check if preceded by dative preposition
+      // 1. Check if preceded by dative preposition (highest priority)
       if(prevWord && prevWord.type === 'word' && DATIVE_PREPS.has(prevWord.en)) {
         caseForm = 'dat';
+      }
+      // 2. Determine accusative vs nominative based on verb position
+      else {
+        // Find the nearest verb (forward or backward)
+        let nearestVerbIdx = -1;
+        let verbDistance = Infinity;
+
+        // Check verbs before this noun
+        for(let vIdx of verbPositions) {
+          if(vIdx < idx) {
+            const dist = idx - vIdx;
+            if(dist < verbDistance) {
+              nearestVerbIdx = vIdx;
+              verbDistance = dist;
+            }
+          }
+        }
+
+        // Check verbs after this noun
+        for(let vIdx of verbPositions) {
+          if(vIdx > idx) {
+            const dist = vIdx - idx;
+            if(dist < verbDistance) {
+              nearestVerbIdx = vIdx;
+              verbDistance = dist;
+            }
+          }
+        }
+
+        // Determine case based on verb position:
+        // - If nearest verb is AFTER: noun is likely subject (nominative)
+        // - If nearest verb is BEFORE: noun is likely object (accusative)
+        if(nearestVerbIdx !== -1) {
+          if(nearestVerbIdx < idx) {
+            // Verb is before noun → noun is object → accusative
+            caseForm = 'acc';
+          }
+          // If verb is after noun, stays nominative (default)
+        }
       }
 
       // Try to look up in NOUN_DECLENSION
