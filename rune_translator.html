@@ -259,19 +259,164 @@ const PRON_TO_IDX = {
 // Adjust to 0-based
 Object.keys(PRON_TO_IDX).forEach(k => PRON_TO_IDX[k]--);
 
+// ─── NOUN GENDER SYSTEM (Phase 2 Grammar Engine) ────────────────────────────
+// Each noun is marked with gender: m (masculine), f (feminine), n (neuter)
+// This allows adjectives and possessives to agree properly.
+const NOUN_GENDER = {
+  // People (singular and plural)
+  'man':'m', 'men':'m', 'woman':'f', 'women':'f',
+  'child':'n', 'children':'n', 'boy':'m', 'boys':'m', 'girl':'f', 'girls':'f',
+  'king':'m', 'kings':'m', 'queen':'f', 'queens':'f', 'lord':'m', 'lords':'m', 'lady':'f', 'ladies':'f',
+  'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m',
+  'friend':'m', 'friends':'m', 'foe':'m', 'foes':'m', 'enemy':'m', 'enemies':'m',
+  'brother':'m', 'brothers':'m', 'sister':'f', 'sisters':'f', 'father':'m', 'fathers':'m', 'mother':'f', 'mothers':'f',
+  'son':'m', 'sons':'m', 'daughter':'f', 'daughters':'f', 'wife':'f', 'wives':'f', 'husband':'m', 'husbands':'m',
+  // Gods & Myth
+  'god':'m', 'gods':'m', 'goddess':'f', 'goddesses':'f',
+  'odin':'m', 'thor':'m', 'freya':'f', 'loki':'m',
+  'tyr':'m', 'baldur':'m', 'heimdall':'m', 'njord':'m',
+  'yggdrasil':'f', 'bifrost':'f', 'valhalla':'f',
+  'asgard':'n', 'midgard':'n', 'niflheim':'n', 'helheim':'n', 'jotunheim':'n',
+  // Nature
+  'world':'n', 'worlds':'n', 'earth':'f', 'earths':'f', 'sky':'m', 'skies':'m', 'sea':'n', 'seas':'n', 'ocean':'n', 'oceans':'n',
+  'land':'n', 'lands':'n', 'island':'f', 'islands':'f', 'forest':'m', 'forests':'m', 'mountain':'n', 'mountains':'n',
+  'river':'f', 'rivers':'f', 'fire':'m', 'fires':'m', 'water':'n', 'ice':'n',
+  'wind':'m', 'winds':'m', 'storm':'m', 'storms':'m', 'snow':'m', 'rain':'m', 'rains':'m',
+  'sun':'f', 'moon':'m', 'moons':'m', 'star':'f', 'stars':'f',
+  'tree':'n', 'trees':'n', 'ash':'m', 'ashes':'m', 'oak':'f', 'oaks':'f', 'root':'f', 'roots':'f', 'branch':'f', 'branches':'f',
+  // Animals
+  'wolf':'m', 'wolves':'m', 'raven':'m', 'ravens':'m', 'bear':'m', 'bears':'m', 'horse':'m', 'horses':'m',
+  'eagle':'f', 'eagles':'f', 'serpent':'m', 'serpents':'m', 'dragon':'m', 'dragons':'m', 'ox':'m', 'oxen':'m',
+  // War & Weapons
+  'sword':'n', 'swords':'n', 'axe':'f', 'axes':'f', 'spear':'m', 'spears':'m', 'shield':'m', 'shields':'m',
+  'bow':'m', 'bows':'m', 'arrow':'f', 'arrows':'f', 'helm':'m', 'helms':'m', 'mail':'f',
+  'war':'f', 'wars':'f', 'battle':'m', 'battles':'m', 'victory':'f', 'victories':'f', 'death':'f', 'deaths':'f',
+  'life':'f', 'lives':'f', 'birth':'f', 'births':'f',
+  // Ship
+  'ship':'n', 'ships':'n', 'boat':'m', 'boats':'m', 'sail':'m', 'sails':'m',
+  // Place
+  'hall':'f', 'halls':'f', 'house':'n', 'houses':'n', 'home':'n', 'homes':'n', 'gate':'f', 'gates':'f',
+  'road':'m', 'roads':'m', 'path':'m', 'paths':'m', 'bridge':'f', 'bridges':'f',
+  // Materials
+  'gold':'n', 'silver':'n', 'iron':'n', 'irons':'n', 'steel':'n',
+  'wood':'n', 'stone':'m', 'stones':'m', 'blood':'n', 'bone':'n', 'bones':'n',
+  // Abstract
+  'heart':'n', 'hearts':'n', 'soul':'f', 'souls':'f', 'spirit':'m', 'spirits':'m', 'mind':'m', 'minds':'m',
+  'name':'n', 'names':'n', 'word':'n', 'words':'n', 'oath':'m', 'oaths':'m',
+  'honor':'m', 'honors':'m', 'glory':'f', 'glories':'f', 'shame':'f', 'shames':'f', 'courage':'f',
+  'strength':'f', 'strengths':'f', 'power':'f', 'powers':'f', 'wisdom':'f', 'truth':'f', 'truths':'f',
+  'hate':'m', 'hates':'m', 'anger':'f', 'angers':'f', 'grief':'m', 'griefs':'m', 'joy':'f', 'joys':'f',
+  'sorrow':'f', 'sorrows':'f', 'hope':'f', 'hopes':'f', 'dream':'m', 'dreams':'m', 'memory':'f', 'memories':'f',
+  'rune':'f', 'runes':'f', 'magic':'n', 'spell':'m', 'spells':'m',
+  'time':'m', 'times':'m', 'fate':'f', 'fates':'f', 'destiny':'f', 'destinies':'f', 'doom':'m', 'dooms':'m',
+  'saga':'f', 'sagas':'f', 'song':'f', 'songs':'f',
+  // Body
+  'hand':'f', 'hands':'f', 'eye':'n', 'eyes':'n', 'head':'n', 'heads':'n',
+  'mouth':'m', 'mouths':'m', 'tongue':'f', 'tongues':'f', 'voice':'f', 'voices':'f',
+};
+
+// ─── ADJECTIVE INFLECTION SYSTEM (Phase 2) ──────────────────────────────────
+// Adjectives inflect by gender (m/f/n), case (nom/acc/dat), and number (sg/pl)
+// Format: { base: 'hugaðr', weak: {...}, strong: {...} }
+// For simplicity, using strong inflection (more common in predicates)
+const ADJECTIVES = {
+  'great': {
+    base: 'mikill',
+    masc_nom_sg: 'mikill',   masc_acc_sg: 'mikinn',   masc_dat_sg: 'mikl',
+    fem_nom_sg: 'mikil',     fem_acc_sg: 'mikla',     fem_dat_sg: 'mikilli',
+    neut_nom_sg: 'mikið',    neut_acc_sg: 'mikið',    neut_dat_sg: 'miklu',
+  },
+  'old': {
+    base: 'gamall',
+    masc_nom_sg: 'gamall',   masc_acc_sg: 'gamalan',  masc_dat_sg: 'gömlum',
+    fem_nom_sg: 'gömul',     fem_acc_sg: 'gamla',     fem_dat_sg: 'gamalli',
+    neut_nom_sg: 'gamalt',   neut_acc_sg: 'gamalt',   neut_dat_sg: 'gömlum',
+  },
+  'young': {
+    base: 'ungr',
+    masc_nom_sg: 'ungr',     masc_acc_sg: 'ungan',    masc_dat_sg: 'ungum',
+    fem_nom_sg: 'ung',       fem_acc_sg: 'unga',      fem_dat_sg: 'ungri',
+    neut_nom_sg: 'ungt',     neut_acc_sg: 'ungt',     neut_dat_sg: 'ungum',
+  },
+  'strong': {
+    base: 'sterkr',
+    masc_nom_sg: 'sterkr',   masc_acc_sg: 'sterkan',  masc_dat_sg: 'sterkum',
+    fem_nom_sg: 'sterk',     fem_acc_sg: 'sterka',    fem_dat_sg: 'sterkri',
+    neut_nom_sg: 'sterkt',   neut_acc_sg: 'sterkt',   neut_dat_sg: 'sterkum',
+  },
+  'brave': {
+    base: 'hugaðr',
+    masc_nom_sg: 'hugaðr',   masc_acc_sg: 'hugðan',   masc_dat_sg: 'hugðum',
+    fem_nom_sg: 'hugud',     fem_acc_sg: 'huguda',    fem_dat_sg: 'hugudri',
+    neut_nom_sg: 'hugat',    neut_acc_sg: 'hugat',    neut_dat_sg: 'hugdum',
+  },
+  'good': {
+    base: 'góðr',
+    masc_nom_sg: 'góðr',     masc_acc_sg: 'góðan',    masc_dat_sg: 'góðum',
+    fem_nom_sg: 'góð',       fem_acc_sg: 'góða',      fem_dat_sg: 'góðri',
+    neut_nom_sg: 'gott',     neut_acc_sg: 'gott',     neut_dat_sg: 'góðu',
+  },
+  'beautiful': {
+    base: 'fagr',
+    masc_nom_sg: 'fagr',     masc_acc_sg: 'fagran',   masc_dat_sg: 'fagrum',
+    fem_nom_sg: 'fgr',       fem_acc_sg: 'fagra',     fem_dat_sg: 'fagri',
+    neut_nom_sg: 'fagurt',   neut_acc_sg: 'fagurt',   neut_dat_sg: 'fagru',
+  },
+  'dark': {
+    base: 'dökkr',
+    masc_nom_sg: 'dökkr',    masc_acc_sg: 'dökkan',   masc_dat_sg: 'dökkum',
+    fem_nom_sg: 'dökk',      fem_acc_sg: 'dökka',     fem_dat_sg: 'dökku',
+    neut_nom_sg: 'dokt',     neut_acc_sg: 'dokt',     neut_dat_sg: 'dökktu',
+  },
+  'bright': {
+    base: 'bjártr',
+    masc_nom_sg: 'bjártr',   masc_acc_sg: 'bjártan',  masc_dat_sg: 'bjártum',
+    fem_nom_sg: 'björt',     fem_acc_sg: 'bjarta',    fem_dat_sg: 'bjartri',
+    neut_nom_sg: 'bjart',    neut_acc_sg: 'bjart',    neut_dat_sg: 'bjartri',
+  },
+};
+
+// ─── POSSESSIVE INFLECTION SYSTEM (Phase 2) ─────────────────────────────────
+// Possessives vary by gender of possessed noun
+// Format: { pronoun: { masc_sg, fem_sg, neut_sg } }
+const POSSESSIVES = {
+  'my': {
+    masc_sg: 'minn',  fem_sg: 'mín',   neut_sg: 'mitt',
+  },
+  'your': {
+    masc_sg: 'þinn',  fem_sg: 'þín',   neut_sg: 'þitt',
+  },
+  'his': {
+    masc_sg: 'hans',  fem_sg: 'hans',  neut_sg: 'hans', // hans doesn't inflect
+  },
+  'hers': {
+    masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // hennar doesn't inflect
+  },
+  'its': {
+    masc_sg: 'þess', fem_sg: 'þess', neut_sg: 'þess', // þess doesn't inflect
+  },
+  'our': {
+    masc_sg: 'várr',  fem_sg: 'vár',   neut_sg: 'várt',
+  },
+  'their': {
+    masc_sg: 'þeirra', fem_sg: 'þeirra', neut_sg: 'þeirra', // þeirra doesn't inflect
+  },
+};
+
 // ─── ENGLISH → OLD NORSE DICTIONARY ─────────────────────────────────────────
 // "the" removed — ON definite article is a suffix, not a standalone word.
 // Pronouns handled separately via PRONOUNS table above.
 // Verbs in present tense conjugated via CONJ table when subject is known.
+// NOTE: Adjectives and possessives are handled separately via ADJECTIVES/POSSESSIVES
 const EN_TO_ON = {
   // ── Greetings ──
   'hello':'heil', 'hi':'heil', 'hail':'heil',
   'greetings':'heill ok sæl', 'welcome':'velkominn',
   'farewell':'far vel', 'goodbye':'far vel', 'be well':'ver heil',
   // ── Non-personal pronouns & determiners ──
-  'my':'minn', 'mine':'minn', 'your':'þinn', 'yours':'þinn',
-  'his':'hans', 'hers':'hennar', 'its':'þess',
-  'our':'várr', 'ours':'várr', 'their':'þeirra', 'theirs':'þeirra',
+  // Possessives removed — handled by POSSESSIVES table with gender agreement
+  // 'my', 'your', 'his', 'hers', 'our', 'their' are now dynamic
+  'mine':'minn', 'yours':'þinn', 'ours':'várr', 'theirs':'þeirra',
   'myself':'sjálfr mér', 'yourself':'sjálfr þér', 'himself':'sjálfr honum',
   'herself':'sjálfr henni', 'itself':'sjálft þat', 'ourselves':'sjálfir oss',
   'this':'þetta', 'that':'þat', 'these':'þessi', 'those':'þeir',
@@ -401,15 +546,16 @@ const EN_TO_ON = {
   'hand':'hönd', 'eye':'auga', 'eyes':'augu', 'head':'höfuð',
   'mouth':'munnr', 'tongue':'tunga', 'voice':'rödd',
   // ── Adjectives ──
-  'great':'mikill', 'old':'gamall', 'young':'ungr',
-  'high':'hár', 'deep':'djúpr', 'long':'langr', 'strong':'sterkr',
-  'true':'sannr', 'free':'frjáls', 'dark':'dökkr', 'bright':'bjártr',
+  // NOTE: Adjectives removed — handled by ADJECTIVES table with gender/case agreement
+  // Keep base forms as fallback in case adjective not in ADJECTIVES table
+  'high':'hár', 'deep':'djúpr', 'long':'langr',
+  'true':'sannr', 'free':'frjáls',
   'cold':'kaldr', 'hot':'heitr', 'hard':'harðr', 'sharp':'hvass',
-  'holy':'heilagr', 'sacred':'heilagr', 'good':'góðr', 'evil':'illr',
-  'dead':'dauðr', 'alive':'lifandi', 'brave':'hugaðr', 'noble':'göfugr',
+  'holy':'heilagr', 'sacred':'heilagr', 'evil':'illr',
+  'dead':'dauðr', 'alive':'lifandi', 'noble':'göfugr',
   'swift':'skjótr', 'silent':'þögull', 'wise':'víss',
   'mighty':'máttugr', 'fierce':'grimmr', 'proud':'stórr',
-  'beautiful':'fagr', 'fair':'fagr', 'black':'svartr', 'white':'hvítr',
+  'black':'svartr', 'white':'hvítr',
   'red':'rauðr', 'blue':'blár', 'green':'grœnn',
   'new':'nýr', 'first':'fyrstr', 'last':'síðastr',
 };
@@ -438,7 +584,7 @@ function runTranslate() {
   const raw = inp.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
 
   // Step 2: classify each word token
-  // types: 'space', 'punct', 'subj_pron', 'obj_pron', 'verb', 'word', 'unknown'
+  // types: 'space', 'punct', 'subj_pron', 'obj_pron', 'verb', 'word', 'adjective', 'possessive', 'noun', 'unknown'
   const classified = [];
   let i = 0;
   while(i < raw.length) {
@@ -464,6 +610,16 @@ function runTranslate() {
       classified.push({type:'pronoun', en:clean, pron:PRONOUNS[clean]});
     } else if(CONJ[clean]) {
       classified.push({type:'verb', en:clean});
+    } else if(POSSESSIVES[clean]) {
+      // Possessive — will apply gender agreement in step 4
+      classified.push({type:'possessive', en:clean});
+    } else if(ADJECTIVES[clean]) {
+      // Adjective — will apply gender agreement in step 4
+      classified.push({type:'adjective', en:clean});
+    } else if(NOUN_GENDER[clean]) {
+      // Noun with tracked gender — look up translation from dictionary
+      const on = EN_TO_ON[clean] || clean;
+      classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[clean]});
     } else if(EN_TO_ON[clean]) {
       classified.push({type:'word', en:clean, on:EN_TO_ON[clean]});
     } else {
@@ -526,16 +682,76 @@ function runTranslate() {
     return { ...tok, on: forms[idx] };
   });
 
-  // Step 5: collect unknowns and build strings
+  // Step 5: apply gender agreement (adjectives & possessives)
+  // Strategy:
+  //   - Possessive + noun: possessive agrees with noun's gender
+  //   - Noun + adjective: adjective agrees with noun's gender & case
+  const withAgreement = conjugated.map((tok, idx) => {
+    // Handle possessives: find the following noun
+    if(tok.type === 'possessive') {
+      // Look ahead for the noun (skip spaces)
+      let nextNounIdx = idx + 1;
+      while(nextNounIdx < conjugated.length &&
+            (conjugated[nextNounIdx].type === 'space' ||
+             conjugated[nextNounIdx].type === 'punct')) {
+        nextNounIdx++;
+      }
+      const nextTok = conjugated[nextNounIdx];
+
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+        const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
+        const possForm = POSSESSIVES[tok.en];
+        if(possForm) {
+          // Apply appropriate form based on noun's gender
+          const form = gender === 'f' ? possForm.fem_sg
+                     : gender === 'n' ? possForm.neut_sg
+                     : possForm.masc_sg;
+          return { ...tok, on: form };
+        }
+      }
+      // Fallback: use base dictionary form
+      return { ...tok, on: EN_TO_ON[tok.en] || tok.en };
+    }
+
+    // Handle adjectives: find the preceding noun
+    if(tok.type === 'adjective') {
+      // Look backward for the noun (skip spaces)
+      let prevNounIdx = idx - 1;
+      while(prevNounIdx >= 0 &&
+            (conjugated[prevNounIdx].type === 'space' ||
+             conjugated[prevNounIdx].type === 'punct')) {
+        prevNounIdx--;
+      }
+      const prevTok = conjugated[prevNounIdx];
+
+      if(prevTok && (prevTok.type === 'noun' || prevTok.type === 'word')) {
+        const gender = prevTok.gender || NOUN_GENDER[prevTok.en] || 'm';
+        const adjForm = ADJECTIVES[tok.en];
+        if(adjForm) {
+          // Apply appropriate form based on noun's gender, default to nominative
+          const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_nom_sg`;
+          const form = adjForm[key] || adjForm.base;
+          return { ...tok, on: form };
+        }
+      }
+      // Fallback: use base form from dictionary
+      return { ...tok, on: EN_TO_ON[tok.en] || ADJECTIVES[tok.en]?.base || tok.en };
+    }
+
+    return tok;
+  });
+
+  // Step 6: collect unknowns and build strings
   const unknowns = [];
-  conjugated.forEach(t => {
+  withAgreement.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
   let onStr = '';
-  conjugated.forEach(t => {
+  withAgreement.forEach(t => {
     if     (t.type === 'space')   onStr += ' ';
-    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb') onStr += (t.on || t.en) + ' ';
+    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
+            t.type === 'adjective' || t.type === 'possessive') onStr += (t.on || t.en) + ' ';
     else if(t.type === 'unknown') onStr += t.en + ' ';
     // punct skipped
   });
@@ -543,10 +759,11 @@ function runTranslate() {
 
   // Render ON with unknowns underlined
   let onHTML = '';
-  conjugated.forEach(t => {
+  withAgreement.forEach(t => {
     if     (t.type === 'space')   onHTML += ' ';
     else if(t.type === 'punct')   onHTML += t.val;
-    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb')
+    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
+            t.type === 'adjective' || t.type === 'possessive')
       onHTML += (t.on || t.en) + ' ';
     else onHTML += `<span class="unknown" title="No Old Norse match for &quot;${t.en}&quot;">${t.en}</span> `;
   });
