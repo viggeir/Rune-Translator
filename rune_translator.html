@@ -436,6 +436,94 @@ const POSSESSIVES = {
   },
 };
 
+// ─── NOUN DECLENSION SYSTEM (Phase 3) ──────────────────────────────────────────
+// Nouns inflect by case (nom/acc/dat), gender (m/f/n), and number (sg/pl)
+// Format: { base: 'nom_sg', nom_sg, acc_sg, dat_sg, nom_pl, acc_pl, dat_pl }
+// Covers most common noun classes in Old Norse
+const NOUN_DECLENSION = {
+  // ── Masculine a-stem consonant nouns ──
+  'man': { base: 'maðr', nom_sg: 'maðr', acc_sg: 'mann', dat_sg: 'manni',
+           nom_pl: 'menn', acc_pl: 'menn', dat_pl: 'mönnum' },
+  'warrior': { base: 'kappi', nom_sg: 'kappi', acc_sg: 'kappa', dat_sg: 'kappa',
+               nom_pl: 'kappar', acc_pl: 'kappa', dat_pl: 'kappum' },
+  'king': { base: 'konungr', nom_sg: 'konungr', acc_sg: 'konung', dat_sg: 'konungi',
+            nom_pl: 'konungar', acc_pl: 'konunga', dat_pl: 'konungum' },
+  'son': { base: 'sonr', nom_sg: 'sonr', acc_sg: 'son', dat_sg: 'syni',
+           nom_pl: 'synir', acc_pl: 'sonu', dat_pl: 'sonum' },
+  'friend': { base: 'vinr', nom_sg: 'vinr', acc_sg: 'vin', dat_sg: 'vini',
+              nom_pl: 'vinir', acc_pl: 'vina', dat_pl: 'vinum' },
+  'enemy': { base: 'óvinr', nom_sg: 'óvinr', acc_sg: 'óvin', dat_sg: 'óvini',
+             nom_pl: 'óvinir', acc_pl: 'ófína', dat_pl: 'óvinum' },
+  'jarl': { base: 'jarl', nom_sg: 'jarl', acc_sg: 'jarl', dat_sg: 'jarli',
+            nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
+  'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðir',
+               nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
+  'father': { base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
+              nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
+  'fire': { base: 'eldr', nom_sg: 'eldr', acc_sg: 'eld', dat_sg: 'eldi',
+            nom_pl: 'eldar', acc_pl: 'elda', dat_pl: 'eldum' },
+  'day': { base: 'dagr', nom_sg: 'dagr', acc_sg: 'dag', dat_sg: 'degi',
+           nom_pl: 'dagar', acc_pl: 'daga', dat_pl: 'dagum' },
+  'sky': { base: 'himinn', nom_sg: 'himinn', acc_sg: 'himin', dat_sg: 'himni',
+           nom_pl: 'himnar', acc_pl: 'himna', dat_pl: 'himnum' },
+  'wind': { base: 'vindr', nom_sg: 'vindr', acc_sg: 'vind', dat_sg: 'vindi',
+            nom_pl: 'vindar', acc_pl: 'vinda', dat_pl: 'vindum' },
+  'shield': { base: 'skjöldr', nom_sg: 'skjöldr', acc_sg: 'skjöld', dat_sg: 'skildi',
+              nom_pl: 'skjöldir', acc_pl: 'skjöld', dat_pl: 'skildum' },
+  'forest': { base: 'skógr', nom_sg: 'skógr', acc_sg: 'skog', dat_sg: 'skógi',
+              nom_pl: 'skógar', acc_pl: 'skóga', dat_pl: 'skógum' },
+  'mountain': { base: 'fjall', nom_sg: 'fjall', acc_sg: 'fjall', dat_sg: 'fjalli',
+                nom_pl: 'fjöll', acc_pl: 'fjöll', dat_pl: 'fjöllum' },
+  'wolf': { base: 'úlfr', nom_sg: 'úlfr', acc_sg: 'úlf', dat_sg: 'úlfi',
+            nom_pl: 'úlfar', acc_pl: 'úlfa', dat_pl: 'úlfum' },
+  'raven': { base: 'hrafn', nom_sg: 'hrafn', acc_sg: 'hrafn', dat_sg: 'hrafni',
+             nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum' },
+
+  // ── Feminine o-stem ──
+  'woman': { base: 'kona', nom_sg: 'kona', acc_sg: 'konu', dat_sg: 'konu',
+             nom_pl: 'konur', acc_pl: 'konur', dat_pl: 'konum' },
+  'hall': { base: 'höll', nom_sg: 'höll', acc_sg: 'höll', dat_sg: 'höll',
+            nom_pl: 'hollar', acc_pl: 'hollar', dat_pl: 'höllum' },
+  'gate': { base: 'hlið', nom_sg: 'hlið', acc_sg: 'hlið', dat_sg: 'hlið',
+            nom_pl: 'hliðir', acc_pl: 'hliðir', dat_pl: 'hliðum' },
+  'river': { base: 'á', nom_sg: 'á', acc_sg: 'á', dat_sg: 'á',
+             nom_pl: 'ár', acc_pl: 'ár', dat_pl: 'árum' },
+  'earth': { base: 'jörð', nom_sg: 'jörð', acc_sg: 'jörð', dat_sg: 'jörð',
+             nom_pl: 'jarðir', acc_pl: 'jarðir', dat_pl: 'jarðum' },
+  'axe': { base: 'øx', nom_sg: 'øx', acc_sg: 'øx', dat_sg: 'øx',
+           nom_pl: 'øxur', acc_pl: 'øxur', dat_pl: 'öxum' },
+  'sister': { base: 'systir', nom_sg: 'systir', acc_sg: 'systur', dat_sg: 'systir',
+              nom_pl: 'systr', acc_pl: 'systr', dat_pl: 'systrum' },
+  'mother': { base: 'móðir', nom_sg: 'móðir', acc_sg: 'móður', dat_sg: 'móður',
+              nom_pl: 'mæðr', acc_pl: 'mæðr', dat_pl: 'mæðrum' },
+  'daughter': { base: 'dóttir', nom_sg: 'dóttir', acc_sg: 'dóttur', dat_sg: 'dóttur',
+                nom_pl: 'dætr', acc_pl: 'dætr', dat_pl: 'dóttrum' },
+  'night': { base: 'nótt', nom_sg: 'nótt', acc_sg: 'nótt', dat_sg: 'nótt',
+             nom_pl: 'nætr', acc_pl: 'nætr', dat_pl: 'nóttum' },
+
+  // ── Neuter consonant-stem ──
+  'sword': { base: 'sverð', nom_sg: 'sverð', acc_sg: 'sverð', dat_sg: 'sverði',
+             nom_pl: 'sverd', acc_pl: 'sverd', dat_pl: 'sverðum' },
+  'house': { base: 'hús', nom_sg: 'hús', acc_sg: 'hús', dat_sg: 'húsi',
+             nom_pl: 'hús', acc_pl: 'hús', dat_pl: 'húsum' },
+  'word': { base: 'orð', nom_sg: 'orð', acc_sg: 'orð', dat_sg: 'orði',
+            nom_pl: 'orð', acc_pl: 'orð', dat_pl: 'orðum' },
+  'sea': { base: 'haf', nom_sg: 'haf', acc_sg: 'haf', dat_sg: 'hafi',
+           nom_pl: 'höf', acc_pl: 'höf', dat_pl: 'höfum' },
+  'child': { base: 'barn', nom_sg: 'barn', acc_sg: 'barn', dat_sg: 'barni',
+             nom_pl: 'börn', acc_pl: 'börn', dat_pl: 'börnum' },
+  'ship': { base: 'skip', nom_sg: 'skip', acc_sg: 'skip', dat_sg: 'skipi',
+            nom_pl: 'skip', acc_pl: 'skip', dat_pl: 'skipum' },
+  'water': { base: 'vatn', nom_sg: 'vatn', acc_sg: 'vatn', dat_sg: 'vatni',
+             nom_pl: 'vötn', acc_pl: 'vötn', dat_pl: 'vötnum' },
+  'tree': { base: 'tré', nom_sg: 'tré', acc_sg: 'tré', dat_sg: 'tré',
+            nom_pl: 'trjóld', acc_pl: 'trjóld', dat_pl: 'trjóum' },
+  'land': { base: 'land', nom_sg: 'land', acc_sg: 'land', dat_sg: 'landi',
+            nom_pl: 'lönd', acc_pl: 'lönd', dat_pl: 'londum' },
+  'thing': { base: 'þing', nom_sg: 'þing', acc_sg: 'þing', dat_sg: 'þingi',
+             nom_pl: 'þing', acc_pl: 'þing', dat_pl: 'þingum' },
+};
+
 // ─── ENGLISH → OLD NORSE DICTIONARY ─────────────────────────────────────────
 // "the" removed — ON definite article is a suffix, not a standalone word.
 // Pronouns handled separately via PRONOUNS table above.
@@ -751,28 +839,49 @@ function processSentence(sentence) {
   });
 
   // Step 4: conjugate verbs
-  // Find the most recent preceding subject pronoun's ON form and use it to pick conjugation.
+  // Track subject pronouns and nouns before verbs to determine conjugation form.
+  // Default to 3rd person (hann for singular, þeir for plural).
   // Reset subject on 'and' to handle compound sentences correctly.
   let lastSubjON = null; // ON nominative pronoun string
+  let lastSubjIsPlural = false; // Track if last subject is plural
   const conjugated = resolved.map(tok => {
     // Reset subject on conjunction (new clause)
     if(tok.type === 'word' && tok.en === 'and') {
       lastSubjON = null;
+      lastSubjIsPlural = false;
     }
 
     // Track subject pronouns
     if(tok.type === 'pronoun' && tok.on) {
       // Only update lastSubj if this resolved to nominative
       const p = tok.pron;
-      if(tok.on === p.nom) lastSubjON = tok.on;
+      if(tok.on === p.nom) {
+        lastSubjON = tok.on;
+        // Pronouns 'vér' (us) and 'þeir/þær' (them) are plural
+        lastSubjIsPlural = ['vér','þeir','þær','þau'].includes(tok.on);
+      }
     }
+
+    // Track subject nouns
+    if(tok.type === 'noun') {
+      // A noun before a verb is likely the subject if nominative
+      // Check if this noun appears before a verb in the sentence
+      lastSubjIsPlural = tok.en.endsWith('s') ||
+                         ['men','children','people','eyes','feet','teeth','oxen'].includes(tok.en);
+    }
+
     if(tok.type !== 'verb') return tok;
 
     const forms = CONJ[tok.en];
     if(!forms) return { ...tok, on: tok.en }; // fallback: pass through
 
-    // If no explicit subject found, default to 3rd person (hann) not 1st person (ek)
-    const idx = lastSubjON ? (PRON_TO_IDX[lastSubjON] ?? 2) : 2;
+    // Determine conjugation index based on subject
+    let idx = 2; // default to 3rd person singular (hann)
+    if(lastSubjON) {
+      idx = PRON_TO_IDX[lastSubjON] ?? 2;
+    } else if(lastSubjIsPlural) {
+      idx = 5; // 3rd person plural (þeir/þær/þau)
+    }
     return { ...tok, on: forms[idx] };
   });
 
@@ -853,37 +962,65 @@ function processSentence(sentence) {
       return { ...tok, on: EN_TO_ON[tok.en] || ADJECTIVES[tok.en]?.base || tok.en };
     }
 
-    // Handle nouns: detect case and apply basic declension
+    // Handle nouns: detect case, number, and apply full declension
     if(tok.type === 'noun') {
-      // Look back for a verb to determine if noun is an object (accusative)
-      let caseForm = 'nom';
+      const gender = tok.gender || NOUN_GENDER[tok.en] || 'm';
+
+      // Detect if noun is plural
+      const isPlural = tok.en.endsWith('s') ||
+                       ['men','children','people','eyes','feet','teeth','oxen'].includes(tok.en);
+
+      // Detect case: check for verbs and prepositions
+      let caseForm = 'nom'; // default nominative
+      let prevWord = null;
+
+      // Look back to find case clues
       for(let j = idx - 1; j >= 0; j--) {
-        if(withAgreement[j].type === 'verb') {
-          caseForm = 'acc';
+        const prevTok = withAgreement[j];
+        if(prevTok.type === 'word' || prevTok.type === 'pronoun') {
+          prevWord = prevTok;
           break;
         }
-        // Stop at sentence boundaries or other nouns
-        if(withAgreement[j].type === 'noun' || withAgreement[j].type === 'punct') {
+        if(prevTok.type === 'verb') {
+          caseForm = 'acc'; // After verb → object
+          break;
+        }
+        if(prevTok.type === 'punct') {
           break;
         }
       }
 
-      // Apply basic accusative form changes (hacky but improves realism)
+      // Check if preceded by dative preposition
+      if(prevWord && prevWord.type === 'word' && DATIVE_PREPS.has(prevWord.en)) {
+        caseForm = 'dat';
+      }
+
+      // Try to look up in NOUN_DECLENSION
+      const declension = NOUN_DECLENSION[tok.en];
+      if(declension) {
+        const numberSuffix = isPlural ? 'pl' : 'sg';
+        const key = `${caseForm}_${numberSuffix}`;
+        const form = declension[key];
+        if(form) {
+          return { ...tok, on: form };
+        }
+      }
+
+      // Fallback: apply basic accusative form changes for undeclensed nouns
       if(caseForm === 'acc') {
-        const gender = tok.gender || NOUN_GENDER[tok.en] || 'm';
         let accForm = tok.on;
 
-        // Masculine: drop -r for accusative (e.g., kappi → kappa)
+        // Masculine: -i → -a (e.g., kappi → kappa), -r → drop -r
         if(gender === 'm' && accForm.endsWith('i')) {
           accForm = accForm.slice(0, -1) + 'a';
         } else if(gender === 'm' && accForm.endsWith('r')) {
           accForm = accForm.slice(0, -1);
         }
-        // Feminine: often -u or -a in accusative (e.g., kona → konu)
-        else if(gender === 'f' && accForm === 'kona') {
-          accForm = 'konu';
+        // Feminine: -a → -u (e.g., kona → konu)
+        else if(gender === 'f' && accForm.endsWith('a')) {
+          accForm = accForm.slice(0, -1) + 'u';
         }
-        // Neuter: usually stays same in accusative
+        // Neuter: usually unchanged in accusative
 
         return { ...tok, on: accForm };
       }
