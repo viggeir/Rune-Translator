@@ -1852,8 +1852,9 @@ function processSentence(sentence) {
       const tok_is_adjective = ADJECTIVES[tok.toLowerCase()];
       const next_is_adjective = ADJECTIVES[raw[i+2].toLowerCase()];
 
-      // Only apply phrase fallback if NOT both adjectives
-      if(!tok_is_adjective || !next_is_adjective) {
+      // Only apply phrase fallback if NEITHER is an adjective
+      // (adjectives should stay separate, not concatenate with other words)
+      if(!tok_is_adjective && !next_is_adjective) {
         if(EN_TO_ON[phrase]) {
           // Exact phrase found in dictionary
           // Determine gender from head noun (last word)
@@ -2036,30 +2037,9 @@ function processSentence(sentence) {
   const withAgreement = conjugated.map((tok, idx) => {
     // Handle possessives: find the following noun
     if(tok.type === 'possessive') {
-      // Check if this possessive already appeared after the last noun (skip duplicates)
-      let lastNounIdx = -1;
-      for(let j = idx - 1; j >= 0; j--) {
-        if(conjugated[j].type === 'noun' || conjugated[j].type === 'word' ||
-           conjugated[j].type === 'synonym') {
-          lastNounIdx = j;
-          break;
-        }
-      }
-
-      if(lastNounIdx !== -1) {
-        let hasDuplicatePossessive = false;
-        for(let j = lastNounIdx + 1; j < idx; j++) {
-          if(conjugated[j].type === 'possessive' && conjugated[j].en === tok.en) {
-            hasDuplicatePossessive = true;
-            break;
-          }
-        }
-
-        if(hasDuplicatePossessive) {
-          // Skip this duplicate possessive by marking as space
-          return { ...tok, type: 'space' };
-        }
-      }
+      // Note: Duplicate possessive detection disabled for now
+      // The logic is complex because possessives can appear in different positions
+      // relative to nouns depending on clause structure
 
       // Look ahead for the noun (skip spaces, adjectives, punctuation)
       let nextNounIdx = idx + 1;
@@ -2074,11 +2054,28 @@ function processSentence(sentence) {
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
         let gender = nextTok.gender;
-        if(!gender) {
+        if(!gender && nextTok.en) {
+          // Try direct lookup in NOUN_GENDER
           gender = NOUN_GENDER[nextTok.en];
         }
+        if(!gender && nextTok.en) {
+          // For compound nouns like "shield maiden", try the last word
+          const words = nextTok.en.split(' ');
+          if(words.length > 1) {
+            const lastWord = words[words.length - 1];
+            gender = NOUN_GENDER[lastWord];
+          }
+        }
+        if(!gender && nextTok.en) {
+          // Try lemmatized form
+          const lemma = LEMMAS[nextTok.en];
+          if(lemma) {
+            gender = NOUN_GENDER[lemma];
+          }
+        }
         if(!gender) {
-          gender = 'm'; // Final fallback to masculine
+          // Final fallback to masculine
+          gender = 'm';
         }
 
         const possForm = POSSESSIVES[tok.en];
@@ -2108,11 +2105,28 @@ function processSentence(sentence) {
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
         let gender = nextTok.gender;
-        if(!gender) {
+        if(!gender && nextTok.en) {
+          // Try direct lookup
           gender = NOUN_GENDER[nextTok.en];
         }
+        if(!gender && nextTok.en) {
+          // For compound nouns, try the last word
+          const words = nextTok.en.split(' ');
+          if(words.length > 1) {
+            const lastWord = words[words.length - 1];
+            gender = NOUN_GENDER[lastWord];
+          }
+        }
+        if(!gender && nextTok.en) {
+          // Try lemmatized form
+          const lemma = LEMMAS[nextTok.en];
+          if(lemma) {
+            gender = NOUN_GENDER[lemma];
+          }
+        }
         if(!gender) {
-          gender = 'm'; // Fallback to masculine
+          // Fallback to masculine
+          gender = 'm';
         }
 
         // Detect if noun is plural: ends in 's' or is irregular plural
