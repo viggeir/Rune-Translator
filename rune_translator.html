@@ -52,18 +52,18 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 <h1>Rune Translator</h1>
 <p class="subtitle">English ↔ Old Norse ↔ Younger Futhark</p>
 
-<textarea id="inp" placeholder="Enter English text..." onfocus="activeInput='english'" oninput="if(activeInput==='english') translate()"></textarea>
+<textarea id="inp" placeholder="Enter English text..." onfocus="activeInput='english'" oninput="if(activeInput==='english') performTranslation()"></textarea>
 
 <div class="step-block">
   <div class="step-label">Old Norse</div>
-  <div class="on-output" id="onOut" contenteditable="true" spellcheck="false" onfocus="activeInput='oldnorse'; clearOtherFields('oldnorse')" oninput="if(activeInput==='oldnorse') translate()"><span class="placeholder-text">Old Norse will appear here</span></div>
+  <div class="on-output" id="onOut" contenteditable="true" spellcheck="false" onfocus="activeInput='oldnorse'; clearOtherFields('oldnorse')" oninput="if(activeInput==='oldnorse') performTranslation()"><span class="placeholder-text">Old Norse will appear here</span></div>
   <div class="unknown-key" id="unknownKey" style="display:none"></div>
   <button class="copy-btn" onclick="copyON()">Copy</button>
 </div>
 
 <div class="step-block">
   <div class="step-label">Younger Futhark</div>
-  <div class="rune-output" id="runeOut" contenteditable="true" spellcheck="false" onfocus="activeInput='runes'; clearOtherFields('runes')" oninput="if(activeInput==='runes') translate()"><span class="placeholder-text">Runes will appear here</span></div>
+  <div class="rune-output" id="runeOut" contenteditable="true" spellcheck="false" onfocus="activeInput='runes'; clearOtherFields('runes')" oninput="if(activeInput==='runes') performTranslation()"><span class="placeholder-text">Runes will appear here</span></div>
   <button class="copy-btn" onclick="copyRunes()">Copy</button>
 </div>
 
@@ -879,7 +879,7 @@ function clearOtherFields(activeType) {
 }
 
 // ─── MAIN TRANSLATION ORCHESTRATOR ────────────────────────────────────────────
-function translate() {
+function performTranslation() {
   const enInp   = document.getElementById('inp').value.trim();
   const onInp   = document.getElementById('onOut').textContent.trim();
   const runesInp = document.getElementById('runeOut').textContent.trim();
