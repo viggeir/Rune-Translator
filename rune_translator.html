@@ -147,6 +147,7 @@ function onToRunes(text) {
   const result = [];
   while(i < lower.length) {
     if(lower[i] === ' ') { result.push({space:true}); i++; continue; }
+    if(lower[i] === '\n') { result.push({newline:true}); i++; continue; }
     // Handle brackets (pass through as marker text, not runes)
     if(lower[i] === '[') {
       let endIdx = lower.indexOf(']', i);
@@ -174,74 +175,94 @@ function onToRunes(text) {
 
 // ─── REVERSE TRANSLATION: OLD NORSE → ENGLISH ────────────────────────────────
 function onToEnglish(text) {
-  const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const result = [];
-  const unknowns = [];
+  // Split by lines to preserve structure
+  const lines = text.split('\n');
+  const allResults = [];
+  const allUnknowns = [];
+  
+  lines.forEach(line => {
+    const words = line.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    const result = [];
+    const unknowns = [];
 
-  words.forEach(word => {
-    // Handle bracketed unknowns (from marked unknowns)
-    if(word.startsWith('[') && word.endsWith(']')) {
-      const bracketed = word.slice(1, -1);
-      result.push('[' + bracketed + ']');
-      unknowns.push(bracketed);
-      return;
-    }
+    words.forEach(word => {
+      // Handle bracketed unknowns (from marked unknowns)
+      if(word.startsWith('[') && word.endsWith(']')) {
+        const bracketed = word.slice(1, -1);
+        result.push('[' + bracketed + ']');
+        unknowns.push(bracketed);
+        return;
+      }
 
-    // Remove punctuation for lookup
-    const cleanWord = word.replace(/[.,!?;:\-'"]/g, '');
-    const translation = ON_TO_EN[cleanWord];
+      // Remove punctuation for lookup
+      const cleanWord = word.replace(/[.,!?;:\-'"]/g, '');
+      const translation = ON_TO_EN[cleanWord];
 
-    if(translation) {
-      result.push(translation);
-    } else {
-      result.push(word);
-      unknowns.push(cleanWord);
-    }
+      if(translation) {
+        result.push(translation);
+      } else {
+        result.push(word);
+        unknowns.push(cleanWord);
+      }
+    });
+
+    allResults.push(result.join(' '));
+    allUnknowns.push(...unknowns);
   });
 
   return {
-    text: result.join(' '),
-    unknowns: unknowns
+    text: allResults.join('\n'),
+    unknowns: allUnknowns
   };
 }
 
 // ─── REVERSE TRANSLATION: RUNES → OLD NORSE ───────────────────────────────────
 // Converts rune characters to phoneme combinations, then matches against ON dictionary
 function runesToOldNorse(runeText) {
-  // Extract rune characters and spaces
-  const runes = [];
-  let currentWord = [];
+  // Split by lines to preserve structure
+  const lines = runeText.split('\n');
+  const allResults = [];
+  const allUnknowns = [];
+  
+  lines.forEach(line => {
+    // Extract rune characters and spaces for this line
+    const runes = [];
+    let currentWord = [];
 
-  for(let char of runeText) {
-    if(char === ' ' || char === '\n') {
-      if(currentWord.length > 0) {
-        runes.push(currentWord);
-        currentWord = [];
+    for(let char of line) {
+      if(char === ' ') {
+        if(currentWord.length > 0) {
+          runes.push(currentWord);
+          currentWord = [];
+        }
+      } else if(RUNE_TO_SOUNDS[char]) {
+        currentWord.push(char);
       }
-    } else if(RUNE_TO_SOUNDS[char]) {
-      currentWord.push(char);
     }
-  }
-  if(currentWord.length > 0) runes.push(currentWord);
+    if(currentWord.length > 0) runes.push(currentWord);
 
-  // Convert each rune word to phoneme sequences and find best matches
-  const result = [];
-  const unknowns = [];
+    // Convert each rune word to phoneme sequences and find best matches
+    const result = [];
+    const unknowns = [];
 
-  runes.forEach(runeWord => {
-    const onWord = findBestOldNorseMatch(runeWord);
-    if(onWord) {
-      result.push(onWord);
-    } else {
-      const runeStr = runeWord.join('');
-      result.push(runeStr);
-      unknowns.push(runeStr);
-    }
+    runes.forEach(runeWord => {
+      const onWord = findBestOldNorseMatch(runeWord);
+      if(onWord) {
+        result.push(onWord);
+      } else {
+        const runeStr = runeWord.join('');
+        result.push(runeStr);
+        unknowns.push(runeStr);
+      }
+    });
+
+    allResults.push(result.join(' '));
+    allUnknowns.push(...unknowns);
   });
 
   return {
-    text: result.join(' '),
-    unknowns: unknowns
+    text: allResults.join('\n'),
+    unknowns: allUnknowns
   };
 }
 
@@ -502,7 +523,7 @@ Object.keys(PRON_TO_IDX).forEach(k => PRON_TO_IDX[k]--);
 const NOUN_GENDER = {
   // People (singular and plural)
   'man':'m', 'men':'m', 'woman':'f', 'women':'f',
-  'child':'n', 'children':'n', 'boy':'m', 'boys':'m', 'girl':'f', 'girls':'f',
+  'girl':'f', 'girls':'f', 'boy':'m', 'boys':'m', 'maiden':'f', 'maidens':'f',
   'king':'m', 'kings':'m', 'queen':'f', 'queens':'f', 'lord':'m', 'lords':'m', 'lady':'f', 'ladies':'f',
   'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m',
   'friend':'m', 'friends':'m', 'foe':'m', 'foes':'m', 'enemy':'m', 'enemies':'m',
@@ -702,6 +723,15 @@ const ADJECTIVES = {
     masc_nom_pl: 'sætir',    masc_acc_pl: 'sæta',     masc_dat_pl: 'sætum',
     fem_nom_pl: 'sætar',     fem_acc_pl: 'sætar',     fem_dat_pl: 'sætum',
     neut_nom_pl: 'sæt',      neut_acc_pl: 'sæt',      neut_dat_pl: 'sætum',
+  },
+  'yellow': {
+    base: 'gulr',
+    masc_nom_sg: 'gulr',     masc_acc_sg: 'gulan',    masc_dat_sg: 'gulri',
+    fem_nom_sg: 'gul',       fem_acc_sg: 'gula',      fem_dat_sg: 'gulri',
+    neut_nom_sg: 'gult',     neut_acc_sg: 'gult',     neut_dat_sg: 'gulu',
+    masc_nom_pl: 'gulir',    masc_acc_pl: 'gula',     masc_dat_pl: 'gulum',
+    fem_nom_pl: 'gular',     fem_acc_pl: 'gular',     fem_dat_pl: 'gulum',
+    neut_nom_pl: 'gul',      neut_acc_pl: 'gul',      neut_dat_pl: 'gulum',
   },
   'fair': {
     base: 'fagr',
@@ -1718,6 +1748,386 @@ function clearOtherFields(activeType) {
   if(activeType !== 'runes') document.getElementById('runeOut').textContent = '';
 }
 
+// ─── CONTEXT-BASED WORD SENSE DETECTION ─────────────────────────────────────
+// Smart pattern-based system to detect multiple meanings of words
+const CONTEXT_PATTERNS = {
+  // Adjective patterns - word modifies a noun
+  adjective: [
+    // Direct noun modification: "yellow flower", "sweet rose"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return next && NOUN_GENDER[next] && !ADJECTIVES[next];
+      }
+    },
+    // Modifies another adjective: "bright yellow", "deep yellow"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return next && ADJECTIVES[next];
+      }
+    }
+  ],
+  
+  // Noun patterns - word is used as a noun
+  noun: [
+    // After color words: "the color yellow", "a shade of yellow"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return prev && ['color', 'hue', 'shade', 'tint'].includes(prev);
+      }
+    },
+    // After determiners as standalone: "the yellow", "a yellow"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return prev && ['the', 'a', 'an'].includes(prev) && (!next || !NOUN_GENDER[next]);
+      }
+    },
+    // In color lists: "red, yellow, and blue"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return (prev === ',' || (prev && ADJECTIVES[prev])) && 
+               (next === ',' || next === 'and' || (next && ADJECTIVES[next]));
+      }
+    }
+  ],
+  
+  // Verb patterns - word is used as a verb
+  verb: [
+    // With verb endings: "yellows", "yellowed", "yellowing"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return ['yellows', 'yellowed', 'yellowing'].includes(word);
+      }
+    },
+    // After subject noun: "pages yellow", "leaves yellow"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return prev && NOUN_GENDER[prev] && 
+               (!next || ['with', 'in', 'over', 'under'].includes(next) || 
+                next.startsWith('year') || next.startsWith('age'));
+      }
+    },
+    // With modal verbs: "will yellow", "can yellow"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return prev && ['will', 'would', 'can', 'could', 'may', 'might', 'shall', 'should'].includes(prev);
+      }
+    }
+  ]
+};
+
+// Words that have multiple possible meanings (focused list)
+const MULTI_SENSE_WORDS = {
+  'yellow': { adjective: true, noun: true, verb: true },
+  'red': { adjective: true, noun: true },
+  'blue': { adjective: true, noun: true },
+  'green': { adjective: true, noun: true },
+  'black': { adjective: true, noun: true },
+  'white': { adjective: true, noun: true },
+  'brown': { adjective: true, noun: true },
+  'gold': { adjective: true, noun: true },
+  'silver': { adjective: true, noun: true },
+  'rose': { noun: true, verb: true }, // noun: flower, verb: past tense of rise
+  'shield': { noun: true, verb: true }, // noun: armor, verb: protect
+  'love': { noun: true, verb: true },
+  'hate': { noun: true, verb: true },
+  'fear': { noun: true, verb: true },
+  'dream': { noun: true, verb: true },
+  'fight': { noun: true, verb: true },
+  'sing': { noun: true, verb: true },
+  'dance': { noun: true, verb: true },
+  'work': { noun: true, verb: true },
+  'play': { noun: true, verb: true },
+  'rest': { noun: true, verb: true },
+  'sleep': { noun: true, verb: true },
+  'wake': { noun: true, verb: true },
+  'fall': { noun: true, verb: true },
+  'rise': { noun: true, verb: true },
+  'stand': { noun: true, verb: true },
+  'walk': { noun: true, verb: true },
+  'run': { noun: true, verb: true },
+  'fly': { noun: true, verb: true },
+  'swim': { noun: true, verb: true },
+  'drink': { noun: true, verb: true },
+  'eat': { noun: true, verb: true },
+  'write': { noun: true, verb: true },
+  'read': { noun: true, verb: true },
+  'speak': { noun: true, verb: true },
+  'hear': { noun: true, verb: true },
+  'see': { noun: true, verb: true },
+  'feel': { noun: true, verb: true },
+  'think': { noun: true, verb: true },
+  'know': { noun: true, verb: true },
+  'believe': { noun: true, verb: true },
+  'hope': { noun: true, verb: true },
+  'wish': { noun: true, verb: true },
+  'want': { noun: true, verb: true },
+  'need': { noun: true, verb: true },
+  'help': { noun: true, verb: true },
+  'call': { noun: true, verb: true },
+  'answer': { noun: true, verb: true },
+  'ask': { noun: true, verb: true },
+  'give': { noun: true, verb: true },
+  'take': { noun: true, verb: true },
+  'make': { noun: true, verb: true },
+  'break': { noun: true, verb: true },
+  'build': { noun: true, verb: true },
+  'open': { noun: true, verb: true },
+  'close': { noun: true, verb: true },
+  'start': { noun: true, verb: true },
+  'end': { noun: true, verb: true },
+  'turn': { noun: true, verb: true },
+  'look': { noun: true, verb: true },
+  'watch': { noun: true, verb: true },
+  'wait': { noun: true, verb: true },
+  'live': { noun: true, verb: true },
+  'die': { noun: true, verb: true },
+  'kill': { noun: true, verb: true },
+  'win': { noun: true, verb: true },
+  'lose': { noun: true, verb: true },
+  'find': { noun: true, verb: true },
+  'keep': { noun: true, verb: true },
+  'hold': { noun: true, verb: true },
+  'catch': { noun: true, verb: true },
+  'throw': { noun: true, verb: true },
+  'push': { noun: true, verb: true },
+  'pull': { noun: true, verb: true },
+  'hit': { noun: true, verb: true },
+  'cut': { noun: true, verb: true },
+  'burn': { noun: true, verb: true },
+  'freeze': { noun: true, verb: true },
+  'melt': { noun: true, verb: true },
+  'flow': { noun: true, verb: true },
+  'blow': { noun: true, verb: true },
+  'shine': { noun: true, verb: true },
+  'rain': { noun: true, verb: true },
+  'snow': { noun: true, verb: true },
+  'wind': { noun: true, verb: true },
+  'storm': { noun: true, verb: true },
+  'light': { noun: true, verb: true },
+  'dark': { noun: true, verb: true },
+  'fire': { noun: true, verb: true },
+  'water': { noun: true, verb: true },
+  'earth': { noun: true, verb: true },
+  'stone': { noun: true, verb: true },
+  'wood': { noun: true, verb: true },
+  'iron': { noun: true, verb: true },
+  'blood': { noun: true, verb: true },
+  'bone': { noun: true, verb: true },
+  'flesh': { noun: true, verb: true },
+  'skin': { noun: true, verb: true },
+  'hair': { noun: true, verb: true },
+  'eye': { noun: true, verb: true },
+  'hand': { noun: true, verb: true },
+  'foot': { noun: true, verb: true },
+  'head': { noun: true, verb: true },
+  'heart': { noun: true, verb: true },
+  'mind': { noun: true, verb: true },
+  'soul': { noun: true, verb: true },
+  'spirit': { noun: true, verb: true },
+  'body': { noun: true, verb: true },
+  'face': { noun: true, verb: true },
+  'mouth': { noun: true, verb: true },
+  'voice': { noun: true, verb: true },
+  'sound': { noun: true, verb: true },
+  'music': { noun: true, verb: true },
+  'song': { noun: true, verb: true },
+  'time': { noun: true, verb: true },
+  'life': { noun: true, verb: true },
+  'death': { noun: true, verb: true },
+  'birth': { noun: true, verb: true },
+  'age': { noun: true, verb: true },
+  'man': { noun: true, verb: true },
+  'woman': { noun: true, verb: true },
+  'boy': { noun: true, verb: true },
+  'girl': { noun: true, verb: true },
+  'king': { noun: true, verb: true },
+  'queen': { noun: true, verb: true },
+  'lord': { noun: true, verb: true },
+  'lady': { noun: true, verb: true },
+  'god': { noun: true, verb: true },
+  'friend': { noun: true, verb: true },
+  'enemy': { noun: true, verb: true },
+  'guest': { noun: true, verb: true },
+  'host': { noun: true, verb: true },
+  'master': { noun: true, verb: true },
+  'servant': { noun: true, verb: true },
+  'guard': { noun: true, verb: true },
+  'soldier': { noun: true, verb: true },
+  'warrior': { noun: true, verb: true },
+  'hero': { noun: true, verb: true },
+  'sword': { noun: true, verb: true },
+  'bow': { noun: true, verb: true },
+  'ring': { noun: true, verb: true },
+  'crown': { noun: true, verb: true },
+  'throne': { noun: true, verb: true },
+  'castle': { noun: true, verb: true },
+  'tower': { noun: true, verb: true },
+  'wall': { noun: true, verb: true },
+  'gate': { noun: true, verb: true },
+  'door': { noun: true, verb: true },
+  'window': { noun: true, verb: true },
+  'room': { noun: true, verb: true },
+  'hall': { noun: true, verb: true },
+  'house': { noun: true, verb: true },
+  'home': { noun: true, verb: true },
+  'garden': { noun: true, verb: true },
+  'field': { noun: true, verb: true },
+  'forest': { noun: true, verb: true },
+  'mountain': { noun: true, verb: true },
+  'river': { noun: true, verb: true },
+  'sea': { noun: true, verb: true },
+  'island': { noun: true, verb: true },
+  'shore': { noun: true, verb: true },
+  'desert': { noun: true, verb: true },
+  'wind': { noun: true, verb: true },
+  'storm': { noun: true, verb: true },
+  'rain': { noun: true, verb: true },
+  'cloud': { noun: true, verb: true },
+  'sky': { noun: true, verb: true },
+  'sun': { noun: true, verb: true },
+  'moon': { noun: true, verb: true },
+  'star': { noun: true, verb: true },
+  'night': { noun: true, verb: true },
+  'day': { noun: true, verb: true },
+  'spring': { noun: true, verb: true },
+  'summer': { noun: true, verb: true },
+  'winter': { noun: true, verb: true },
+  'year': { noun: true, verb: true },
+  'world': { noun: true, verb: true },
+  'way': { noun: true, verb: true },
+  'place': { noun: true, verb: true },
+  'thing': { noun: true, verb: true },
+  'stuff': { noun: true, verb: true },
+  'matter': { noun: true, verb: true },
+  'problem': { noun: true, verb: true },
+  'trouble': { noun: true, verb: true },
+  'danger': { noun: true, verb: true },
+  'peace': { noun: true, verb: true },
+  'war': { noun: true, verb: true },
+  'battle': { noun: true, verb: true },
+  'fight': { noun: true, verb: true },
+  'love': { noun: true, verb: true },
+  'hate': { noun: true, verb: true },
+  'anger': { noun: true, verb: true },
+  'joy': { noun: true, verb: true },
+  'sadness': { noun: true, verb: true },
+  'fear': { noun: true, verb: true },
+  'hope': { noun: true, verb: true },
+  'dream': { noun: true, verb: true },
+  'memory': { noun: true, verb: true },
+  'thought': { noun: true, verb: true },
+  'idea': { noun: true, verb: true },
+  'story': { noun: true, verb: true },
+  'history': { noun: true, verb: true },
+  'future': { noun: true, verb: true },
+  'past': { noun: true, verb: true },
+  'present': { noun: true, verb: true },
+  'truth': { noun: true, verb: true },
+  'lie': { noun: true, verb: true },
+  'secret': { noun: true, verb: true },
+  'mystery': { noun: true, verb: true },
+  'question': { noun: true, verb: true },
+  'answer': { noun: true, verb: true },
+  'solution': { noun: true, verb: true },
+  'plan': { noun: true, verb: true },
+  'game': { noun: true, verb: true },
+  'sport': { noun: true, verb: true },
+  'art': { noun: true, verb: true },
+  'music': { noun: true, verb: true },
+  'dance': { noun: true, verb: true },
+  'song': { noun: true, verb: true },
+  'poem': { noun: true, verb: true },
+  'book': { noun: true, verb: true },
+  'letter': { noun: true, verb: true },
+  'message': { noun: true, verb: true },
+  'news': { noun: true, verb: true },
+  'information': { noun: true, verb: true },
+  'knowledge': { noun: true, verb: true },
+  'wisdom': { noun: true, verb: true },
+  'power': { noun: true, verb: true },
+  'strength': { noun: true, verb: true },
+  'force': { noun: true, verb: true },
+  'energy': { noun: true, verb: true },
+  'magic': { noun: true, verb: true },
+  'spell': { noun: true, verb: true },
+  'curse': { noun: true, verb: true },
+  'blessing': { noun: true, verb: true },
+  'gift': { noun: true, verb: true },
+  'treasure': { noun: true, verb: true },
+  'gold': { noun: true, verb: true },
+  'silver': { noun: true, verb: true },
+  'money': { noun: true, verb: true },
+  'wealth': { noun: true, verb: true },
+  'rich': { noun: true, verb: true },
+  'poor': { noun: true, verb: true },
+  'food': { noun: true, verb: true },
+  'drink': { noun: true, verb: true },
+  'bread': { noun: true, verb: true },
+  'water': { noun: true, verb: true },
+  'wine': { noun: true, verb: true },
+  'beer': { noun: true, verb: true },
+  'meat': { noun: true, verb: true },
+  'fish': { noun: true, verb: true },
+  'fruit': { noun: true, verb: true },
+  'flower': { noun: true, verb: true },
+  'tree': { noun: true, verb: true },
+  'leaf': { noun: true, verb: true },
+  'root': { noun: true, verb: true },
+  'branch': { noun: true, verb: true },
+  'seed': { noun: true, verb: true },
+  'grass': { noun: true, verb: true },
+  'plant': { noun: true, verb: true },
+  'animal': { noun: true, verb: true },
+  'bird': { noun: true, verb: true },
+  'fish': { noun: true, verb: true },
+  'snake': { noun: true, verb: true },
+  'horse': { noun: true, verb: true },
+  'dog': { noun: true, verb: true },
+  'cat': { noun: true, verb: true },
+  'wolf': { noun: true, verb: true },
+  'bear': { noun: true, verb: true },
+  'lion': { noun: true, verb: true },
+  'eagle': { noun: true, verb: true },
+  'serpent': { noun: true, verb: true },
+  'dragon': { noun: true, verb: true },
+  'god': { noun: true, verb: true },
+  'goddess': { noun: true, verb: true },
+  'demon': { noun: true, verb: true },
+  'angel': { noun: true, verb: true },
+  'spirit': { noun: true, verb: true },
+  'ghost': { noun: true, verb: true },
+  'soul': { noun: true, verb: true },
+  'devil': { noun: true, verb: true },
+  'hero': { noun: true, verb: true },
+  'villain': { noun: true, verb: true },
+  'monster': { noun: true, verb: true },
+  'beast': { noun: true, verb: true },
+  'creature': { noun: true, verb: true }
+};
+
+// Smart word sense detection function
+function detectWordSense(word, context) {
+  const senses = MULTI_SENSE_WORDS[word.toLowerCase()];
+  if (!senses) return null; // Word has single meaning
+  
+  // Check patterns in priority order: adjective > noun > verb
+  const priorityOrder = ['adjective', 'noun', 'verb'];
+  
+  for (const wordType of priorityOrder) {
+    if (!senses[wordType]) continue;
+    
+    const patterns = CONTEXT_PATTERNS[wordType];
+    for (const pattern of patterns) {
+      if (pattern.test(word, context.prev, context.next, context.tokens, context.idx)) {
+        return wordType;
+      }
+    }
+  }
+  
+  // Fallback to most common usage (for colors, it's usually adjective)
+  return senses.adjective ? 'adjective' : senses.noun ? 'noun' : 'verb';
+}
+
 // ─── MAIN TRANSLATION ORCHESTRATOR ────────────────────────────────────────────
 function performTranslation() {
   const enInp   = document.getElementById('inp').value.trim();
@@ -1725,6 +2135,16 @@ function performTranslation() {
   const runesInp = document.getElementById('runeOut').textContent.trim();
   const ukEl    = document.getElementById('unknownKey');
 
+  // If active field is empty, clear other fields
+  if((activeInput === 'english' && !enInp) || 
+     (activeInput === 'oldnorse' && !onInp) || 
+     (activeInput === 'runes' && !runesInp)) {
+    clearOtherFields(activeInput);
+    ukEl.style.display = 'none';
+    return;
+  }
+
+  // If all fields are empty, clear everything
   if(!enInp && !onInp && !runesInp) {
     document.getElementById('onOut').textContent = '';
     document.getElementById('runeOut').textContent = '';
@@ -1740,16 +2160,24 @@ function performTranslation() {
   // Route based on active input
   if(activeInput === 'english' && enStr) {
     // English → Old Norse → Runes (original pipeline)
-    const sentences = enStr.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+    // Split by lines to preserve structure
+    const lines = enStr.split('\n');
     const allOnResults = [];
 
-    sentences.forEach(sentence => {
-      const result = processSentence(sentence);
-      if(result.onStr) allOnResults.push(result.onStr);
-      allUnknowns.push(...result.unknowns);
+    lines.forEach(line => {
+      const sentences = line.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+      const lineOnResults = [];
+
+      sentences.forEach(sentence => {
+        const result = processSentence(sentence);
+        if(result.onStr) lineOnResults.push(result.onStr);
+        allUnknowns.push(...result.unknowns);
+      });
+
+      allOnResults.push(lineOnResults.join(' '));
     });
 
-    onStr = allOnResults.join(' ');
+    onStr = allOnResults.join('\n');
     runesStr = renderRunes(onStr);
 
   } else if(activeInput === 'oldnorse' && onStr) {
@@ -1783,6 +2211,7 @@ function renderRunes(onStr) {
 
   return runes.map(r => {
     if(r.space) return '<span class="rune-char space"> </span>';
+    if(r.newline) return '<br>';
     if(r.isUnknown) return `<span class="unknown" title="No match">${r.text}</span>`;
     return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
   }).join('');
@@ -1844,36 +2273,138 @@ function processSentence(sentence) {
     if(/^\s+$/.test(tok))                        { classified.push({type:'space'}); i++; continue; }
     if(!/[a-záéíóúýæøöǫþðä]/.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
 
+    // Build context for smart word sense detection
+    const context = {
+      prev: i > 0 ? raw[i-1].trim() : null,
+      next: i < raw.length - 1 ? raw[i+1].trim() : null,
+      tokens: raw,
+      idx: i
+    };
+
+    // Check for smart word sense detection first
+    const detectedSense = detectWordSense(tok, context);
+    
     // Two-word phrase check first (with compound fallback)
-    // BUT: skip this for adjectives (they should remain separate)
+    // BUT: skip this for adjectives (they should stay separate)
     let phraseMatched = false;
     if(i+2 < raw.length && /^\s+$/.test(raw[i+1]) && /[a-z]/.test(raw[i+2])) {
       const phrase = tok + ' ' + raw[i+2];
-      const tok_is_adjective = ADJECTIVES[tok.toLowerCase()];
+      // Use detected sense if available, otherwise fall back to dictionary lookup
+      const tok_is_adjective = detectedSense === 'adjective' || ADJECTIVES[tok.toLowerCase()];
       const next_is_adjective = ADJECTIVES[raw[i+2].toLowerCase()];
 
       // Only apply phrase fallback if NEITHER is an adjective
       // (adjectives should stay separate, not concatenate with other words)
+      // EXCEPTION: Check for noun+noun compounds even if preceded by adjective
       if(!tok_is_adjective && !next_is_adjective) {
         if(EN_TO_ON[phrase]) {
           // Exact phrase found in dictionary
-          // Determine gender from head noun (last word)
+          // Determine gender from the full phrase first, then fallback to head noun (last word)
           const word2_raw = raw[i+2];
-          const gender = NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
+          const gender = NOUN_GENDER[phrase] || NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
           classified.push({type:'word', en:phrase, on:EN_TO_ON[phrase], gender:gender});
           i += 3; phraseMatched = true;
         } else {
-          // No exact phrase match — try concatenation fallback (compound noun)
-          const word1 = EN_TO_ON[tok];
-          const word2_raw = raw[i+2];
-          const word2 = EN_TO_ON[word2_raw];
-          if(word1 && word2 && !tok_is_adjective && !next_is_adjective) {
-            // Both words are translatable AND neither is adjective — concatenate as compound
-            // Determine gender from head noun (last word)
-            const gender = NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
-            classified.push({type:'word', en:phrase, on:word1 + word2, gender:gender});
+          // No exact phrase match — try smart auto-compounder
+          console.log('Trying compound for:', tok, raw[i+2]);
+          const compoundResult = trySmartCompound(tok, raw[i+2]);
+          console.log('Compound result:', compoundResult);
+          if(compoundResult) {
+            classified.push({type:'word', en:phrase, on:compoundResult.on, gender:compoundResult.gender});
             i += 3; phraseMatched = true;
+          } else {
+            // Special case: handle known nature compounds that might be missed
+            const specialCompounds = {
+              'heather rose': { on: 'lyngrós', gender: 'f' },
+              'yellow heather rose': { on: 'gullyngrós', gender: 'f' },
+              'mountain peak': { on: 'fjalltopp', gender: 'n' },
+              'river stone': { on: 'ársteinn', gender: 'm' },
+              'sea wolf': { on: 'hafúlfr', gender: 'm' },
+              'gold smith': { on: 'gullsmiðr', gender: 'm' },
+            };
+            
+            if(specialCompounds[phrase]) {
+              const special = specialCompounds[phrase];
+              classified.push({type:'word', en:phrase, on:special.on, gender:special.gender});
+              i += 3; phraseMatched = true;
+            } else {
+              // Fallback to simple concatenation (compound noun)
+              const word1 = EN_TO_ON[tok];
+              const word2_raw = raw[i+2];
+              const word2 = EN_TO_ON[word2_raw];
+              if(word1 && word2 && !tok_is_adjective && !next_is_adjective) {
+                // Both words are translatable AND neither is adjective — concatenate as compound
+                // Determine gender from the full phrase first, then fallback to head noun (last word)
+                const gender = NOUN_GENDER[phrase] || NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
+                classified.push({type:'word', en:phrase, on:word1 + word2, gender:gender});
+                i += 3; phraseMatched = true;
+              }
+            }
           }
+        }
+      }
+    }
+    if(phraseMatched) continue;
+
+    // Three-word phrase check (for compounds like "yellow heather rose")
+    if(i+4 < raw.length && /^\s+$/.test(raw[i+1]) && /^\s+$/.test(raw[i+3]) && 
+       /[a-z]/.test(raw[i+2]) && /[a-z]/.test(raw[i+4])) {
+      const phrase3 = tok + ' ' + raw[i+2] + ' ' + raw[i+4];
+      const tok_is_adjective = detectedSense === 'adjective' || ADJECTIVES[tok.toLowerCase()];
+      const word2_is_adjective = ADJECTIVES[raw[i+2].toLowerCase()];
+      const word3_is_adjective = ADJECTIVES[raw[i+4].toLowerCase()];
+
+      // Check for adjective + noun + noun pattern (like "yellow heather rose")
+      if(tok_is_adjective && !word2_is_adjective && !word3_is_adjective) {
+        // First check if this is a known special compound
+        const specialCompounds = {
+          'yellow heather rose': { on: 'gullyngrós', gender: 'f' },
+        };
+        
+        if(specialCompounds[phrase3]) {
+          const special = specialCompounds[phrase3];
+          classified.push({type:'word', en:phrase3, on:special.on, gender:special.gender});
+          console.log(`Used special compound: ${phrase3} -> ${special.on} (${special.gender})`);
+          i += 5; phraseMatched = true;
+        } else {
+          // Try to form a compound: adjective + (noun + noun compound)
+          const innerCompound = trySmartCompound(raw[i+2], raw[i+4]);
+          if(innerCompound) {
+            // For adjective + noun compounds, use the color compound rules
+            const adjWord = tok.toLowerCase();
+            const colors = {
+              'yellow': 'gull',
+              'red': 'rauð',
+              'blue': 'blá',
+              'green': 'græn',
+              'white': 'hvít',
+              'black': 'svart',
+            };
+            
+            if(colors[adjWord]) {
+              // Create proper compound: color + inner compound
+              const fullCompound = colors[adjWord] + innerCompound.on;
+              classified.push({type:'word', en:phrase3, on:fullCompound, gender:innerCompound.gender});
+              console.log(`Built color compound: ${phrase3} -> ${fullCompound} (${innerCompound.gender})`);
+              i += 5; phraseMatched = true;
+            } else {
+              // Fallback: adjective + inner compound
+              const adjForm = ADJECTIVES[tok.toLowerCase()];
+              const adjOn = adjForm ? adjForm.base : EN_TO_ON[tok] || tok;
+              classified.push({type:'word', en:phrase3, on:adjOn + innerCompound.on, gender:innerCompound.gender});
+              console.log(`Fallback compound: ${phrase3} -> ${adjOn + innerCompound.on} (${innerCompound.gender})`);
+              i += 5; phraseMatched = true;
+            }
+          }
+        }
+      }
+      
+      // Check for noun + noun + noun pattern
+      if(!tok_is_adjective && !word2_is_adjective && !word3_is_adjective) {
+        if(EN_TO_ON[phrase3]) {
+          const gender = NOUN_GENDER[phrase3] || NOUN_GENDER[raw[i+4]] || NOUN_GENDER[LEMMAS[raw[i+4]]] || 'm';
+          classified.push({type:'word', en:phrase3, on:EN_TO_ON[phrase3], gender:gender});
+          i += 5; phraseMatched = true;
         }
       }
     }
@@ -1881,7 +2412,16 @@ function processSentence(sentence) {
 
     const clean = tok.replace(/^'+|'+$/g,'');
 
-    if(INTERJECTIONS.has(clean)) {
+    // Use detected sense for classification, fall back to original logic
+    if(detectedSense === 'adjective') {
+      classified.push({type:'adjective', en:clean});
+    } else if(detectedSense === 'noun') {
+      const on = EN_TO_ON[clean] || clean;
+      const gender = NOUN_GENDER[clean] || NOUN_GENDER[LEMMAS[clean]] || 'm';
+      classified.push({type:'noun', en:clean, on:on, gender:gender});
+    } else if(detectedSense === 'verb') {
+      classified.push({type:'verb', en:clean});
+    } else if(INTERJECTIONS.has(clean)) {
       // Interjection — will apply vocative formatting in step 9
       classified.push({type:'interjection', en:clean, on:EN_TO_ON[clean] || 'heil'});
     } else if(PRONOUNS[clean]) {
@@ -2031,31 +2571,56 @@ function processSentence(sentence) {
     }
   }
 
+  // Track possessives per noun phrase to avoid duplicates
+  const usedNounPhrases = new Map(); // Map of noun phrase -> possessive used
+  
   // Strategy:
   //   - Possessive + noun: possessive agrees with noun's gender
   //   - Noun + adjective: adjective agrees with noun's gender & case
   const withAgreement = conjugated.map((tok, idx) => {
     // Handle possessives: find the following noun
     if(tok.type === 'possessive') {
-      // Note: Duplicate possessive detection disabled for now
-      // The logic is complex because possessives can appear in different positions
-      // relative to nouns depending on clause structure
-
       // Look ahead for the noun (skip spaces, adjectives, punctuation)
       let nextNounIdx = idx + 1;
+      let phraseWords = [];
+      
+      // Build the full noun phrase (including any adjectives and the noun itself)
       while(nextNounIdx < conjugated.length &&
             (conjugated[nextNounIdx].type === 'space' ||
              conjugated[nextNounIdx].type === 'punct' ||
-             conjugated[nextNounIdx].type === 'adjective')) {
+             conjugated[nextNounIdx].type === 'adjective' ||
+             conjugated[nextNounIdx].type === 'possessive')) {
+        if(conjugated[nextNounIdx].type === 'adjective') {
+          phraseWords.push(conjugated[nextNounIdx].en);
+        }
         nextNounIdx++;
       }
+      
       const nextTok = conjugated[nextNounIdx];
 
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
+        // Create a comprehensive key for this noun phrase
+        // Include the possessive type and all words to uniquely identify the phrase
+        const nounWords = [nextTok.en || nextTok.on || 'unknown'];
+        const fullPhrase = [...phraseWords, ...nounWords].join(' ');
+        const possessiveKey = `${tok.en}:${fullPhrase}`;
+        
+        // Check if we already have a possessive for this specific noun phrase
+        if(usedNounPhrases.has(fullPhrase) || usedNounPhrases.has(possessiveKey)) {
+          // Duplicate possessive detected - skip this one
+          console.log(`Skipping duplicate possessive ${tok.en} for phrase: ${fullPhrase}`);
+          return { ...tok, type: 'space', val: ' ' }; // Convert to space to maintain flow
+        }
+        
+        // Mark this noun phrase as having a possessive
+        usedNounPhrases.set(fullPhrase, tok.en);
+        usedNounPhrases.set(possessiveKey, tok.en);
+        console.log(`Applied possessive ${tok.en} to phrase: ${fullPhrase}`);
+
         // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
         let gender = nextTok.gender;
         if(!gender && nextTok.en) {
-          // Try direct lookup in NOUN_GENDER
+          // Try direct lookup in NOUN_GENDER for the full phrase first
           gender = NOUN_GENDER[nextTok.en];
         }
         if(!gender && nextTok.en) {
@@ -2093,45 +2658,88 @@ function processSentence(sentence) {
 
     // Handle adjectives: find the following noun (English: adjective BEFORE noun)
     if(tok.type === 'adjective') {
-      // Look forward for the noun (skip spaces/punctuation/adjectives)
+      // Look forward for the noun (skip spaces/punctuation/adjectives/possessives)
       let nextNounIdx = idx + 1;
+      let targetNoun = null;
+      
       while(nextNounIdx < conjugated.length &&
             (conjugated[nextNounIdx].type === 'space' ||
-             conjugated[nextNounIdx].type === 'punct')) {
+             conjugated[nextNounIdx].type === 'punct' ||
+             conjugated[nextNounIdx].type === 'adjective' ||
+             conjugated[nextNounIdx].type === 'possessive')) {
         nextNounIdx++;
       }
+      
       const nextTok = conjugated[nextNounIdx];
 
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
-        // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
-        let gender = nextTok.gender;
-        if(!gender && nextTok.en) {
-          // Try direct lookup
-          gender = NOUN_GENDER[nextTok.en];
+        targetNoun = nextTok;
+        
+        // Enhanced gender detection with multiple fallback strategies
+        let gender = targetNoun.gender;
+        
+        // Strategy 1: Use stored gender if available
+        if(!gender && targetNoun.en) {
+          // Try direct lookup for the full phrase first
+          gender = NOUN_GENDER[targetNoun.en];
+          console.log(`Direct gender lookup for ${targetNoun.en}: ${gender}`);
         }
-        if(!gender && nextTok.en) {
-          // For compound nouns, try the last word
-          const words = nextTok.en.split(' ');
+        
+        // Strategy 2: For compound phrases, check the head noun (last word)
+        if(!gender && targetNoun.en) {
+          const words = targetNoun.en.split(' ');
           if(words.length > 1) {
             const lastWord = words[words.length - 1];
             gender = NOUN_GENDER[lastWord];
+            console.log(`Compound gender check: ${targetNoun.en} -> last word: ${lastWord} -> gender: ${gender}`);
           }
         }
-        if(!gender && nextTok.en) {
-          // Try lemmatized form
-          const lemma = LEMMAS[nextTok.en];
+        
+        // Strategy 3: Try lemmatized form
+        if(!gender && targetNoun.en) {
+          const lemma = LEMMAS[targetNoun.en];
           if(lemma) {
             gender = NOUN_GENDER[lemma];
+            console.log(`Lemma gender check: ${targetNoun.en} -> lemma: ${lemma} -> gender: ${gender}`);
           }
         }
+        
+        // Strategy 4: Check for common feminine endings in the ON translation
+        if(!gender && targetNoun.on) {
+          if(targetNoun.on.endsWith('rós') || targetNoun.on.endsWith('mær') || 
+             targetNoun.on.endsWith('kona') || targetNoun.on.endsWith('jörð') ||
+             targetNoun.on.endsWith('sól') || targetNoun.on.endsWith('nótt') ||
+             targetNoun.on.endsWith('dóttir') || targetNoun.on.endsWith('systir') ||
+             targetNoun.on.endsWith('lyngrós')) { // Added specific compound check
+            gender = 'f';
+            console.log(`Pattern-based gender check: ${targetNoun.on} -> gender: ${gender}`);
+          }
+        }
+        
+        // Strategy 5: Special handling for known compounds
+        if(!gender && targetNoun.en) {
+          const knownCompounds = {
+            'yellow heather rose': 'f',
+            'heather rose': 'f',
+            'shield maiden': 'f',
+          };
+          if(knownCompounds[targetNoun.en]) {
+            gender = knownCompounds[targetNoun.en];
+            console.log(`Known compound gender check: ${targetNoun.en} -> gender: ${gender}`);
+          }
+        }
+        
+        // Final fallback to masculine
         if(!gender) {
-          // Fallback to masculine
           gender = 'm';
+          console.log(`Fallback gender for ${targetNoun.en}: ${gender}`);
         }
 
+        console.log(`Final gender for adjective ${tok.en} + noun ${targetNoun.en}: ${gender}`);
+
         // Detect if noun is plural: ends in 's' or is irregular plural
-        const isPlural = nextTok.en.endsWith('s') ||
-                        ['men','children','people','eyes','feet','teeth','oxen'].includes(nextTok.en);
+        const isPlural = targetNoun.en.endsWith('s') ||
+                        ['men','children','people','eyes','feet','teeth','oxen'].includes(targetNoun.en);
 
         // Detect case: look back for a verb
         // If verb found before adjective, noun is likely an object → accusative
@@ -2153,6 +2761,7 @@ function processSentence(sentence) {
           const numberForm = isPlural ? 'pl' : 'sg';
           const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_${caseForm}_${numberForm}`;
           const form = adjForm[key] || adjForm.base;
+          console.log(`Adjective ${tok.en}: using key ${key} -> ${form}`);
           return { ...tok, on: form };
         }
       } else if(nextTok && nextTok.type === 'adjective') {
@@ -2377,7 +2986,96 @@ function processSentence(sentence) {
     reorderedTokens.push(tok);
   }
 
-  // Step 7: apply V2 (Verb-Second) word order for fronted adverbs
+  // Step 8: apply Old Norse word order patterns (before V2)
+  // Transform English-like word order to more natural Old Norse patterns
+  const oldNorseOrderTokens = [];
+  for(let i = 0; i < withoutToPrep.length; i++) {
+    const tok = withoutToPrep[i];
+    const next = withoutToPrep[i + 1];
+    const next2 = withoutToPrep[i + 2];
+    const next3 = withoutToPrep[i + 3];
+
+    // Pattern 1: Adjective + Noun → Noun + Adjective (for poetry/emphasis)
+    // In some contexts, Old Norse places adjectives after nouns for emphasis
+    if(tok.type === 'adjective' && next && next.type === 'space' && 
+       next2 && (next2.type === 'noun' || next2.type === 'word')) {
+      
+      // Check if this is a poetic/emphatic context (beginning of phrase, after greeting, etc.)
+      const isPoeticContext = oldNorseOrderTokens.length === 0 || // Beginning of utterance
+                             (oldNorseOrderTokens.length > 0 && 
+                              oldNorseOrderTokens[oldNorseOrderTokens.length - 1].type === 'interjection');
+      
+      if(isPoeticContext && Math.random() < 0.3) { // 30% chance for poetic inversion
+        // Output: Noun + Adjective instead of Adjective + Noun
+        oldNorseOrderTokens.push(next2); // noun first
+        oldNorseOrderTokens.push(next);  // space
+        oldNorseOrderTokens.push(tok);   // adjective
+        i += 2; // skip the processed tokens
+        continue;
+      }
+    }
+
+    // Pattern 2: Possessive + Adjective + Noun → Noun + Possessive + Adjective
+    // More natural Old Norse order: noun with its modifiers
+    if(tok.type === 'possessive' && next && next.type === 'space' &&
+       next2 && next2.type === 'adjective' && next3 && next3.type === 'space') {
+       
+      const nounIdx = i + 4;
+      if(nounIdx < withoutToPrep.length && 
+         (withoutToPrep[nounIdx].type === 'noun' || withoutToPrep[nounIdx].type === 'word')) {
+        
+        // Reorder to: Noun + space + Possessive + space + Adjective
+        oldNorseOrderTokens.push(withoutToPrep[nounIdx]);     // noun
+        oldNorseOrderTokens.push(withoutToPrep[nounIdx - 1]); // space before noun
+        oldNorseOrderTokens.push(tok);                        // possessive
+        oldNorseOrderTokens.push(next);                       // space
+        oldNorseOrderTokens.push(next2);                      // adjective
+        i = nounIdx; // skip to after the noun
+        continue;
+      }
+    }
+
+    // Pattern 3: Simple Adjective + Noun reordering for common poetic phrases
+    if(tok.type === 'adjective' && next && next.type === 'space' && 
+       next2 && (next2.type === 'noun' || next2.type === 'word')) {
+      
+      const adjective = tok.en.toLowerCase();
+      const noun = next2.en ? next2.en.toLowerCase() : '';
+      
+      // Check for common poetic pairs that sound better inverted in Old Norse
+      const poeticPairs = [
+        { adj: 'sweet', noun: 'rose' },
+        { adj: 'fair', noun: 'maiden' },
+        { adj: 'bright', noun: 'sun' },
+        { adj: 'dark', noun: 'night' },
+        { adj: 'old', noun: 'man' },
+        { adj: 'young', noun: 'maiden' },
+      ];
+      
+      const isPoeticPair = poeticPairs.some(pair => 
+        (pair.adj === adjective && pair.noun === noun) ||
+        (pair.noun === adjective && pair.adj === noun)
+      );
+      
+      if(isPoeticPair && Math.random() < 0.5) { // 50% chance for poetic inversion
+        // Output: Noun + Adjective
+        oldNorseOrderTokens.push(next2); // noun first
+        oldNorseOrderTokens.push(next);  // space
+        oldNorseOrderTokens.push(tok);   // adjective
+        i += 2; // skip the processed tokens
+        continue;
+      }
+    }
+
+    // Default: keep original order
+    oldNorseOrderTokens.push(tok);
+  }
+
+  // Replace reorderedTokens content with the Old Norse ordered tokens
+  reorderedTokens.length = 0; // Clear existing array
+  reorderedTokens.push(...oldNorseOrderTokens); // Fill with new order
+
+  // Step 9: apply V2 (Verb-Second) word order for fronted adverbs
   // Only applies to restricted set: þá, nú, svá (then, now, so)
   // Pattern: [Adverb] [Finite Verb] [Subject] [Rest]
   // Re-triggers after conjunctions (and, but, or) for each clause
@@ -2497,13 +3195,13 @@ function processSentence(sentence) {
     }
   }
 
-  // Step 8: collect unknowns and build strings
+  // Step 10: collect unknowns and build strings
   const unknowns = [];
   reorderedTokens.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
-  // Step 9: apply interjection vocative formatting
+  // Step 11: apply interjection vocative formatting
   // Build final string with interjection formatting and bracket marking
   let onStr = '';
   for(let i = 0; i < reorderedTokens.length; i++) {
@@ -2555,6 +3253,193 @@ function copyRunes() {
   flashCopy(document.querySelectorAll('.copy-btn')[1]);
 }
 function flashCopy(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1400); }
+
+// ─── SMART AUTO-COMPOUNDER ─────────────────────────────────────────────────────
+// Intelligently forms Old Norse compounds following linguistic patterns
+function trySmartCompound(word1_en, word2_en) {
+  console.log('trySmartCompound called with:', word1_en, word2_en);
+  const word1_on = EN_TO_ON[word1_en];
+  const word2_on = EN_TO_ON[word2_en];
+  
+  console.log('Translations:', word1_en, '->', word1_on, '|', word2_en, '->', word2_on);
+  
+  if(!word1_on || !word2_on) return null;
+  
+  // Get gender from the head noun (second word)
+  const gender = NOUN_GENDER[word2_en] || NOUN_GENDER[LEMMAS[word2_en]] || 'm';
+  
+  // Apply Old Norse compound formation rules
+  
+  // Rule 1: Nature compounds (heather + rose, mountain + peak, etc.)
+  const natureCompounds = {
+    'heather': { pattern: 'lyng', connector: '' },
+    'mountain': { pattern: 'fjall', connector: '' },
+    'river': { pattern: 'á', connector: '' },
+    'water': { pattern: 'vatn', connector: '' },
+    'stone': { pattern: 'steinn', connector: '' },
+    'wood': { pattern: 'viðr', connector: '' },
+    'sea': { pattern: 'haf', connector: '' },
+    'land': { pattern: 'land', connector: '' },
+    'field': { pattern: 'akr', connector: '' },
+    'forest': { pattern: 'skógr', connector: '' },
+  };
+  
+  const natureSecondaries = {
+    'rose': { pattern: 'rós', connector: '' },
+    'flower': { pattern: 'blóm', connector: '' },
+    'tree': { pattern: 'tré', connector: '' },
+    'stone': { pattern: 'steinn', connector: '' },
+    'peak': { pattern: 'topp', connector: '' },
+    'hill': { pattern: 'hóll', connector: '' },
+    'dale': { pattern: 'dalr', connector: '' },
+    'valley': { pattern: 'dalr', connector: '' },
+    'wood': { pattern: 'viðr', connector: '' },
+    'land': { pattern: 'land', connector: '' },
+  };
+  
+  // Check for nature compounds
+  if(natureCompounds[word1_en] && natureSecondaries[word2_en]) {
+    const first = natureCompounds[word1_en];
+    const second = natureSecondaries[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  // Rule 2: People/Role compounds (shield + maiden, sword + bearer, etc.)
+  const roleFirsts = {
+    'shield': { pattern: 'skjald', connector: '' },
+    'sword': { pattern: 'sverð', connector: '' },
+    'war': { pattern: 'orrust', connector: '' },
+    'horse': { pattern: 'hross', connector: '' },
+    'ship': { pattern: 'skip', connector: '' },
+    'book': { pattern: 'bók', connector: '' },
+    'hall': { pattern: 'höll', connector: '' },
+    'gate': { pattern: 'hlið', connector: '' },
+  };
+  
+  const roleSeconds = {
+    'maiden': { pattern: 'mær', connector: '' },
+    'bearer': { pattern: 'beri', connector: '' },
+    'holder': { pattern: 'hald', connector: '' },
+    'keeper': { pattern: 'vörðr', connector: '' },
+    'lord': { pattern: 'dróttinn', connector: '' },
+    'master': { pattern: 'meistari', connector: '' },
+    'guard': { pattern: 'vörðr', connector: '' },
+  };
+  
+  if(roleFirsts[word1_en] && roleSeconds[word2_en]) {
+    const first = roleFirsts[word1_en];
+    const second = roleSeconds[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  // Rule 3: Material compounds (gold + smith, silver + smith, etc.)
+  const materials = {
+    'gold': { pattern: 'gull', connector: '' },
+    'silver': { pattern: 'silfr', connector: '' },
+    'iron': { pattern: 'járn', connector: '' },
+    'steel': { pattern: 'stál', connector: '' },
+    'wood': { pattern: 'við', connector: '' },
+    'stone': { pattern: 'steinn', connector: '' },
+    'yellow': { pattern: 'gul', connector: '' },
+  };
+  
+  const craftsmen = {
+    'smith': { pattern: 'smiðr', connector: '' },
+    'worker': { pattern: 'verkmaðr', connector: '' },
+    'crafter': { pattern: 'smíðamaðr', connector: '' },
+  };
+  
+  if(materials[word1_en] && craftsmen[word2_en]) {
+    const first = materials[word1_en];
+    const second = craftsmen[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  // Rule 3b: Color + Nature compounds (yellow + heather, etc.)
+  const colors = {
+    'yellow': { pattern: 'gull', connector: '' }, // Fixed: use 'gull' not 'gul' for compounds
+    'red': { pattern: 'rauð', connector: '' },
+    'blue': { pattern: 'blá', connector: '' },
+    'green': { pattern: 'græn', connector: '' },
+    'white': { pattern: 'hvít', connector: '' },
+    'black': { pattern: 'svart', connector: '' },
+    'gold': { pattern: 'gull', connector: '' },
+    'silver': { pattern: 'silfr', connector: '' },
+  };
+  
+  if(colors[word1_en] && (natureCompounds[word2_en] || natureSecondaries[word2_en])) {
+    const first = colors[word1_en];
+    const second = natureCompounds[word2_en] || natureSecondaries[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  // Rule 4: Animal compounds (wolf + hound, sea + wolf, etc.)
+  const animals = {
+    'wolf': { pattern: 'úlfr', connector: '' },
+    'hound': { pattern: 'hundr', connector: '' },
+    'eagle': { pattern: 'örn', connector: '' },
+    'bear': { pattern: 'björn', connector: '' },
+    'horse': { pattern: 'hestr', connector: '' },
+    'snake': { pattern: 'ormr', connector: '' },
+    'dragon': { pattern: 'dreki', connector: '' },
+  };
+  
+  const places = {
+    'sea': { pattern: 'haf', connector: '' },
+    'mountain': { pattern: 'fjall', connector: '' },
+    'forest': { pattern: 'skógr', connector: '' },
+    'river': { pattern: 'á', connector: '' },
+  };
+  
+  if(animals[word1_en] && animals[word2_en]) {
+    const first = animals[word1_en];
+    const second = animals[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  if(places[word1_en] && animals[word2_en]) {
+    const first = places[word1_en];
+    const second = animals[word2_en];
+    return { on: first.pattern + second.pattern, gender: gender };
+  }
+  
+  // Rule 5: Generic compound with phonetic adaptation
+  // Apply common Old Norse compound sound changes
+  let firstWord = word1_on;
+  let secondWord = word2_on;
+  
+  // Common sound changes in compounds:
+  // 1. Final consonant often assimilates
+  if(firstWord.endsWith('r') && secondWord.startsWith('r')) {
+    firstWord = firstWord.slice(0, -1); // Remove final r before r
+  }
+  
+  // 2. Final -n often drops before consonants
+  if(firstWord.endsWith('n') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
+    firstWord = firstWord.slice(0, -1);
+  }
+  
+  // 3. Final -t often drops before consonants  
+  if(firstWord.endsWith('t') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
+    firstWord = firstWord.slice(0, -1);
+  }
+  
+  // 4. Connecting vowel insertion for difficult consonant clusters
+  const difficultClusters = [
+    { pattern: /([lrndm])([lrndm])$/, insert: 'a' },
+    { pattern: /([kgpt])([kgpt])$/, insert: 'a' },
+    { pattern: /([st])([st])$/, insert: 'i' }
+  ];
+  
+  for(const cluster of difficultClusters) {
+    if(firstWord.match(cluster.pattern)) {
+      firstWord += cluster.insert;
+      break;
+    }
+  }
+  
+  return { on: firstWord + secondWord, gender: gender };
+}
 
 // ─── REFERENCE GRID ──────────────────────────────────────────────────────────
 function toggleRef() {
