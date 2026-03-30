@@ -2239,11 +2239,9 @@ function detectPhrase(tokens, startIndex) {
     }
     
     if (actualLength === length) {
-      console.log(`Testing phrase: "${phraseString}" (length ${length})`);
       // Check if this phrase exists in dictionary or can be formed as compound
       const translation = EN_TO_ON[phraseString];
       if (translation) {
-        console.log(`Found exact translation: ${translation}`);
         bestPhrase = {
           type: 'phrase',
           value: phraseString,
@@ -2276,8 +2274,7 @@ function detectPhrase(tokens, startIndex) {
                 const form = gender === 'f' ? possForm.fem_sg
                            : gender === 'n' ? possForm.neut_sg
                            : possForm.masc_sg;
-                
-                console.log(`Found possessive + compound: ${form} ${innerCompound.on}`);
+
                 compound = { 
                   on: `${form} ${innerCompound.on}`, 
                   gender: gender,
@@ -2295,7 +2292,6 @@ function detectPhrase(tokens, startIndex) {
               };
             
             if (specialCompounds[phraseString]) {
-              console.log(`Found special compound: ${specialCompounds[phraseString].on}`);
               compound = specialCompounds[phraseString];
             } else {
               // Try adjective + (noun1 + noun2 compound)
@@ -2339,8 +2335,7 @@ function detectPhrase(tokens, startIndex) {
               const form = gender === 'f' ? possForm.fem_sg
                          : gender === 'n' ? possForm.neut_sg
                          : possForm.masc_sg;
-              
-              console.log(`Found possessive + known compound: ${form} ${knownCompound.on}`);
+
               compound = { 
                 on: `${form} ${knownCompound.on}`, 
                 gender: gender,
@@ -2351,7 +2346,6 @@ function detectPhrase(tokens, startIndex) {
         }
         
         if (compound) {
-          console.log(`Found compound: ${compound.on} (gender: ${compound.gender})`);
           bestPhrase = {
             type: compound.type === 'possessive-compound' ? 'possessive-compound' : 'compound',
             value: phraseString,
@@ -2376,8 +2370,7 @@ function detectPhrase(tokens, startIndex) {
             const form = gender === 'f' ? possForm.fem_sg
                        : gender === 'n' ? possForm.neut_sg
                        : possForm.masc_sg;
-            
-            console.log(`Found possessive phrase: ${form} ${nounTranslation}`);
+
             bestPhrase = {
               type: 'possessive-phrase',
               value: phraseString,
@@ -2395,8 +2388,7 @@ function detectPhrase(tokens, startIndex) {
       }
     }
   }
-  
-  console.log(`Best phrase for "${tokens[startIndex]?.value}":`, bestPhrase);
+
   return bestPhrase;
 }
 
@@ -2608,10 +2600,8 @@ class GrammarEngine {
               break; // Hit different type of word
             }
           }
-          
-          console.log(`Possessive "${item.value}" targeting gender: ${targetGender}`);
+
           const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender);
-          console.log(`Possessive form: ${possessiveForm}`);
           inflected.push({
             ...item,
             inflected: possessiveForm
@@ -2766,19 +2756,15 @@ function translateWithPhraseParser(input) {
     
     // Step 1: Tokenize
     const tokens = tokenize(line);
-    console.log('Tokens:', tokens);
-    
+
     // Step 2: Parse phrases
     const phrases = parsePhrases(tokens);
-    console.log('Phrases:', phrases);
-    
+
     // Step 3: Grammar analysis
     const analysis = grammarEngine.analyzePhrase(phrases);
-    console.log('Analysis:', analysis);
-    
+
     // Step 4: Apply inflections
     const inflected = grammarEngine.applyInflections(analysis);
-    console.log('Inflected:', inflected);
     
     // Step 5: Build output string
     let oldNorseLine = '';
@@ -2806,17 +2792,55 @@ function translateWithPhraseParser(input) {
 
 // ─── RENDER RUNES WITH TOOLTIPS ──────────────────────────────────────────────
 function renderRunes(onStr) {
-  if(!onStr) return '<span class="placeholder-text">—</span>';
+  const fragment = document.createDocumentFragment();
+
+  if(!onStr) {
+    const span = document.createElement('span');
+    span.className = 'placeholder-text';
+    span.textContent = '—';
+    fragment.appendChild(span);
+    return fragment;
+  }
 
   const runes = onToRunes(onStr);
-  if(!runes.length) return '<span class="placeholder-text">—</span>';
+  if(!runes.length) {
+    const span = document.createElement('span');
+    span.className = 'placeholder-text';
+    span.textContent = '—';
+    fragment.appendChild(span);
+    return fragment;
+  }
 
-  return runes.map(r => {
-    if(r.space) return '<span class="rune-char space"> </span>';
-    if(r.newline) return '<br>';
-    if(r.isUnknown) return `<span class="unknown" title="No match">${r.text}</span>`;
-    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
-  }).join('');
+  runes.forEach(r => {
+    if(r.space) {
+      const span = document.createElement('span');
+      span.className = 'rune-char space';
+      span.textContent = ' ';
+      fragment.appendChild(span);
+    } else if(r.newline) {
+      fragment.appendChild(document.createElement('br'));
+    } else if(r.isUnknown) {
+      const span = document.createElement('span');
+      span.className = 'unknown';
+      span.title = 'No match';
+      span.textContent = r.text;
+      fragment.appendChild(span);
+    } else {
+      const wrapper = document.createElement('span');
+      wrapper.className = 'tooltip-wrap';
+      const runeSpan = document.createElement('span');
+      runeSpan.className = 'rune-char';
+      runeSpan.textContent = r.rune;
+      const tipSpan = document.createElement('span');
+      tipSpan.className = 'tip';
+      tipSpan.textContent = r.name;
+      wrapper.appendChild(runeSpan);
+      wrapper.appendChild(tipSpan);
+      fragment.appendChild(wrapper);
+    }
+  });
+
+  return fragment;
 }
 
 // ─── UPDATE ALL OUTPUT FIELDS ────────────────────────────────────────────────
@@ -2829,28 +2853,47 @@ function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl, activeType) {
 
   // Update Old Norse with unknowns highlighted (unless it's the active input)
   if(activeType !== 'oldnorse') {
-    let onHTML = '';
+    const onOutEl = document.getElementById('onOut');
+    onOutEl.innerHTML = '';
+
     if(!onStr || onStr.trim().length === 0) {
-      onHTML = '<span class="placeholder-text">Old Norse will appear here</span>';
+      const span = document.createElement('span');
+      span.className = 'placeholder-text';
+      span.textContent = 'Old Norse will appear here';
+      onOutEl.appendChild(span);
     } else {
       const onWords = onStr.trim().split(' ');
-      onWords.forEach(word => {
+      onWords.forEach((word, idx) => {
         // Check if word is already bracketed (marked unknown)
         if(word.startsWith('[') && word.endsWith(']')) {
-          onHTML += `<span class="unknown" title="No match">${word}</span> `;
+          const span = document.createElement('span');
+          span.className = 'unknown';
+          span.title = 'No match';
+          span.textContent = word;
+          onOutEl.appendChild(span);
         } else if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
-          onHTML += `<span class="unknown" title="No match">${word}</span> `;
+          const span = document.createElement('span');
+          span.className = 'unknown';
+          span.title = 'No match';
+          span.textContent = word;
+          onOutEl.appendChild(span);
         } else {
-          onHTML += word + ' ';
+          const textNode = document.createTextNode(word);
+          onOutEl.appendChild(textNode);
+        }
+        // Add space after word (except for last word)
+        if(idx < onWords.length - 1) {
+          onOutEl.appendChild(document.createTextNode(' '));
         }
       });
     }
-    document.getElementById('onOut').innerHTML = onHTML.trim() || '<span class="placeholder-text">Old Norse will appear here</span>';
   }
 
   // Update Runes (unless it's the active input)
   if(activeType !== 'runes') {
-    document.getElementById('runeOut').innerHTML = runesStr;
+    const runeOutEl = document.getElementById('runeOut');
+    runeOutEl.innerHTML = '';
+    runeOutEl.appendChild(runesStr);
   }
 
   // Always update unknowns display
@@ -2908,9 +2951,7 @@ function processSentence(sentence) {
           i += 3; phraseMatched = true;
         } else {
           // No exact phrase match — try smart auto-compounder
-          console.log('Trying compound for:', tok, raw[i+2]);
           const compoundResult = trySmartCompound(tok, raw[i+2]);
-          console.log('Compound result:', compoundResult);
           if(compoundResult) {
             classified.push({type:'word', en:phrase, on:compoundResult.on, gender:compoundResult.gender});
             i += 3; phraseMatched = true;
@@ -2966,7 +3007,6 @@ function processSentence(sentence) {
         if(specialCompounds[phrase3]) {
           const special = specialCompounds[phrase3];
           classified.push({type:'word', en:phrase3, on:special.on, gender:special.gender});
-          console.log(`Used special compound: ${phrase3} -> ${special.on} (${special.gender})`);
           i += 5; phraseMatched = true;
         } else {
           // Try to form a compound: adjective + (noun + noun compound)
@@ -2987,14 +3027,12 @@ function processSentence(sentence) {
               // Create proper compound: color + inner compound
               const fullCompound = colors[adjWord] + innerCompound.on;
               classified.push({type:'word', en:phrase3, on:fullCompound, gender:innerCompound.gender});
-              console.log(`Built color compound: ${phrase3} -> ${fullCompound} (${innerCompound.gender})`);
               i += 5; phraseMatched = true;
             } else {
               // Fallback: adjective + inner compound
               const adjForm = ADJECTIVES[tok.toLowerCase()];
               const adjOn = adjForm ? adjForm.base : EN_TO_ON[tok] || tok;
               classified.push({type:'word', en:phrase3, on:adjOn + innerCompound.on, gender:innerCompound.gender});
-              console.log(`Fallback compound: ${phrase3} -> ${adjOn + innerCompound.on} (${innerCompound.gender})`);
               i += 5; phraseMatched = true;
             }
           }
@@ -3210,14 +3248,12 @@ function processSentence(sentence) {
         // Check if we already have a possessive for this specific noun phrase
         if(usedNounPhrases.has(fullPhrase) || usedNounPhrases.has(possessiveKey)) {
           // Duplicate possessive detected - skip this one
-          console.log(`Skipping duplicate possessive ${tok.en} for phrase: ${fullPhrase}`);
           return { ...tok, type: 'space', val: ' ' }; // Convert to space to maintain flow
         }
-        
+
         // Mark this noun phrase as having a possessive
         usedNounPhrases.set(fullPhrase, tok.en);
         usedNounPhrases.set(possessiveKey, tok.en);
-        console.log(`Applied possessive ${tok.en} to phrase: ${fullPhrase}`);
 
         // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
         let gender = nextTok.gender;
@@ -3284,7 +3320,6 @@ function processSentence(sentence) {
         if(!gender && targetNoun.en) {
           // Try direct lookup for the full phrase first
           gender = NOUN_GENDER[targetNoun.en];
-          console.log(`Direct gender lookup for ${targetNoun.en}: ${gender}`);
         }
         
         // Strategy 2: For compound phrases, check the head noun (last word)
@@ -3293,7 +3328,6 @@ function processSentence(sentence) {
           if(words.length > 1) {
             const lastWord = words[words.length - 1];
             gender = NOUN_GENDER[lastWord];
-            console.log(`Compound gender check: ${targetNoun.en} -> last word: ${lastWord} -> gender: ${gender}`);
           }
         }
         
@@ -3302,7 +3336,6 @@ function processSentence(sentence) {
           const lemma = LEMMAS[targetNoun.en];
           if(lemma) {
             gender = NOUN_GENDER[lemma];
-            console.log(`Lemma gender check: ${targetNoun.en} -> lemma: ${lemma} -> gender: ${gender}`);
           }
         }
         
@@ -3314,7 +3347,6 @@ function processSentence(sentence) {
              targetNoun.on.endsWith('dóttir') || targetNoun.on.endsWith('systir') ||
              targetNoun.on.endsWith('lyngrós')) { // Added specific compound check
             gender = 'f';
-            console.log(`Pattern-based gender check: ${targetNoun.on} -> gender: ${gender}`);
           }
         }
         
@@ -3327,17 +3359,13 @@ function processSentence(sentence) {
           };
           if(knownCompounds[targetNoun.en]) {
             gender = knownCompounds[targetNoun.en];
-            console.log(`Known compound gender check: ${targetNoun.en} -> gender: ${gender}`);
           }
         }
         
         // Final fallback to masculine
         if(!gender) {
           gender = 'm';
-          console.log(`Fallback gender for ${targetNoun.en}: ${gender}`);
         }
-
-        console.log(`Final gender for adjective ${tok.en} + noun ${targetNoun.en}: ${gender}`);
 
         // Detect if noun is plural: ends in 's' or is irregular plural
         const isPlural = targetNoun.en.endsWith('s') ||
@@ -3363,7 +3391,6 @@ function processSentence(sentence) {
           const numberForm = isPlural ? 'pl' : 'sg';
           const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_${caseForm}_${numberForm}`;
           const form = adjForm[key] || adjForm.base;
-          console.log(`Adjective ${tok.en}: using key ${key} -> ${form}`);
           return { ...tok, on: form };
         }
       } else if(nextTok && nextTok.type === 'adjective') {
@@ -3602,19 +3629,7 @@ function processSentence(sentence) {
     if(tok.type === 'adjective' && next && next.type === 'space' && 
        next2 && (next2.type === 'noun' || next2.type === 'word')) {
       
-      // Check if this is a poetic/emphatic context (beginning of phrase, after greeting, etc.)
-      const isPoeticContext = oldNorseOrderTokens.length === 0 || // Beginning of utterance
-                             (oldNorseOrderTokens.length > 0 && 
-                              oldNorseOrderTokens[oldNorseOrderTokens.length - 1].type === 'interjection');
-      
-      if(isPoeticContext && Math.random() < 0.3) { // 30% chance for poetic inversion
-        // Output: Noun + Adjective instead of Adjective + Noun
-        oldNorseOrderTokens.push(next2); // noun first
-        oldNorseOrderTokens.push(next);  // space
-        oldNorseOrderTokens.push(tok);   // adjective
-        i += 2; // skip the processed tokens
-        continue;
-      }
+      // Skip poetic inversion - use deterministic order
     }
 
     // Pattern 2: Possessive + Adjective + Noun → Noun + Possessive + Adjective
@@ -3659,14 +3674,7 @@ function processSentence(sentence) {
         (pair.noun === adjective && pair.adj === noun)
       );
       
-      if(isPoeticPair && Math.random() < 0.5) { // 50% chance for poetic inversion
-        // Output: Noun + Adjective
-        oldNorseOrderTokens.push(next2); // noun first
-        oldNorseOrderTokens.push(next);  // space
-        oldNorseOrderTokens.push(tok);   // adjective
-        i += 2; // skip the processed tokens
-        continue;
-      }
+      // Skip poetic inversion - use deterministic order
     }
 
     // Default: keep original order
@@ -3940,12 +3948,9 @@ function flashCopy(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textConten
 // ─── SMART AUTO-COMPOUNDER ─────────────────────────────────────────────────────
 // Intelligently forms Old Norse compounds following linguistic patterns
 function trySmartCompound(word1_en, word2_en) {
-  console.log('trySmartCompound called with:', word1_en, word2_en);
   const word1_on = EN_TO_ON[word1_en];
   const word2_on = EN_TO_ON[word2_en];
-  
-  console.log('Translations:', word1_en, '->', word1_on, '|', word2_en, '->', word2_on);
-  
+
   if(!word1_on || !word2_on) return null;
   
   // Get gender from the head noun (second word)
@@ -4134,13 +4139,28 @@ function toggleRef() {
 }
 
 (function buildGrid(){
-  document.getElementById('futharkGrid').innerHTML = FUTHARK.map(({r,sounds,name}) =>
-    `<div class="rune-card">
-      <div class="r">${r}</div>
-      <div class="l">${sounds.join('/')}</div>
-      <div class="n">${name}</div>
-    </div>`
-  ).join('');
+  const grid = document.getElementById('futharkGrid');
+  FUTHARK.forEach(({r, sounds, name}) => {
+    const card = document.createElement('div');
+    card.className = 'rune-card';
+
+    const rDiv = document.createElement('div');
+    rDiv.className = 'r';
+    rDiv.textContent = r;
+    card.appendChild(rDiv);
+
+    const lDiv = document.createElement('div');
+    lDiv.className = 'l';
+    lDiv.textContent = sounds.join('/');
+    card.appendChild(lDiv);
+
+    const nDiv = document.createElement('div');
+    nDiv.className = 'n';
+    nDiv.textContent = name;
+    card.appendChild(nDiv);
+
+    grid.appendChild(card);
+  });
 })();
 </script>
 </body>
