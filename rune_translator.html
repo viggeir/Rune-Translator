@@ -441,6 +441,52 @@ const CONJ = {
   'fear':   ['óttumk','óttask','óttask','óttumsk','óttisk','óttask'],
   // sœkja — to seek (weak)
   'seek':   ['sœki',  'sœkir', 'sœkir', 'sœkjum','sœkið',  'sœkja'],
+  // Phase 3 Expansion — Key Verbs
+  // læra — to learn/teach (weak)
+  'learn':  ['læri',  'lærir', 'lærir', 'lærum',  'lærið',  'læra'],
+  'teach':  ['læri',  'lærir', 'lærir', 'lærum',  'lærið',  'læra'],
+  // aðstoða — to help (weak)
+  'help':   ['aðstæði','aðstær','aðstær','aðstæðum','aðstæðið','aðstæða'],
+  // blessa — to bless (weak)
+  'bless':  ['blessi','blessir','blessir','blessun','blessið','blessa'],
+  // bölva — to curse (weak)
+  'curse':  ['bölvi', 'bölvir','bölvir','bölvum', 'bölvið', 'bölva'],
+  // syngva — to sing (strong class 3)
+  'sing':   ['syng',  'syngr', 'syngr', 'syngum', 'syngið', 'syngva'],
+  // leika — to play (weak)
+  'play':   ['leiki', 'leikir','leikir','leikum', 'leikið', 'leika'],
+  // byggja — to build (strong class 3)
+  'build':  ['bygg',  'byggr', 'byggr', 'byggum','byggið','byggja'],
+  // rista — to carve/mark (weak)
+  'carve':  ['rist',  'ristir','ristir','ristum', 'ristið','rista'],
+  'mark':   ['rist',  'ristir','ristir','ristum', 'ristið','rista'],
+  // opna — to open (weak)
+  'open':   ['opni',  'opnir', 'opnir', 'opnum',  'opnið',  'opna'],
+  // loka — to close (weak)
+  'close':  ['loki',  'lokir', 'lokir', 'lokum',  'lokið',  'loka'],
+  // kalla — to call (weak)
+  'call':   ['kalli', 'kallir','kallir','kallum', 'kallið', 'kalla'],
+  // svara — to answer (weak)
+  'answer': ['svari', 'svarir','svarir','svarum', 'svarið', 'svara'],
+  // spyrja — to ask (weak)
+  'ask':    ['spyrja','spyrr','spyrr','spurjum','spurið','spyrja'],
+  // biðja — to request/ask (strong class 5)
+  'request':['bið',   'beiðr', 'beiðr', 'biðjum','biðið',  'biðja'],
+  // heita — to promise (strong class 1)
+  'promise':['heit',  'heitr', 'heitr', 'heitum','heitið', 'heita'],
+  // muna — to remember (preterite-present)
+  'remember':['man', 'mant',  'man',   'munum', 'munið',  'munu'],
+  // hugsa — to think (weak)
+  'think':  ['hugsi', 'hugsir','hugsir','hugsun', 'hugsið', 'hugsa'],
+  // skilja — to understand (weak)
+  'understand':['skilji','skilja','skilja','skildum','skilið','skilja'],
+  // dansa — to dance (weak) [loan word]
+  'dance':  ['dansi', 'dansir','dansir','dansum', 'dansið', 'dansa'],
+  // vera sigr — to be victorious (handled via 'sigra')
+  // sigra — to conquer (weak)
+  'conquer':['sigri', 'sigrir','sigrir','sigrum', 'sigrið', 'sigra'],
+  // þola — to endure (weak)
+  'endure': ['þoli',  'þolir', 'þolir', 'þolum',  'þolið',  'þola'],
 };
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
@@ -504,6 +550,61 @@ const NOUN_GENDER = {
   // Body
   'hand':'f', 'hands':'f', 'eye':'n', 'eyes':'n', 'head':'n', 'heads':'n',
   'mouth':'m', 'mouths':'m', 'tongue':'f', 'tongues':'f', 'voice':'f', 'voices':'f',
+  // Phase 3 Expansion — New Nouns
+  // Adjectives (many also nouns) for completeness
+  'dear':'m', 'lovely':'m', 'fair':'m', 'gentle':'m', 'kind':'m',
+  'keen':'m', 'pure':'m', 'wild':'m',
+  'golden':'m', 'silver':'m', 'true':'m', 'false':'m',
+  // Nature & Flora
+  'heather':'n', 'rose':'f', 'daisy':'f', 'iris':'f',
+  'flower':'n', 'blossom':'n', 'bloom':'n',
+  'wheat':'n', 'grain':'n', 'barley':'n', 'oat':'n',
+  'meadow':'m', 'pasture':'m', 'valley':'m', 'glen':'n',
+  'stream':'m', 'brook':'m', 'creek':'m', 'lake':'n', 'pond':'f',
+  'spring':'f', 'well':'m', 'cliff':'m', 'klettr':'m',
+  'peak':'n', 'cave':'m', 'cavern':'m', 'ruin':'n',
+  'grave':'f', 'tomb':'m', 'mound':'m',
+  'shrine':'f', 'altar':'n',
+  // Body & Anatomy
+  'arm':'m', 'leg':'m', 'knee':'n', 'shoulder':'f', 'back':'n', 'chest':'n',
+  'belly':'m', 'wound':'n', 'scar':'n', 'nail':'m',
+  'tooth':'n', 'hair':'n', 'skin':'f', 'flesh':'n', 'vein':'f',
+  // Weapons & Armor
+  'lance':'n', 'club':'f', 'whip':'f', 'dagger':'m',
+  'armor':'f', 'mail':'f', 'breastplate':'n',
+  'gauntlet':'m', 'boot':'m', 'cloak':'m', 'robe':'f', 'tunic':'f', 'garment':'n',
+  // Textiles & Materials
+  'linen':'n', 'wool':'f', 'silk':'n', 'leather':'n',
+  'hide':'f', 'horn':'n', 'copper':'m', 'bronze':'n',
+  'tin':'n', 'lead':'n', 'glass':'n',
+  // Food & Drink
+  'bread':'n', 'ale':'n', 'mead':'n', 'wine':'n',
+  'meat':'n', 'fish':'m', 'cheese':'m', 'milk':'n',
+  'honey':'n', 'salt':'n', 'spice':'n', 'herb':'n',
+  'food':'m', 'meal':'m', 'feast':'f', 'banquet':'f',
+  // Time & Seasons
+  'winter':'m', 'spring':'f', 'summer':'n', 'autumn':'m',
+  'season':'f', 'month':'m', 'week':'f', 'hour':'m',
+  'moment':'f', 'instant':'n', 'dawn':'f', 'dusk':'m',
+  'noon':'n', 'midnight':'f', 'morning':'m', 'evening':'n',
+  // Places & Structures
+  'temple':'m', 'shrine':'m', 'chapel':'f', 'tower':'m',
+  'wall':'m', 'fence':'m', 'door':'f', 'window':'m',
+  'roof':'n', 'floor':'m', 'cellar':'m', 'chamber':'f',
+  'vault':'m', 'court':'f', 'square':'n', 'market':'m', 'tavern':'f',
+  'inn':'n', 'bed':'n', 'bench':'m', 'chair':'m',
+  'table':'n', 'forge':'f', 'workshop':'m',
+  // Actions & Abstract
+  'journey':'n', 'quest':'f', 'mission':'f', 'adventure':'f',
+  'oath':'m', 'curse':'f', 'blessing':'f', 'prayer':'f',
+  'ritual':'n', 'spell':'f', 'prophecy':'f', 'vision':'m',
+  'omen':'m', 'sign':'n', 'message':'n', 'letter':'m',
+  'scroll':'f', 'book':'f', 'verse':'f', 'poem':'n',
+  'treasure':'n', 'gift':'f', 'tribute':'f', 'ransom':'f',
+  'peace':'m', 'truce':'f', 'treaty':'m', 'alliance':'n',
+  'rebellion':'f', 'revolt':'f', 'rescue':'f', 'escape':'f',
+  'danger':'f', 'peril':'f', 'threat':'f', 'challenge':'f',
+  'victory':'m', 'defeat':'m', 'triumph':'m', 'conquest':'m',
 };
 
 // ─── ADJECTIVE INFLECTION SYSTEM (Phase 2) ──────────────────────────────────
@@ -592,6 +693,33 @@ const ADJECTIVES = {
     masc_nom_pl: 'bjartir',  masc_acc_pl: 'bjarta',   masc_dat_pl: 'bjartum',
     fem_nom_pl: 'bjartar',   fem_acc_pl: 'bjartar',   fem_dat_pl: 'bjartum',
     neut_nom_pl: 'björt',    neut_acc_pl: 'björt',    neut_dat_pl: 'bjartum',
+  },
+  'sweet': {
+    base: 'sætr',
+    masc_nom_sg: 'sætr',     masc_acc_sg: 'sætan',    masc_dat_sg: 'sætum',
+    fem_nom_sg: 'sæt',       fem_acc_sg: 'sæta',      fem_dat_sg: 'sætri',
+    neut_nom_sg: 'sætt',     neut_acc_sg: 'sætt',     neut_dat_sg: 'sætum',
+    masc_nom_pl: 'sætir',    masc_acc_pl: 'sæta',     masc_dat_pl: 'sætum',
+    fem_nom_pl: 'sætar',     fem_acc_pl: 'sætar',     fem_dat_pl: 'sætum',
+    neut_nom_pl: 'sæt',      neut_acc_pl: 'sæt',      neut_dat_pl: 'sætum',
+  },
+  'fair': {
+    base: 'fagr',
+    masc_nom_sg: 'fagr',     masc_acc_sg: 'fagran',   masc_dat_sg: 'fagrum',
+    fem_nom_sg: 'fögur',     fem_acc_sg: 'fagra',     fem_dat_sg: 'fagri',
+    neut_nom_sg: 'fagurt',   neut_acc_sg: 'fagurt',   neut_dat_sg: 'fagru',
+    masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
+    fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
+    neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
+  },
+  'wild': {
+    base: 'villr',
+    masc_nom_sg: 'villr',    masc_acc_sg: 'villan',   masc_dat_sg: 'villum',
+    fem_nom_sg: 'vil',       fem_acc_sg: 'vila',      fem_dat_sg: 'vilri',
+    neut_nom_sg: 'vilt',     neut_acc_sg: 'vilt',     neut_dat_sg: 'villum',
+    masc_nom_pl: 'villir',   masc_acc_pl: 'vila',     masc_dat_pl: 'villum',
+    fem_nom_pl: 'vilar',     fem_acc_pl: 'vilar',     fem_dat_pl: 'villum',
+    neut_nom_pl: 'vil',      neut_acc_pl: 'vil',      neut_dat_pl: 'villum',
   },
 };
 
@@ -1005,6 +1133,116 @@ const EN_TO_ON = {
   'black':'svartr', 'white':'hvítr',
   'red':'rauðr', 'blue':'blár', 'green':'grœnn',
   'new':'nýr', 'first':'fyrstr', 'last':'síðastr',
+
+  // ── Expanded Adjectives (Phase 3) ──
+  'dear':'kær', 'lovely':'fagr', 'fair':'fagr', 'gentle':'mild', 'kind':'mildr',
+  'keen':'hvass', 'intense':'sterkr', 'pure':'hreinn', 'wild':'villr', 'free':'frjáls',
+  'golden':'gullinn', 'silver':'silfurkinn', 'true':'sannr', 'false':'falsir',
+  'thick':'þokkr', 'thin':'þunnr', 'wide':'breiðr', 'narrow':'þrongr',
+  'tall':'há', 'short':'látr', 'heavy':'þungr', 'light':'léttr',
+  'sweet':'sætr', 'bitter':'beiskr', 'soft':'mjúkr', 'rough':'hrjúfr',
+  'dull':'sléttr', 'shiny':'glitra', 'pale':'blár', 'dark':'dimmr',
+  'warm':'hlýr', 'cool':'kaldlega', 'dry':'þurr', 'wet':'vötn',
+  'slow':'hægr', 'quick':'fljótr', 'silent':'þögull', 'loud':'hátt',
+  'stupid':'heimskr', 'clever':'snjallr', 'brave':'hugaðr', 'cowardly':'hræðillegr',
+  'happy':'gleið', 'sad':'sorgli', 'angry':'reiðúligr', 'peaceful':'friðsamligr',
+  'rich':'auðigr', 'poor':'fátækr', 'ancient':'forni', 'modern':'nú',
+
+  // ── Expanded Verbs (Phase 3) ──
+  'want':'vilja', 'desire':'girnast', 'need':'þurfa',
+  'discover':'finna', 'locate':'finna', 'encounter':'mæta',
+  'study':'læra', 'examine':'skoða', 'learn':'læra', 'teach':'kenna',
+  'observe':'skoða', 'watch':'horfa', 'behold':'sjá',
+  'possess':'eiga', 'own':'eiga', 'gather':'söfnuð',
+  'create':'skapa', 'build':'byggja', 'construct':'byggja', 'make':'gera', 'do':'gera',
+  'depart':'fara', 'arrive':'koma', 'reach':'komast',
+  'trust':'trúa', 'believe':'trúa', 'doubt':'hyggja',
+  'help':'aðstoða', 'assist':'aðstoða', 'support':'studla',
+  'hurt':'skaða', 'heal':'lækna', 'harm':'skaða',
+  'sing':'syngva', 'play':'leika', 'dance':'dansa', 'celebrate':'dýrka',
+  'rest':'hvíla', 'wake':'vaka', 'sleep':'sofa',
+  'eat':'eta', 'drink':'drekka', 'feast':'vesla',
+  'work':'vinna', 'labor':'vinna', 'toil':'vinna',
+  'ride':'rida', 'walk':'ganga', 'run':'hlaupa', 'sail':'sigla',
+  'fall':'falla', 'rise':'risa', 'climb':'klifra', 'descend':'stíga',
+  'break':'brjóta', 'build':'byggja', 'forge':'smíða', 'carve':'rista',
+  'bind':'binda', 'loose':'leysa', 'tie':'binda', 'cut':'skera',
+  'throw':'kasta', 'catch':'taka', 'grab':'grípa', 'hold':'halda',
+  'push':'þrýsta', 'pull':'toga', 'drag':'draga', 'carry':'bera',
+  'open':'opna', 'close':'loka', 'enter':'inn ganga', 'exit':'út ganga',
+  'call':'kalla', 'answer':'svara', 'speak':'mæla', 'listen':'hlýða',
+  'read':'lesa', 'write':'skrifa', 'mark':'merkja', 'sign':'merkja',
+  'ask':'spyrja', 'answer':'svara', 'request':'biðja', 'grant':'veita',
+  'promise':'heita', 'swear':'sígja', 'vow':'heitast', 'curse':'bölva',
+  'bless':'blessa', 'pray':'bæna', 'worship':'dýrka', 'honor':'dýrka',
+  'remember':'muna', 'forget':'gleyma', 'think':'hugsa', 'know':'vita',
+  'understand':'skilja', 'realize':'skilja', 'see':'sjá', 'perceive':'skynja',
+  'love':'elska', 'hate':'hata', 'like':'líka', 'enjoy':'dýrka',
+  'suffer':'þola', 'endure':'þola', 'bear':'bera', 'stand':'standa',
+  'surrender':'gefa yfir', 'yield':'víkja', 'conquer':'sigra', 'defeat':'sigrast',
+
+  // ── Expanded Nouns: Nature & Flora (Phase 3) ──
+  'heather':'lyng', 'rose':'rós', 'daisy':'fjólaprúði', 'iris':'írísa',
+  'flower':'blóm', 'flowers':'blóm', 'blossom':'blóm', 'bloom':'blóm',
+  'wheat':'hveiti', 'grain':'korn', 'barley':'bygg', 'oat':'hafri',
+  'meadow':'engr', 'pasture':'beiti', 'valley':'dalr', 'glen':'gil',
+  'stream':'bekkr', 'brook':'bekkr', 'creek':'bekkr', 'lake':'vatn',
+  'pond':'tjörn', 'spring':'kelda', 'well':'brunnr', 'cliff':'klettr',
+  'peak':'topp', 'cave':'hellir', 'cavern':'hellir', 'ruin':'útilegumenn',
+  'grave':'gröf', 'tomb':'haugr', 'mound':'haugr', 'cemetery':'dísablót',
+  'shrine':'mótt', 'altar':'altari', 'temple':'temple', 'sacred':'heilög',
+
+  // ── Expanded Nouns: Body & Anatomy (Phase 3) ──
+  'arm':'armr', 'arms':'armur', 'leg':'leggr', 'legs':'leggir',
+  'knee':'kné', 'shoulder':'herðar', 'back':'bak', 'chest':'brjóst',
+  'belly':'kvið', 'wound':'sár', 'scar':'beinn', 'nail':'nagli',
+  'tooth':'tonn', 'teeth':'tennur', 'bone':'bein', 'hair':'hár',
+  'skin':'húð', 'flesh':'hold', 'blood':'blóð', 'vein':'æðar',
+
+  // ── Expanded Nouns: Weapons & Armor (Phase 3) ──
+  'lance':'spjót', 'club':'kylfa', 'whip':'sleggja', 'dagger':'puggr',
+  'armor':'brynja', 'mail':'brynja', 'breastplate':'brjóstskel',
+  'gauntlet':'handskó', 'boot':'skó', 'helm':'hjálmr', 'helmet':'hjálmr',
+  'cloak':'hnappr', 'robe':'kjóll', 'tunic':'kyrill', 'garment':'klæði',
+
+  // ── Expanded Nouns: Textiles & Materials (Phase 3) ──
+  'linen':'línyrð', 'wool':'ull', 'silk':'silki', 'leather':'leðr',
+  'hide':'húð', 'horn':'horn', 'copper':'koparr', 'bronze':'brons',
+  'tin':'tin', 'lead':'bly', 'glass':'gler',
+
+  // ── Expanded Nouns: Food & Drink (Phase 3) ──
+  'bread':'brauð', 'ale':'öl', 'mead':'mjöð', 'wine':'vin',
+  'meat':'kjöt', 'fish':'fiskr', 'cheese':'ostur', 'milk':'mjólk',
+  'honey':'hunang', 'salt':'salt', 'spice':'krydd', 'herb':'urtagrös',
+  'food':'matur', 'meal':'matur', 'feast':'veisla', 'banquet':'drekka',
+
+  // ── Expanded Nouns: Time & Seasons (Phase 3) ──
+  'winter':'vetur', 'spring':'vor', 'summer':'sumar', 'autumn':'haust',
+  'season':'ársaldir', 'month':'mánuðr', 'week':'vika', 'hour':'tími',
+  'moment':'tund', 'instant':'blik', 'dawn':'dögun', 'dusk':'kveldi',
+  'noon':'miðdegi', 'midnight':'miðnætti', 'morning':'morgunn', 'evening':'kvöld',
+  'night':'nótt', 'day':'dagr',
+
+  // ── Expanded Nouns: Places & Structures (Phase 3) ──
+  'temple':'tempel', 'shrine':'helgidómr', 'chapel':'kapella', 'tower':'turn',
+  'wall':'veggr', 'fence':'gard', 'door':'hurð', 'gate':'hlið',
+  'window':'gluggi', 'roof':'þak', 'floor':'gólf', 'cellar':'kjallari',
+  'chamber':'herbergi', 'vault':'kjallarinn', 'chamber':'stofa',
+  'court':'hirð', 'square':'torg', 'market':'kaupstaðr', 'tavern':'krá',
+  'inn':'gistihús', 'bed':'rúm', 'bench':'bekkr', 'chair':'stóll',
+  'table':'borð', 'forge':'smiðja', 'workshop':'verkstæði',
+
+  // ── Expanded Nouns: Actions & Abstract (Phase 3) ──
+  'journey':'far', 'quest':'leit', 'mission':'ferð', 'adventure':'útangöngur',
+  'oath':'eiðr', 'curse':'bölvun', 'blessing':'blesun', 'prayer':'bæn',
+  'ritual':'blót', 'spell':'seiðr', 'prophecy':'spá', 'vision':'draumr',
+  'omen':'spádómr', 'sign':'merki', 'message':'orðsending', 'letter':'bréf',
+  'scroll':'skrá', 'book':'bók', 'verse':'vísa', 'poem':'kvæði',
+  'treasure':'fjár', 'gift':'gjöf', 'tribute':'gjöf', 'ransom':'lausnargjöf',
+  'peace':'friðr', 'truce':'sátt', 'treaty':'samningr', 'alliance':'sambönd',
+  'rebellion':'uppreisn', 'revolt':'uppreisn', 'rescue':'bjargun', 'escape':'endalaust',
+  'danger':'hætta', 'peril':'hætta', 'threat':'ógn', 'challenge':'áskorun',
+  'victory':'sigr', 'defeat':'tap', 'triumph':'sigr', 'conquest':'sigur',
 };
 
 // ─── REVERSE DICTIONARY: OLD NORSE → ENGLISH ──────────────────────────────────
