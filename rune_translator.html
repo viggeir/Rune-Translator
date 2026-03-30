@@ -2128,6 +2128,568 @@ function detectWordSense(word, context) {
   return senses.adjective ? 'adjective' : senses.noun ? 'noun' : 'verb';
 }
 
+// ─── PHRASE PARSER ARCHITECTURE ─────────────────────────────────────────────────────────
+// New pipeline: INPUT TEXT → Tokenizer → Phrase Parser → Grammar Engine → Renderer → Rune Converter
+
+// ─── TOKENIZER COMPONENT ─────────────────────────────────────────────────────────────
+// Breaks input into meaningful units: words, phrases, punctuation, spaces
+function tokenize(input) {
+  // Enhanced tokenization that preserves multi-word expressions and handles punctuation
+  const tokens = [];
+  let i = 0;
+  
+  while (i < input.length) {
+    // Skip whitespace but record as space token
+    if (/\s/.test(input[i])) {
+      let space = '';
+      while (i < input.length && /\s/.test(input[i])) {
+        space += input[i++];
+      }
+      tokens.push({ type: 'space', value: space });
+      continue;
+    }
+    
+    // Handle punctuation
+    if (/[.,!?;:()[\]"']/.test(input[i])) {
+      tokens.push({ type: 'punctuation', value: input[i] });
+      i++;
+      continue;
+    }
+    
+    // Extract word/phrase
+    let word = '';
+    while (i < input.length && /[a-zA-Záéíóúýæøöǫþðä'-]/.test(input[i])) {
+      word += input[i++];
+    }
+    
+    if (word) {
+      tokens.push({ 
+        type: 'word', 
+        value: word.toLowerCase(),
+        original: word
+      });
+    }
+  }
+  
+  return tokens;
+}
+
+// ─── PHRASE PARSER COMPONENT ───────────────────────────────────────────────────────
+// Identifies phrases, compounds, and grammatical structures
+function parsePhrases(tokens) {
+  const phrases = [];
+  let i = 0;
+  
+  while (i < tokens.length) {
+    const token = tokens[i];
+    
+    if (token.type === 'space' || token.type === 'punctuation') {
+      phrases.push(token);
+      i++;
+      continue;
+    }
+    
+    // Look for multi-word phrases and compounds (including possessives)
+    const phrase = detectPhrase(tokens, i);
+    if (phrase) {
+      phrases.push(phrase);
+      i += phrase.length;
+    } else {
+      // Single word
+      phrases.push({
+        type: 'word',
+        value: token.value,
+        original: token.original,
+        length: 1
+      });
+      i++;
+    }
+  }
+  
+  return phrases;
+}
+
+// Detect multi-word phrases, compounds, and expressions
+function detectPhrase(tokens, startIndex) {
+  const maxPhraseLength = 4; // Look ahead up to 4 words
+  let bestPhrase = null;
+  
+  for (let length = maxPhraseLength; length >= 2; length--) {
+    const phraseTokens = [];
+    let phraseString = '';
+    let actualLength = 0;
+    
+    for (let j = startIndex; j < Math.min(tokens.length, startIndex + length * 2); j++) {
+      const token = tokens[j];
+      
+      if (token.type === 'space') {
+        phraseString += ' ';
+        continue;
+      }
+      
+      if (token.type === 'word') {
+        phraseString += token.value;
+        phraseTokens.push(token);
+        actualLength++;
+      } else {
+        break; // Stop at non-word, non-space
+      }
+      
+      if (actualLength === length) break;
+    }
+    
+    if (actualLength === length) {
+      console.log(`Testing phrase: "${phraseString}" (length ${length})`);
+      // Check if this phrase exists in dictionary or can be formed as compound
+      const translation = EN_TO_ON[phraseString];
+      if (translation) {
+        console.log(`Found exact translation: ${translation}`);
+        bestPhrase = {
+          type: 'phrase',
+          value: phraseString,
+          translation: translation,
+          tokens: phraseTokens,
+          length: phraseTokens.length + (phraseTokens.length - 1), // words + spaces
+          confidence: 1.0
+        };
+        break; // Found exact match, use longest possible
+      } else {
+        // Try compound formation for different patterns FIRST
+        let compound = null;
+        
+        if (length === 2) {
+          // Simple 2-word compound
+          compound = trySmartCompound(phraseTokens[0]?.value, phraseTokens[1]?.value);
+        } else if (length === 3) {
+          // Try 3-word patterns: possessive + compound, adjective + noun + noun, etc.
+          const word1 = phraseTokens[0]?.value;
+          const word2 = phraseTokens[1]?.value;
+          const word3 = phraseTokens[2]?.value;
+          
+          if (word1 && word2 && word3) {
+            // Check for possessive + compound pattern (e.g., "my shield maiden")
+            if (POSSESSIVES[word1]) {
+              const innerCompound = trySmartCompound(word2, word3);
+              if (innerCompound) {
+                const gender = innerCompound.gender || 'm';
+                const possForm = POSSESSIVES[word1];
+                const form = gender === 'f' ? possForm.fem_sg
+                           : gender === 'n' ? possForm.neut_sg
+                           : possForm.masc_sg;
+                
+                console.log(`Found possessive + compound: ${form} ${innerCompound.on}`);
+                compound = { 
+                  on: `${form} ${innerCompound.on}`, 
+                  gender: gender,
+                  type: 'possessive-compound'
+                };
+              }
+            }
+            
+            // If not possessive + compound, check for known special compounds
+            if (!compound) {
+              const specialCompounds = {
+                'yellow heather rose': { on: 'gullyngrós', gender: 'f' },
+                'shield maiden': { on: 'skjaldmær', gender: 'f' },
+                'sweet yellow heather': { on: 'sætrgullyngr', gender: 'f' }
+              };
+            
+            if (specialCompounds[phraseString]) {
+              console.log(`Found special compound: ${specialCompounds[phraseString].on}`);
+              compound = specialCompounds[phraseString];
+            } else {
+              // Try adjective + (noun1 + noun2 compound)
+              const innerCompound = trySmartCompound(word2, word3);
+              if (innerCompound) {
+                // Check if first word is a color
+                const colors = {
+                  'yellow': 'gull',
+                  'red': 'rauð',
+                  'blue': 'blá',
+                  'green': 'græn',
+                  'white': 'hvít',
+                  'black': 'svart',
+                };
+                
+                // Check if first word is a color OR if we have a known color compound
+                if (colors[word1] || (word1 === 'sweet' && colors[word2])) {
+                  const actualColor = colors[word2] || colors[word1];
+                  compound = { on: actualColor + innerCompound.on, gender: innerCompound.gender };
+                }
+              }
+            }
+            }
+          }
+        } else if (length === 4) {
+          // Try 4-word patterns: possessive + known 3-word compound
+          const word1 = phraseTokens[0]?.value;
+          const remainingWords = phraseTokens.slice(1).map(t => t.value).join(' ');
+          
+          if (word1 && POSSESSIVES[word1]) {
+            const specialCompounds = {
+              'shield maiden': { on: 'skjaldmær', gender: 'f' },
+              'sweet yellow heather': { on: 'sætrgullyngr', gender: 'f' },
+              'yellow heather rose': { on: 'gullyngrós', gender: 'f' }
+            };
+            
+            if (specialCompounds[remainingWords]) {
+              const knownCompound = specialCompounds[remainingWords];
+              const gender = knownCompound.gender;
+              const possForm = POSSESSIVES[word1];
+              const form = gender === 'f' ? possForm.fem_sg
+                         : gender === 'n' ? possForm.neut_sg
+                         : possForm.masc_sg;
+              
+              console.log(`Found possessive + known compound: ${form} ${knownCompound.on}`);
+              compound = { 
+                on: `${form} ${knownCompound.on}`, 
+                gender: gender,
+                type: 'possessive-compound'
+              };
+            }
+          }
+        }
+        
+        if (compound) {
+          console.log(`Found compound: ${compound.on} (gender: ${compound.gender})`);
+          bestPhrase = {
+            type: compound.type === 'possessive-compound' ? 'possessive-compound' : 'compound',
+            value: phraseString,
+            translation: compound.on,
+            tokens: phraseTokens,
+            length: phraseTokens.length + (phraseTokens.length - 1),
+            confidence: 0.8,
+            gender: compound.gender
+          };
+          break;
+        }
+        
+        // Fallback: Check for simple possessive + noun pattern (e.g., "my shield")
+        if (length === 2 && POSSESSIVES[phraseTokens[0]?.value]) {
+          const possessive = phraseTokens[0]?.value;
+          const noun = phraseTokens[1]?.value;
+          const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
+          
+          if (nounTranslation) {
+            const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
+            const possForm = POSSESSIVES[possessive];
+            const form = gender === 'f' ? possForm.fem_sg
+                       : gender === 'n' ? possForm.neut_sg
+                       : possForm.masc_sg;
+            
+            console.log(`Found possessive phrase: ${form} ${nounTranslation}`);
+            bestPhrase = {
+              type: 'possessive-phrase',
+              value: phraseString,
+              translation: `${form} ${nounTranslation}`,
+              tokens: phraseTokens,
+              length: phraseTokens.length + (phraseTokens.length - 1),
+              confidence: 0.9,
+              gender: gender,
+              possessive: possessive,
+              noun: noun
+            };
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  console.log(`Best phrase for "${tokens[startIndex]?.value}":`, bestPhrase);
+  return bestPhrase;
+}
+
+// ─── GRAMMAR ENGINE COMPONENT ───────────────────────────────────────────────────────
+// Handles agreement, case, conjugation, and grammatical rules
+class GrammarEngine {
+  constructor() {
+    this.context = {
+      subject: null,
+      verb: null,
+      objects: [],
+      prepositions: [],
+      case: 'nominative'
+    };
+  }
+  
+  // Analyze grammatical structure of a phrase
+  analyzePhrase(phrases) {
+    const analysis = [];
+    
+    for (let i = 0; i < phrases.length; i++) {
+      const phrase = phrases[i];
+      
+      if (phrase.type === 'space' || phrase.type === 'punctuation') {
+        analysis.push(phrase);
+        continue;
+      }
+      
+      const wordAnalysis = this.analyzeWord(phrase, i, phrases);
+      analysis.push(wordAnalysis);
+    }
+    
+    return analysis;
+  }
+  
+  // Analyze individual word/phrase grammatical properties
+  analyzeWord(phrase, index, context) {
+    const value = phrase.value;
+    const analysis = { ...phrase };
+    
+    // Determine word type and grammatical properties
+    if (PRONOUNS[value]) {
+      analysis.wordType = 'pronoun';
+      analysis.pronounData = PRONOUNS[value];
+      analysis.case = this.determinePronounCase(index, context);
+    } else if (CONJ[value]) {
+      analysis.wordType = 'verb';
+      analysis.verbData = CONJ[value];
+      analysis.conjugation = 'base';
+    } else if (ADJECTIVES[value]) {
+      analysis.wordType = 'adjective';
+      analysis.adjectiveData = ADJECTIVES[value];
+    } else if (POSSESSIVES[value]) {
+      analysis.wordType = 'possessive';
+      analysis.possessiveData = POSSESSIVES[value];
+    } else if (NOUN_GENDER[value]) {
+      analysis.wordType = 'noun';
+      analysis.gender = NOUN_GENDER[value];
+      analysis.nounData = { gender: NOUN_GENDER[value] };
+    } else if (phrase.translation) {
+      // Pre-translated phrase or compound
+      if (phrase.type === 'possessive-phrase') {
+        analysis.wordType = 'possessive-phrase';
+        analysis.translation = phrase.translation;
+        analysis.gender = phrase.gender;
+        analysis.possessive = phrase.possessive;
+        analysis.noun = phrase.noun;
+      } else if (phrase.type === 'possessive-compound') {
+        analysis.wordType = 'possessive-compound';
+        analysis.translation = phrase.translation;
+        analysis.gender = phrase.gender;
+      } else {
+        analysis.wordType = 'translated';
+        analysis.translation = phrase.translation;
+        if (phrase.gender) analysis.gender = phrase.gender;
+      }
+    } else {
+      // Try lemmatization and dictionary lookup
+      const lemma = LEMMAS[value] || value;
+      if (EN_TO_ON[lemma]) {
+        analysis.wordType = 'dictionary';
+        analysis.translation = EN_TO_ON[lemma];
+        analysis.gender = NOUN_GENDER[lemma] || 'm';
+      } else {
+        analysis.wordType = 'unknown';
+      }
+    }
+    
+    return analysis;
+  }
+  
+  // Determine pronoun case based on context
+  determinePronounCase(index, context) {
+    // Look for preceding prepositions
+    for (let i = index - 1; i >= 0; i--) {
+      const item = context[i];
+      if (item.type === 'word' && DATIVE_PREPS.has(item.value)) {
+        return 'dat';
+      }
+      if (item.type === 'word' && ['and', 'but', 'or'].includes(item.value)) {
+        break; // New clause
+      }
+      if (item.type === 'punctuation') {
+        break; // New sentence
+      }
+    }
+    
+    // Look for verbs to determine subject vs object
+    let seenVerb = false;
+    for (let i = 0; i < index; i++) {
+      const item = context[i];
+      if (item.type === 'word' && (CONJ[item.value] || item.wordType === 'verb')) {
+        seenVerb = true;
+        break;
+      }
+    }
+    
+    return seenVerb ? 'acc' : 'nom';
+  }
+  
+  // Apply grammatical inflections and agreements
+  applyInflections(analysis) {
+    const inflected = [];
+    let currentSubject = null;
+    let currentGender = 'm';
+    let currentNumber = 'singular';
+    let currentCase = 'nom';
+    
+    for (let i = 0; i < analysis.length; i++) {
+      const item = analysis[i];
+      
+      if (item.type === 'space' || item.type === 'punctuation') {
+        inflected.push(item);
+        continue;
+      }
+      
+      switch (item.wordType) {
+        case 'pronoun':
+          const pronounForm = item.pronounData[item.case] || item.pronounData.nom;
+          inflected.push({
+            ...item,
+            inflected: pronounForm,
+            case: item.case
+          });
+          if (item.case === 'nom') {
+            currentSubject = pronounForm;
+            currentNumber = ['vér', 'þeir', 'þær', 'þau'].includes(pronounForm) ? 'plural' : 'singular';
+          }
+          break;
+          
+        case 'verb':
+          if (currentSubject && item.verbData) {
+            const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
+            inflected.push({
+              ...item,
+              inflected: item.verbData[conjugationIndex] || item.verbData[2], // Default to 3rd person
+              conjugation: conjugationIndex
+            });
+          } else {
+            inflected.push({
+              ...item,
+              inflected: item.translation || item.value
+            });
+          }
+          break;
+          
+        case 'adjective':
+          const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, currentGender, currentCase, currentNumber);
+          inflected.push({
+            ...item,
+            inflected: adjectiveForm
+          });
+          break;
+          
+        case 'possessive-phrase':
+          // Already translated with correct possessive form, just pass through
+          inflected.push({
+            ...item,
+            inflected: item.translation
+          });
+          currentGender = item.gender || 'm';
+          break;
+          
+        case 'possessive-compound':
+          // Already translated possessive + compound, just pass through
+          inflected.push({
+            ...item,
+            inflected: item.translation
+          });
+          currentGender = item.gender || 'm';
+          break;
+          
+        case 'possessive':
+          // Look ahead to find the noun this possessive modifies
+          let targetGender = currentGender; // fallback to current
+          for (let j = i + 1; j < analysis.length; j++) {
+            const nextItem = analysis[j];
+            if (nextItem.type === 'space' || nextItem.type === 'punctuation') continue;
+            if (nextItem.wordType === 'noun') {
+              targetGender = nextItem.gender;
+              break;
+            } else if (nextItem.type === 'compound' || nextItem.type === 'translated' || nextItem.type === 'phrase') {
+              targetGender = nextItem.gender || 'm';
+              break;
+            } else if (nextItem.wordType === 'adjective') {
+              // Skip adjectives, keep looking for the noun
+              continue;
+            } else {
+              break; // Hit different type of word
+            }
+          }
+          
+          console.log(`Possessive "${item.value}" targeting gender: ${targetGender}`);
+          const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender);
+          console.log(`Possessive form: ${possessiveForm}`);
+          inflected.push({
+            ...item,
+            inflected: possessiveForm
+          });
+          break;
+          
+        case 'noun':
+          const nounForm = this.getNounForm(item, currentCase, currentNumber);
+          inflected.push({
+            ...item,
+            inflected: nounForm,
+            gender: item.gender,
+            case: currentCase
+          });
+          currentGender = item.gender;
+          break;
+          
+        case 'translated':
+        case 'compound':
+          inflected.push({
+            ...item,
+            inflected: item.translation
+          });
+          if (item.gender) currentGender = item.gender;
+          break;
+          
+        default:
+          inflected.push({
+            ...item,
+            inflected: item.translation || item.original || item.value
+          });
+      }
+    }
+    
+    return inflected;
+  }
+  
+  // Get conjugation index for pronouns
+  getConjugationIndex(subject, number) {
+    const pronounIndex = PRON_TO_IDX[subject];
+    if (pronounIndex !== undefined) return pronounIndex;
+    return number === 'plural' ? 5 : 2; // 3rd person plural or singular
+  }
+  
+  // Get appropriate adjective form
+  getAdjectiveForm(adjectiveData, gender, case_, number) {
+    const genderKey = gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc';
+    const caseKey = case_ || 'nom';
+    const numberKey = number === 'plural' ? 'pl' : 'sg';
+    const key = `${genderKey}_${caseKey}_${numberKey}`;
+    return adjectiveData[key] || adjectiveData.base;
+  }
+  
+  // Get appropriate possessive form
+  getPossessiveForm(possessiveData, gender) {
+    return gender === 'f' ? possessiveData.fem_sg :
+           gender === 'n' ? possessiveData.neut_sg :
+           possessiveData.masc_sg;
+  }
+  
+  // Get appropriate noun form
+  getNounForm(noun, case_, number) {
+    if (noun.wordType === 'translated' && noun.translation) {
+      return noun.translation; // Already translated phrase
+    }
+    
+    const declension = NOUN_DECLENSION[noun.value];
+    if (declension) {
+      const caseKey = case_ || 'nom';
+      const numberKey = number === 'plural' ? 'pl' : 'sg';
+      const key = `${caseKey}_${numberKey}`;
+      return declension[key] || noun.translation || noun.value;
+    }
+    
+    return noun.translation || noun.value;
+  }
+}
+
 // ─── MAIN TRANSLATION ORCHESTRATOR ────────────────────────────────────────────
 function performTranslation() {
   const enInp   = document.getElementById('inp').value.trim();
@@ -2159,36 +2721,21 @@ function performTranslation() {
 
   // Route based on active input
   if(activeInput === 'english' && enStr) {
-    // English → Old Norse → Runes (original pipeline)
-    // Split by lines to preserve structure
-    const lines = enStr.split('\n');
-    const allOnResults = [];
-
-    lines.forEach(line => {
-      const sentences = line.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
-      const lineOnResults = [];
-
-      sentences.forEach(sentence => {
-        const result = processSentence(sentence);
-        if(result.onStr) lineOnResults.push(result.onStr);
-        allUnknowns.push(...result.unknowns);
-      });
-
-      allOnResults.push(lineOnResults.join(' '));
-    });
-
-    onStr = allOnResults.join('\n');
+    // NEW PHRASE-BASED PIPELINE: English → Old Norse → Runes
+    const result = translateWithPhraseParser(enStr);
+    onStr = result.oldNorse;
+    allUnknowns = result.unknowns;
     runesStr = renderRunes(onStr);
 
   } else if(activeInput === 'oldnorse' && onStr) {
-    // Old Norse → English + Runes
+    // Old Norse → English + Runes (existing logic)
     const enResult = onToEnglish(onStr);
     enStr = enResult.text;
     allUnknowns = enResult.unknowns;
     runesStr = renderRunes(onStr);
 
   } else if(activeInput === 'runes' && runesInp) {
-    // Runes → Old Norse → English
+    // Runes → Old Norse → English (existing logic)
     const onResult = runesToOldNorse(runesInp);
     onStr = onResult.text;
     allUnknowns = onResult.unknowns;
@@ -2198,8 +2745,63 @@ function performTranslation() {
     allUnknowns.push(...enResult.unknowns);
   }
 
-  // Update outputs (but don't update the active input field to preserve cursor)
+  // Update outputs (but don't update active input field to preserve cursor)
   updateAllOutputs(enStr, onStr, runesStr, allUnknowns, ukEl, activeInput);
+}
+
+// ─── NEW PHRASE-BASED TRANSLATION FUNCTION ────────────────────────────────────────
+function translateWithPhraseParser(input) {
+  const grammarEngine = new GrammarEngine();
+  const unknowns = [];
+  
+  // Split by lines to preserve structure
+  const lines = input.split('\n');
+  const translatedLines = [];
+  
+  lines.forEach(line => {
+    if (!line.trim()) {
+      translatedLines.push('');
+      return;
+    }
+    
+    // Step 1: Tokenize
+    const tokens = tokenize(line);
+    console.log('Tokens:', tokens);
+    
+    // Step 2: Parse phrases
+    const phrases = parsePhrases(tokens);
+    console.log('Phrases:', phrases);
+    
+    // Step 3: Grammar analysis
+    const analysis = grammarEngine.analyzePhrase(phrases);
+    console.log('Analysis:', analysis);
+    
+    // Step 4: Apply inflections
+    const inflected = grammarEngine.applyInflections(analysis);
+    console.log('Inflected:', inflected);
+    
+    // Step 5: Build output string
+    let oldNorseLine = '';
+    inflected.forEach(item => {
+      if (item.type === 'space') {
+        oldNorseLine += item.value;
+      } else if (item.type === 'punctuation') {
+        oldNorseLine += item.value;
+      } else if (item.wordType === 'unknown') {
+        oldNorseLine += '[' + item.value + '] ';
+        if (!unknowns.includes(item.value)) unknowns.push(item.value);
+      } else {
+        oldNorseLine += (item.inflected || item.translation || item.value) + ' ';
+      }
+    });
+    
+    translatedLines.push(oldNorseLine.trim());
+  });
+  
+  return {
+    oldNorse: translatedLines.join('\n'),
+    unknowns: unknowns
+  };
 }
 
 // ─── RENDER RUNES WITH TOOLTIPS ──────────────────────────────────────────────
@@ -3201,11 +3803,92 @@ function processSentence(sentence) {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
-  // Step 11: apply interjection vocative formatting
+  // Step 11: Build noun phrases AFTER all word order manipulations
+// Simple approach: scan through tokens and reorganize adjective-noun-possessive patterns
+const phraseBuiltTokens = [];
+let idx = 0;
+
+while(idx < reorderedTokens.length) {
+  const token = reorderedTokens[idx];
+  
+  // Skip spaces and punctuation
+  if(token.type === 'space' || token.type === 'punct') {
+    phraseBuiltTokens.push(token);
+    idx++;
+    continue;
+  }
+  
+  // Look for noun phrase patterns
+  // Check if current token is part of a noun phrase
+  if(token.type === 'noun' || token.type === 'word' || token.type === 'synonym') {
+    const phrase = [];
+    let phraseStart = idx;
+    let phraseEnd = idx;
+    
+    // Look backward for adjective
+    let adjToken = null;
+    for(let j = idx - 1; j >= 0; j--) {
+      const prevToken = reorderedTokens[j];
+      if(prevToken.type === 'space') continue;
+      if(prevToken.type === 'adjective') {
+        adjToken = prevToken;
+        phraseStart = j;
+        break;
+      }
+      break; // Stop at first non-space token that's not an adjective
+    }
+    
+    // Look forward for possessive
+    let possToken = null;
+    for(let j = idx + 1; j < reorderedTokens.length; j++) {
+      const nextToken = reorderedTokens[j];
+      if(nextToken.type === 'space') continue;
+      if(nextToken.type === 'possessive') {
+        possToken = nextToken;
+        phraseEnd = j;
+        break;
+      }
+      break; // Stop at first non-space token that's not a possessive
+    }
+    
+    // Build the phrase in correct Old Norse order: [adjective] + [noun] + [possessive]
+    if(adjToken) {
+      phraseBuiltTokens.push(adjToken);
+      // Add space if needed
+      if(reorderedTokens[phraseStart + 1]?.type === 'space') {
+        phraseBuiltTokens.push(reorderedTokens[phraseStart + 1]);
+      } else {
+        phraseBuiltTokens.push({type: 'space'});
+      }
+    }
+    
+    // Add the noun
+    phraseBuiltTokens.push(token);
+    
+    // Add possessive if found
+    if(possToken) {
+      // Add space if needed
+      if(phraseBuiltTokens[phraseBuiltTokens.length - 1].type !== 'space') {
+        phraseBuiltTokens.push({type: 'space'});
+      }
+      phraseBuiltTokens.push(possToken);
+      idx = phraseEnd + 1; // Skip past the possessive
+    } else {
+      idx++; // Just move past the noun
+    }
+    
+  } else {
+    // Not a noun, add as-is
+    phraseBuiltTokens.push(token);
+    idx++;
+  }
+}
+
+  // Step 12: apply interjection vocative formatting
   // Build final string with interjection formatting and bracket marking
   let onStr = '';
-  for(let i = 0; i < reorderedTokens.length; i++) {
-    const t = reorderedTokens[i];
+  for(let i = 0; i < phraseBuiltTokens.length; i++) {
+    const t = phraseBuiltTokens[i];
 
     if(t.type === 'space') {
       onStr += ' ';
@@ -3215,8 +3898,8 @@ function processSentence(sentence) {
 
       // Check if interjection is followed by non-space/non-punct content
       let hasFollowingContent = false;
-      for(let j = i + 1; j < reorderedTokens.length; j++) {
-        if(reorderedTokens[j].type !== 'space' && reorderedTokens[j].type !== 'punct') {
+      for(let j = i + 1; j < phraseBuiltTokens.length; j++) {
+        if(phraseBuiltTokens[j].type !== 'space' && phraseBuiltTokens[j].type !== 'punct') {
           hasFollowingContent = true;
           break;
         }
