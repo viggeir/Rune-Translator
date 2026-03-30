@@ -14,6 +14,10 @@ h1{font-family:'Cinzel',serif;font-size:20px;font-weight:600;color:#e8dfc0;lette
 textarea{width:100%;min-height:90px;background:#0d0b06;border:1px solid #3a3020;border-radius:8px;padding:14px 16px;font-family:'IM Fell English',serif;font-size:16px;color:#d4c9a8;resize:vertical;line-height:1.6;outline:none;margin-bottom:.85rem;transition:border-color .2s}
 textarea:focus{border-color:#6b5230}
 textarea::placeholder{color:#3d3525;font-style:italic}
+[contenteditable="true"]{outline:none}
+[contenteditable="true"]:focus{border-color:#6b5230}
+.on-output[contenteditable="true"],.rune-output[contenteditable="true"]{background:#0d0b06;border:1px solid #3a3020;border-radius:8px;padding:14px 16px;margin-bottom:.85rem;transition:border-color .2s;cursor:text;min-height:90px}
+.rune-output[contenteditable="true"]:focus .tip{opacity:0}
 .step-block{background:#0a0804;border:1px solid #2e2516;border-radius:8px;padding:14px 16px;margin-bottom:.85rem;position:relative}
 .step-label{font-family:'Cinzel',serif;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#4a3e28;margin-bottom:8px}
 .on-output{font-family:'IM Fell English',serif;font-size:18px;color:#a08840;line-height:1.6;min-height:28px;word-break:break-word}
@@ -46,20 +50,20 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 
 <div class="title-rune">ᚠᚢᚦᚬᚱᚴᚼᚾᛁᛋᛏᛒᛚᛘ</div>
 <h1>Rune Translator</h1>
-<p class="subtitle">English → Old Norse → Younger Futhark</p>
+<p class="subtitle">English ↔ Old Norse ↔ Younger Futhark</p>
 
-<textarea id="inp" placeholder="Enter English text..." oninput="runTranslate()"></textarea>
+<textarea id="inp" placeholder="Enter English text..." onfocus="activeInput='english'" oninput="if(activeInput==='english') translate()"></textarea>
 
 <div class="step-block">
   <div class="step-label">Old Norse</div>
-  <div class="on-output" id="onOut"><span class="placeholder-text">Old Norse will appear here</span></div>
+  <div class="on-output" id="onOut" contenteditable="true" spellcheck="false" onfocus="activeInput='oldnorse'; clearOtherFields('oldnorse')" oninput="if(activeInput==='oldnorse') translate()"><span class="placeholder-text">Old Norse will appear here</span></div>
   <div class="unknown-key" id="unknownKey" style="display:none"></div>
   <button class="copy-btn" onclick="copyON()">Copy</button>
 </div>
 
 <div class="step-block">
   <div class="step-label">Younger Futhark</div>
-  <div class="rune-output" id="runeOut"><span class="placeholder-text">Runes will appear here</span></div>
+  <div class="rune-output" id="runeOut" contenteditable="true" spellcheck="false" onfocus="activeInput='runes'; clearOtherFields('runes')" oninput="if(activeInput==='runes') translate()"><span class="placeholder-text">Runes will appear here</span></div>
   <button class="copy-btn" onclick="copyRunes()">Copy</button>
 </div>
 
@@ -98,6 +102,15 @@ const soundToRune = {};
 FUTHARK.forEach(f => {
   f.sounds.forEach(s => { if(!soundToRune[s]) soundToRune[s] = {r:f.r, name:f.name}; });
 });
+
+// Build rune → sounds mapping (for reverse translation)
+const RUNE_TO_SOUNDS = {};
+FUTHARK.forEach(f => {
+  RUNE_TO_SOUNDS[f.r] = f.sounds;
+});
+
+// ─── ACTIVE INPUT TRACKING ────────────────────────────────────────────────────
+let activeInput = 'english'; // 'english', 'oldnorse', 'runes'
 
 // ─── OLD NORSE PHONEME RULES → YOUNGER FUTHARK SOUNDS ───────────────────────
 // Sorted longest-first so digraphs match before single chars.
@@ -147,6 +160,148 @@ function onToRunes(text) {
     if(!matched) i++;
   }
   return result;
+}
+
+// ─── REVERSE TRANSLATION: OLD NORSE → ENGLISH ────────────────────────────────
+function onToEnglish(text) {
+  const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  const result = [];
+  const unknowns = [];
+
+  words.forEach(word => {
+    // Remove punctuation for lookup
+    const cleanWord = word.replace(/[.,!?;:\-'"]/g, '');
+    const translation = ON_TO_EN[cleanWord];
+
+    if(translation) {
+      result.push(translation);
+    } else {
+      result.push(word);
+      unknowns.push(cleanWord);
+    }
+  });
+
+  return {
+    text: result.join(' '),
+    unknowns: unknowns
+  };
+}
+
+// ─── REVERSE TRANSLATION: RUNES → OLD NORSE ───────────────────────────────────
+// Converts rune characters to phoneme combinations, then matches against ON dictionary
+function runesToOldNorse(runeText) {
+  // Extract rune characters and spaces
+  const runes = [];
+  let currentWord = [];
+
+  for(let char of runeText) {
+    if(char === ' ' || char === '\n') {
+      if(currentWord.length > 0) {
+        runes.push(currentWord);
+        currentWord = [];
+      }
+    } else if(RUNE_TO_SOUNDS[char]) {
+      currentWord.push(char);
+    }
+  }
+  if(currentWord.length > 0) runes.push(currentWord);
+
+  // Convert each rune word to phoneme sequences and find best matches
+  const result = [];
+  const unknowns = [];
+
+  runes.forEach(runeWord => {
+    const onWord = findBestOldNorseMatch(runeWord);
+    if(onWord) {
+      result.push(onWord);
+    } else {
+      const runeStr = runeWord.join('');
+      result.push(runeStr);
+      unknowns.push(runeStr);
+    }
+  });
+
+  return {
+    text: result.join(' '),
+    unknowns: unknowns
+  };
+}
+
+// Helper: Find best Old Norse word matching a rune sequence
+// Uses phoneme combinations and scores by match quality
+function findBestOldNorseMatch(runeWord) {
+  const phonemeOptions = runeWord.map(r => RUNE_TO_SOUNDS[r] || []);
+
+  // Generate all possible phoneme combinations (depth-first)
+  const allCombinations = generatePhonemeSequences(phonemeOptions);
+
+  // Try to match each combination against ON dictionary
+  for(const phoneStr of allCombinations) {
+    const onWord = matchPhonemeToOldNorse(phoneStr);
+    if(onWord) return onWord;
+  }
+
+  return null;
+}
+
+// Generate all possible phoneme sequences from rune ambiguity
+function generatePhonemeSequences(phonemeOptions) {
+  if(phonemeOptions.length === 0) return [];
+  if(phonemeOptions.length === 1) return phonemeOptions[0] || [];
+
+  const sequences = [];
+  const firstOptions = phonemeOptions[0];
+  const restSequences = generatePhonemeSequences(phonemeOptions.slice(1));
+
+  firstOptions.forEach(first => {
+    restSequences.forEach(rest => {
+      sequences.push(first + rest);
+    });
+  });
+
+  return sequences;
+}
+
+// Try to match a phoneme string to an Old Norse word
+// Uses fuzzy matching with priority for exact matches
+function matchPhonemeToOldNorse(phoneStr) {
+  // First, try exact match in ON_TO_EN keys
+  for(const onWord of Object.keys(ON_TO_EN)) {
+    const onPhones = onWord.toLowerCase();
+    // Simple phoneme-to-text mapping check
+    if(onPhones === phoneStr) return onWord;
+  }
+
+  // Second, try matching the phoneme string against ON words
+  // Convert ON text to rough phoneme representation and compare
+  for(const onWord of Object.keys(ON_TO_EN)) {
+    const normalized = normalizeToPhonemes(onWord);
+    if(normalized === phoneStr) return onWord;
+  }
+
+  return null;
+}
+
+// Normalize Old Norse word to approximate phoneme string
+function normalizeToPhonemes(onWord) {
+  let phonemes = '';
+  let i = 0;
+  const lower = onWord.toLowerCase();
+
+  while(i < lower.length) {
+    let matched = false;
+    for(const [pat, sound] of ON_SORTED) {
+      if(lower.slice(i, i + pat.length) === pat) {
+        phonemes += sound;
+        i += pat.length;
+        matched = true;
+        break;
+      }
+    }
+    if(!matched) i++;
+  }
+
+  return phonemes;
 }
 
 // ─── PRONOUN CASE TABLE ──────────────────────────────────────────────────────
@@ -702,6 +857,13 @@ const EN_TO_ON = {
   'new':'nýr', 'first':'fyrstr', 'last':'síðastr',
 };
 
+// ─── REVERSE DICTIONARY: OLD NORSE → ENGLISH ──────────────────────────────────
+// Built by inverting EN_TO_ON (first English match wins if multiple)
+const ON_TO_EN = {};
+Object.entries(EN_TO_ON).forEach(([en, on]) => {
+  if(!ON_TO_EN[on]) ON_TO_EN[on] = en;
+});
+
 // ─── GRAMMAR-AWARE TOKENISER ─────────────────────────────────────────────────
 // Strategy:
 //   1. Split input into word tokens
@@ -709,64 +871,113 @@ const EN_TO_ON = {
 //   3. Resolve pronoun case based on position relative to verbs
 //   4. Conjugate verbs based on nearest preceding subject pronoun
 
-function runTranslate() {
-  const inp     = document.getElementById('inp').value.trim();
-  const onOutEl = document.getElementById('onOut');
-  const runeEl  = document.getElementById('runeOut');
+// ─── HELPER: Clear non-active fields when one becomes active ──────────────────
+function clearOtherFields(activeType) {
+  if(activeType !== 'english') document.getElementById('inp').value = '';
+  if(activeType !== 'oldnorse') document.getElementById('onOut').textContent = '';
+  if(activeType !== 'runes') document.getElementById('runeOut').textContent = '';
+}
+
+// ─── MAIN TRANSLATION ORCHESTRATOR ────────────────────────────────────────────
+function translate() {
+  const enInp   = document.getElementById('inp').value.trim();
+  const onInp   = document.getElementById('onOut').textContent.trim();
+  const runesInp = document.getElementById('runeOut').textContent.trim();
   const ukEl    = document.getElementById('unknownKey');
 
-  if(!inp) {
-    onOutEl.innerHTML  = '<span class="placeholder-text">Old Norse will appear here</span>';
-    runeEl.innerHTML   = '<span class="placeholder-text">Runes will appear here</span>';
+  if(!enInp && !onInp && !runesInp) {
+    document.getElementById('onOut').textContent = '';
+    document.getElementById('runeOut').textContent = '';
     ukEl.style.display = 'none';
     return;
   }
 
-  // Split into sentences (by periods, exclamation, question marks)
-  const sentences = inp.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+  let enStr = enInp;
+  let onStr = onInp;
+  let runesStr = runesInp;
+  let allUnknowns = [];
 
-  // Process each sentence independently
-  const allOnResults = [];
-  const allUnknowns = [];
+  // Route based on active input
+  if(activeInput === 'english' && enStr) {
+    // English → Old Norse → Runes (original pipeline)
+    const sentences = enStr.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 0);
+    const allOnResults = [];
 
-  sentences.forEach(sentence => {
-    const result = processSentence(sentence);
-    if(result.onStr) allOnResults.push(result.onStr);
-    allUnknowns.push(...result.unknowns);
-  });
+    sentences.forEach(sentence => {
+      const result = processSentence(sentence);
+      if(result.onStr) allOnResults.push(result.onStr);
+      allUnknowns.push(...result.unknowns);
+    });
 
-  const onStr = allOnResults.join(' ');
+    onStr = allOnResults.join(' ');
+    runesStr = renderRunes(onStr);
 
-  // Render ON with unknowns underlined
+  } else if(activeInput === 'oldnorse' && onStr) {
+    // Old Norse → English + Runes
+    const enResult = onToEnglish(onStr);
+    enStr = enResult.text;
+    allUnknowns = enResult.unknowns;
+    runesStr = renderRunes(onStr);
+
+  } else if(activeInput === 'runes' && runesInp) {
+    // Runes → Old Norse → English
+    const onResult = runesToOldNorse(runesInp);
+    onStr = onResult.text;
+    allUnknowns = onResult.unknowns;
+
+    const enResult = onToEnglish(onStr.replace(/<[^>]*>/g, ''));
+    enStr = enResult.text;
+    allUnknowns.push(...enResult.unknowns);
+  }
+
+  // Update all outputs
+  updateAllOutputs(enStr, onStr, runesStr, allUnknowns, ukEl);
+}
+
+// ─── RENDER RUNES WITH TOOLTIPS ──────────────────────────────────────────────
+function renderRunes(onStr) {
+  if(!onStr) return '<span class="placeholder-text">—</span>';
+
+  const runes = onToRunes(onStr);
+  if(!runes.length) return '<span class="placeholder-text">—</span>';
+
+  return runes.map(r => {
+    if(r.space) return '<span class="rune-char space"> </span>';
+    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
+  }).join('');
+}
+
+// ─── UPDATE ALL OUTPUT FIELDS ────────────────────────────────────────────────
+function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl) {
+  // Update English textarea
+  document.getElementById('inp').value = enStr;
+
+  // Update Old Norse with unknowns highlighted
   let onHTML = '';
-  if(allOnResults.length === 0) {
-    onHTML = '<span class="placeholder-text">—</span>';
+  if(!onStr || onStr.trim().length === 0) {
+    onHTML = '<span class="placeholder-text">Old Norse will appear here</span>';
   } else {
-    const onWords = onStr.split(' ');
+    const onWords = onStr.trim().split(' ');
     onWords.forEach(word => {
-      if(allUnknowns.some(u => word.includes(u))) {
-        onHTML += `<span class="unknown" title="No Old Norse match">${word}</span> `;
+      if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
+        onHTML += `<span class="unknown" title="No match">${word}</span> `;
       } else {
         onHTML += word + ' ';
       }
     });
   }
-  onOutEl.innerHTML = onHTML.trim() || '<span class="placeholder-text">—</span>';
+  document.getElementById('onOut').innerHTML = onHTML.trim() || '<span class="placeholder-text">Old Norse will appear here</span>';
 
-  if(allUnknowns.length) {
-    ukEl.textContent   = `Dotted underline = no dictionary match: ${[...new Set(allUnknowns)].join(', ')}`;
+  // Update Runes
+  document.getElementById('runeOut').innerHTML = runesStr;
+
+  // Update unknowns display
+  if(unknowns && unknowns.length) {
+    ukEl.textContent = `Dotted underline = no dictionary match: ${[...new Set(unknowns)].join(', ')}`;
     ukEl.style.display = 'block';
   } else {
     ukEl.style.display = 'none';
   }
-
-  // ON → Younger Futhark
-  const runes = onToRunes(onStr);
-  if(!runes.length) { runeEl.innerHTML='<span class="placeholder-text">—</span>'; return; }
-  runeEl.innerHTML = runes.map(r => {
-    if(r.space) return '<span class="rune-char space"> </span>';
-    return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
-  }).join('');
 }
 
 function processSentence(sentence) {
