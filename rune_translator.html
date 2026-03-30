@@ -142,6 +142,10 @@ const ON_RULES = [
 const ON_SORTED = [...ON_RULES].sort((a,b) => b[0].length - a[0].length);
 
 function onToRunes(text) {
+  // Input validation
+  if(!text || typeof text !== 'string') return [];
+  if(text.length > 10000) text = text.substring(0, 10000);
+
   const lower = text.toLowerCase();
   let i = 0;
   const result = [];
@@ -175,6 +179,10 @@ function onToRunes(text) {
 
 // ─── REVERSE TRANSLATION: OLD NORSE → ENGLISH ────────────────────────────────
 function onToEnglish(text) {
+  // Input validation
+  if(!text || typeof text !== 'string') return { text: '', unknowns: [] };
+  if(text.length > 10000) text = text.substring(0, 10000);
+
   // Split by lines to preserve structure
   const lines = text.split('\n');
   const allResults = [];
@@ -219,6 +227,10 @@ function onToEnglish(text) {
 // ─── REVERSE TRANSLATION: RUNES → OLD NORSE ───────────────────────────────────
 // Converts rune characters to phoneme combinations, then matches against ON dictionary
 function runesToOldNorse(runeText) {
+  // Input validation
+  if(!runeText || typeof runeText !== 'string') return { text: '', unknowns: [] };
+  if(runeText.length > 10000) runeText = runeText.substring(0, 10000);
+
   // Split by lines to preserve structure
   const lines = runeText.split('\n');
   const allResults = [];
@@ -2687,6 +2699,13 @@ function performTranslation() {
   const runesInp = document.getElementById('runeOut').textContent.trim();
   const ukEl    = document.getElementById('unknownKey');
 
+  // Enforce input length limits for security and performance
+  const MAX_INPUT_LENGTH = 5000;
+  if(enInp.length > MAX_INPUT_LENGTH || onInp.length > MAX_INPUT_LENGTH || runesInp.length > MAX_INPUT_LENGTH) {
+    alert(`Input exceeds maximum length of ${MAX_INPUT_LENGTH} characters`);
+    return;
+  }
+
   // If active field is empty, clear other fields
   if((activeInput === 'english' && !enInp) || 
      (activeInput === 'oldnorse' && !onInp) || 
@@ -2906,6 +2925,10 @@ function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl, activeType) {
 }
 
 function processSentence(sentence) {
+  // Input validation
+  if(!sentence || typeof sentence !== 'string') return { translations: [] };
+  if(sentence.length > 10000) sentence = sentence.substring(0, 10000);
+
   // Step 1: raw tokenise
   const raw = sentence.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
 
