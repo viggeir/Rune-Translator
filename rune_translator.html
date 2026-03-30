@@ -930,8 +930,8 @@ function translate() {
     allUnknowns.push(...enResult.unknowns);
   }
 
-  // Update all outputs
-  updateAllOutputs(enStr, onStr, runesStr, allUnknowns, ukEl);
+  // Update outputs (but don't update the active input field to preserve cursor)
+  updateAllOutputs(enStr, onStr, runesStr, allUnknowns, ukEl, activeInput);
 }
 
 // ─── RENDER RUNES WITH TOOLTIPS ──────────────────────────────────────────────
@@ -948,30 +948,37 @@ function renderRunes(onStr) {
 }
 
 // ─── UPDATE ALL OUTPUT FIELDS ────────────────────────────────────────────────
-function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl) {
-  // Update English textarea
-  document.getElementById('inp').value = enStr;
-
-  // Update Old Norse with unknowns highlighted
-  let onHTML = '';
-  if(!onStr || onStr.trim().length === 0) {
-    onHTML = '<span class="placeholder-text">Old Norse will appear here</span>';
-  } else {
-    const onWords = onStr.trim().split(' ');
-    onWords.forEach(word => {
-      if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
-        onHTML += `<span class="unknown" title="No match">${word}</span> `;
-      } else {
-        onHTML += word + ' ';
-      }
-    });
+// Skip updating the active input field to preserve cursor position
+function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl, activeType) {
+  // Update English textarea (unless it's the active input)
+  if(activeType !== 'english') {
+    document.getElementById('inp').value = enStr;
   }
-  document.getElementById('onOut').innerHTML = onHTML.trim() || '<span class="placeholder-text">Old Norse will appear here</span>';
 
-  // Update Runes
-  document.getElementById('runeOut').innerHTML = runesStr;
+  // Update Old Norse with unknowns highlighted (unless it's the active input)
+  if(activeType !== 'oldnorse') {
+    let onHTML = '';
+    if(!onStr || onStr.trim().length === 0) {
+      onHTML = '<span class="placeholder-text">Old Norse will appear here</span>';
+    } else {
+      const onWords = onStr.trim().split(' ');
+      onWords.forEach(word => {
+        if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
+          onHTML += `<span class="unknown" title="No match">${word}</span> `;
+        } else {
+          onHTML += word + ' ';
+        }
+      });
+    }
+    document.getElementById('onOut').innerHTML = onHTML.trim() || '<span class="placeholder-text">Old Norse will appear here</span>';
+  }
 
-  // Update unknowns display
+  // Update Runes (unless it's the active input)
+  if(activeType !== 'runes') {
+    document.getElementById('runeOut').innerHTML = runesStr;
+  }
+
+  // Always update unknowns display
   if(unknowns && unknowns.length) {
     ukEl.textContent = `Dotted underline = no dictionary match: ${[...new Set(unknowns)].join(', ')}`;
     ukEl.style.display = 'block';
