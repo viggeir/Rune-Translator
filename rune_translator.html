@@ -141,6 +141,15 @@ const ON_RULES = [
 ];
 const ON_SORTED = [...ON_RULES].sort((a,b) => b[0].length - a[0].length);
 
+// ─── PRE-COMPILED REGEX PATTERNS (Performance Optimization) ─────────────────
+// Regex compilation is expensive - pre-compile once instead of on every call
+const REGEX_WORD_SPLIT = /[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g;
+const REGEX_WHITESPACE = /\s+/;
+const REGEX_SPACE_ONLY = /^\s+$/;
+const REGEX_HAS_LETTER = /[a-záéíóúýæøöǫþðä]/;
+const REGEX_NEWLINE = /\n/;
+const REGEX_BRACKET_TEXT = /\[([^\]]*)\]/;
+
 function onToRunes(text) {
   // Input validation
   if(!text || typeof text !== 'string') return [];
@@ -189,7 +198,7 @@ function onToEnglish(text) {
   const allUnknowns = [];
   
   lines.forEach(line => {
-    const words = line.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+    const words = line.toLowerCase().split(REGEX_WHITESPACE).filter(w => w.length > 0);
     const result = [];
     const unknowns = [];
 
@@ -2930,8 +2939,8 @@ function processSentence(sentence) {
   if(!sentence || typeof sentence !== 'string') return { translations: [] };
   if(sentence.length > 10000) sentence = sentence.substring(0, 10000);
 
-  // Step 1: raw tokenise
-  const raw = sentence.toLowerCase().match(/[a-záéíóúýæøöǫþðä'-]+|[^a-záéíóúýæøöǫþðä\s]+|\s+/g) || [];
+  // Step 1: raw tokenise (using pre-compiled regex)
+  const raw = sentence.toLowerCase().match(REGEX_WORD_SPLIT) || [];
 
   // Step 2: classify each word token
   // types: 'space', 'punct', 'subj_pron', 'obj_pron', 'verb', 'word', 'adjective', 'possessive', 'noun', 'unknown'
@@ -2939,8 +2948,8 @@ function processSentence(sentence) {
   let i = 0;
   while(i < raw.length) {
     const tok = raw[i];
-    if(/^\s+$/.test(tok))                        { classified.push({type:'space'}); i++; continue; }
-    if(!/[a-záéíóúýæøöǫþðä]/.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
+    if(REGEX_SPACE_ONLY.test(tok))                        { classified.push({type:'space'}); i++; continue; }
+    if(!REGEX_HAS_LETTER.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
 
     // Build context for smart word sense detection
     const context = {
@@ -2956,7 +2965,7 @@ function processSentence(sentence) {
     // Two-word phrase check first (with compound fallback)
     // BUT: skip this for adjectives (they should stay separate)
     let phraseMatched = false;
-    if(i+2 < raw.length && /^\s+$/.test(raw[i+1]) && /[a-z]/.test(raw[i+2])) {
+    if(i+2 < raw.length && REGEX_SPACE_ONLY.test(raw[i+1]) && REGEX_HAS_LETTER.test(raw[i+2])) {
       const phrase = tok + ' ' + raw[i+2];
       // Use detected sense if available, otherwise fall back to dictionary lookup
       const tok_is_adjective = detectedSense === 'adjective' || ADJECTIVES[tok.toLowerCase()];
@@ -3005,7 +3014,7 @@ function processSentence(sentence) {
     if(phraseMatched) continue;
 
     // Three-word phrase check (for compounds like "yellow heather rose")
-    if(i+4 < raw.length && /^\s+$/.test(raw[i+1]) && /^\s+$/.test(raw[i+3]) && 
+    if(i+4 < raw.length && REGEX_SPACE_ONLY.test(raw[i+1]) && REGEX_SPACE_ONLY.test(raw[i+3]) && 
        /[a-z]/.test(raw[i+2]) && /[a-z]/.test(raw[i+4])) {
       const phrase3 = tok + ' ' + raw[i+2] + ' ' + raw[i+4];
       const tok_is_adjective = detectedSense === 'adjective' || ADJECTIVES[tok.toLowerCase()];
@@ -3132,6 +3141,12 @@ function processSentence(sentence) {
   //   - After dative preposition = dative
   const wordToks = classified.filter(t => t.type !== 'space' && t.type !== 'punct');
 
+  // Create index map for O(1) token lookup (instead of O(n) indexOf)
+  const tokenIndex = new Map();
+  wordToks.forEach((tok, idx) => {
+    tokenIndex.set(tok, idx);
+  });
+
   // First pass: find positions of verbs in word tokens
   const verbPositions = new Set();
   wordToks.forEach((tok, idx) => {
@@ -3141,8 +3156,8 @@ function processSentence(sentence) {
   const resolved = classified.map((tok, absIdx) => {
     if(tok.type !== 'pronoun') return tok;
 
-    // Find this pronoun's position in word tokens
-    const wordIdx = wordToks.indexOf(tok);
+    // Find this pronoun's position in word tokens (O(1) via Map)
+    const wordIdx = tokenIndex.get(tok);
     const prev = wordToks[wordIdx - 1];
 
     let caseForm = 'nom'; // default to nominative
