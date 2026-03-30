@@ -171,10 +171,23 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
 const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
+// "to" is dative EXCEPT after motion verbs (where it's accusative)
+// Motion verbs handle "to" separately in Step 5b
+const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
 
 // V2 (Verb-Second) adverbs that trigger reordering
 // Only these specific adverbs consistently trigger V2 in Old Norse
 const V2_ADVERBS = new Set(['then','now','so']);
+
+// Motion verbs that take accusative object without preposition
+// For these, "to" means motion → remove preposition, use accusative
+const MOTION_VERBS = new Set(['go','come','travel','walk','ride','sail','fly','move','run','return','drive']);
+
+// Auxiliary/modal verbs (tense-bearers in compound forms)
+// For V2, prefer to move the MAIN verb, not the auxiliary
+// However, in present tense system, these are finite forms themselves
+// Strategy: if only auxiliary present, move it; if main verb after, move main verb
+const AUXILIARY_VERBS = new Set(['be','have','will','shall','can','may','must','need','want']);
 
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
@@ -894,6 +907,14 @@ function processSentence(sentence) {
   });
 
   // Step 5: apply gender agreement (adjectives & possessives)
+  // First, pre-compute verb positions for accurate noun case detection
+  const verbPositions = [];
+  for(let i = 0; i < conjugated.length; i++) {
+    if(conjugated[i].type === 'verb') {
+      verbPositions.push(i);
+    }
+  }
+
   // Strategy:
   //   - Possessive + noun: possessive agrees with noun's gender
   //   - Noun + adjective: adjective agrees with noun's gender & case
@@ -978,19 +999,15 @@ function processSentence(sentence) {
       const isPlural = tok.en.endsWith('s') ||
                        ['men','children','people','eyes','feet','teeth','oxen'].includes(tok.en);
 
-      // Detect case: check for verbs and prepositions
+      // Detect case: dative preposition has highest priority
       let caseForm = 'nom'; // default nominative
       let prevWord = null;
 
-      // Look back to find case clues
+      // Find immediately preceding word (skip spaces/punctuation)
       for(let j = idx - 1; j >= 0; j--) {
-        const prevTok = withAgreement[j];
+        const prevTok = conjugated[j];
         if(prevTok.type === 'word' || prevTok.type === 'pronoun') {
           prevWord = prevTok;
-          break;
-        }
-        if(prevTok.type === 'verb') {
-          caseForm = 'acc'; // After verb → object
           break;
         }
         if(prevTok.type === 'punct') {
@@ -998,9 +1015,71 @@ function processSentence(sentence) {
         }
       }
 
-      // Check if preceded by dative preposition
-      if(prevWord && prevWord.type === 'word' && DATIVE_PREPS.has(prevWord.en)) {
-        caseForm = 'dat';
+      // 1. Check if preceded by dative preposition (highest priority)
+      if(prevWord && prevWord.type === 'word') {
+        if(DATIVE_PREPS.has(prevWord.en)) {
+          caseForm = 'dat';
+        }
+        // Special case: "to" is dative UNLESS preceded by motion verb
+        else if(prevWord.en === 'to') {
+          // Check if there's a motion verb before "to"
+          let hasMotionVerbBeforeTo = false;
+          for(let j = idx - 1; j >= 0; j--) {
+            if(conjugated[j].type === 'verb') {
+              if(MOTION_VERBS.has(conjugated[j].en)) {
+                hasMotionVerbBeforeTo = true;
+              }
+              break;
+            }
+            if(conjugated[j].type === 'punct') {
+              break;
+            }
+          }
+          // If no motion verb before "to", then "to" is dative
+          if(!hasMotionVerbBeforeTo) {
+            caseForm = 'dat';
+          }
+          // If motion verb before "to", stays nominative (will be accusative from verb detection)
+        }
+      }
+      // 2. Determine accusative vs nominative based on verb position
+      else {
+        // Find the nearest verb (forward or backward)
+        let nearestVerbIdx = -1;
+        let verbDistance = Infinity;
+
+        // Check verbs before this noun
+        for(let vIdx of verbPositions) {
+          if(vIdx < idx) {
+            const dist = idx - vIdx;
+            if(dist < verbDistance) {
+              nearestVerbIdx = vIdx;
+              verbDistance = dist;
+            }
+          }
+        }
+
+        // Check verbs after this noun
+        for(let vIdx of verbPositions) {
+          if(vIdx > idx) {
+            const dist = vIdx - idx;
+            if(dist < verbDistance) {
+              nearestVerbIdx = vIdx;
+              verbDistance = dist;
+            }
+          }
+        }
+
+        // Determine case based on verb position:
+        // - If nearest verb is AFTER: noun is likely subject (nominative)
+        // - If nearest verb is BEFORE: noun is likely object (accusative)
+        if(nearestVerbIdx !== -1) {
+          if(nearestVerbIdx < idx) {
+            // Verb is before noun → noun is object → accusative
+            caseForm = 'acc';
+          }
+          // If verb is after noun, stays nominative (default)
+        }
       }
 
       // Try to look up in NOUN_DECLENSION
@@ -1038,23 +1117,40 @@ function processSentence(sentence) {
     return tok;
   });
 
-  // Step 5b: Handle "to" + noun pattern
+  // Step 5b: Handle "to" + noun pattern (motion verbs only)
   // Old Norse expresses motion/goal with accusative alone, not preposition + dative
-  // So "go to hall" becomes "fara höll" (not "fara til hallar")
-  // Remove "to" when followed by a noun, keeping noun as accusative object
+  // "to" after motion verb = accusative: "go to hall" → "fara höll"
+  // "to" after other verbs = dative: "give to him" → "gefa honum" (dative)
+  // Remove "to" ONLY for motion verbs; keep for others (treated as regular preposition)
   const withoutToPrep = [];
   for(let i = 0; i < withAgreement.length; i++) {
     const tok = withAgreement[i];
     const next = withAgreement[i + 1];
     const next2 = withAgreement[i + 2];
 
-    // Pattern: "to" + space + noun (or other word)
+    // Pattern: "to" + space + noun
     if(tok.type === 'word' && tok.en === 'to' &&
        next && next.type === 'space' &&
        next2 && (next2.type === 'noun' || next2.type === 'word')) {
-      // Skip the "to" but keep the space and noun
-      // The noun will already be in accusative due to motion verb
-      continue;
+      // Check if there's a motion verb before this "to"
+      let hasMotionVerbBefore = false;
+      for(let j = i - 1; j >= 0; j--) {
+        if(withAgreement[j].type === 'verb') {
+          // Check if this verb is a motion verb
+          if(MOTION_VERBS.has(withAgreement[j].en)) {
+            hasMotionVerbBefore = true;
+          }
+          break; // Stop at first verb
+        }
+        if(withAgreement[j].type === 'punct') {
+          break; // Stop at punctuation
+        }
+      }
+
+      if(hasMotionVerbBefore) {
+        // Skip the "to" for motion verbs (use accusative)
+        continue;
+      }
     }
     withoutToPrep.push(tok);
   }
@@ -1109,65 +1205,118 @@ function processSentence(sentence) {
   // Step 7: apply V2 (Verb-Second) word order for fronted adverbs
   // Only applies to restricted set: þá, nú, svá (then, now, so)
   // Pattern: [Adverb] [Finite Verb] [Subject] [Rest]
+  // Re-triggers after conjunctions (and, but, or) for each clause
   {
-    // Find first content token (non-space, non-punct)
-    let firstContentIdx = -1;
-    let firstContentTok = null;
-    for(let i = 0; i < reorderedTokens.length; i++) {
-      if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
-        firstContentIdx = i;
-        firstContentTok = reorderedTokens[i];
-        break;
-      }
-    }
+    // Find all potential V2 adverb positions (including after conjunctions)
+    let searchStartIdx = 0;
 
-    // Check if first content token is a V2 adverb
-    if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
-      // Find the adverb's trailing space
-      let adverbSpaceIdx = -1;
-      for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
-        if(reorderedTokens[i].type === 'space') {
-          adverbSpaceIdx = i;
+    while(searchStartIdx < reorderedTokens.length) {
+      // Find first content token from searchStartIdx (non-space, non-punct)
+      let firstContentIdx = -1;
+      let firstContentTok = null;
+      for(let i = searchStartIdx; i < reorderedTokens.length; i++) {
+        if(reorderedTokens[i].type !== 'space' && reorderedTokens[i].type !== 'punct') {
+          firstContentIdx = i;
+          firstContentTok = reorderedTokens[i];
           break;
         }
       }
 
-      if(adverbSpaceIdx !== -1) {
-        // Find the first verb after the adverb+space
-        let verbIdx = -1;
-        for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
-          if(reorderedTokens[i].type === 'verb') {
-            verbIdx = i;
-            break;
-          }
-          // Stop at punctuation (end of clause)
-          if(reorderedTokens[i].type === 'punct') {
+      if(firstContentIdx === -1) break; // No more content
+
+      // Check if this content token is a V2 adverb
+      if(firstContentTok && firstContentTok.type === 'word' && V2_ADVERBS.has(firstContentTok.en)) {
+        // Find the adverb's trailing space
+        let adverbSpaceIdx = -1;
+        for(let i = firstContentIdx + 1; i < reorderedTokens.length; i++) {
+          if(reorderedTokens[i].type === 'space') {
+            adverbSpaceIdx = i;
             break;
           }
         }
 
-        // If verb found and not already in position 2 (adverb + space + verb)
-        if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
-          // Extract verb token and check for trailing space
-          const verbTok = reorderedTokens[verbIdx];
-          let trailingSpace = null;
+        if(adverbSpaceIdx !== -1) {
+          // Find the main verb after the adverb+space (stop at conjunction or punctuation)
+          // Strategy: Skip auxiliaries and find the main content verb
+          // If only auxiliary present, use it; if main verb follows, use main verb
+          let verbIdx = -1;
+          let firstVerbIdx = -1;
+          let firstVerbIsAuxiliary = false;
 
-          if(verbIdx + 1 < reorderedTokens.length &&
-             reorderedTokens[verbIdx + 1].type === 'space') {
-            trailingSpace = reorderedTokens[verbIdx + 1];
+          for(let i = adverbSpaceIdx + 1; i < reorderedTokens.length; i++) {
+            if(reorderedTokens[i].type === 'verb') {
+              if(firstVerbIdx === -1) {
+                firstVerbIdx = i;
+                firstVerbIsAuxiliary = AUXILIARY_VERBS.has(reorderedTokens[i].en);
+              } else if(firstVerbIsAuxiliary && !AUXILIARY_VERBS.has(reorderedTokens[i].en)) {
+                // Found a main verb after an auxiliary - prefer the main verb
+                verbIdx = i;
+                break;
+              } else if(!firstVerbIsAuxiliary) {
+                // Already found a main verb, no need to continue
+                verbIdx = firstVerbIdx;
+                break;
+              }
+            }
+            // Stop at clause boundaries
+            if(reorderedTokens[i].type === 'punct' ||
+               (reorderedTokens[i].type === 'word' && ['and','but','or'].includes(reorderedTokens[i].en))) {
+              // If we only found an auxiliary, use it
+              if(firstVerbIdx !== -1 && verbIdx === -1) {
+                verbIdx = firstVerbIdx;
+              }
+              break;
+            }
           }
 
-          // Remove verb (and trailing space if exists) from original position
-          const removeCount = trailingSpace ? 2 : 1;
-          reorderedTokens.splice(verbIdx, removeCount);
+          // If no main verb found, use first verb
+          if(verbIdx === -1 && firstVerbIdx !== -1) {
+            verbIdx = firstVerbIdx;
+          }
 
-          // Insert verb right after adverb+space
-          const insertPos = adverbSpaceIdx + 1;
-          if(trailingSpace) {
-            reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+          // If verb found and not already in position 2 (adverb + space + verb)
+          if(verbIdx !== -1 && verbIdx !== adverbSpaceIdx + 1) {
+            // Extract verb token and check for trailing space
+            const verbTok = reorderedTokens[verbIdx];
+            let trailingSpace = null;
+
+            if(verbIdx + 1 < reorderedTokens.length &&
+               reorderedTokens[verbIdx + 1].type === 'space') {
+              trailingSpace = reorderedTokens[verbIdx + 1];
+            }
+
+            // Remove verb (and trailing space if exists) from original position
+            const removeCount = trailingSpace ? 2 : 1;
+            reorderedTokens.splice(verbIdx, removeCount);
+
+            // Insert verb right after adverb+space
+            const insertPos = adverbSpaceIdx + 1;
+            if(trailingSpace) {
+              reorderedTokens.splice(insertPos, 0, verbTok, trailingSpace);
+            } else {
+              reorderedTokens.splice(insertPos, 0, verbTok);
+            }
+
+            // Update searchStartIdx to continue searching after this verb position
+            searchStartIdx = insertPos + (trailingSpace ? 2 : 1);
           } else {
-            reorderedTokens.splice(insertPos, 0, verbTok);
+            // No suitable verb found, move past this adverb
+            searchStartIdx = adverbSpaceIdx + 2;
           }
+        } else {
+          // No space after adverb, move on
+          searchStartIdx = firstContentIdx + 1;
+        }
+      } else {
+        // Not a V2 adverb. If it's a conjunction, continue from next position
+        // Otherwise, skip to next sentence boundary
+        if(firstContentTok && firstContentTok.type === 'word' &&
+           ['and','but','or'].includes(firstContentTok.en)) {
+          // Found conjunction, continue searching from after it
+          searchStartIdx = firstContentIdx + 1;
+        } else {
+          // Not a V2 adverb and not a conjunction, stop searching
+          break;
         }
       }
     }
