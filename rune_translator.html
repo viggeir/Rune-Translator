@@ -725,6 +725,131 @@ const NOUN_DECLENSION = {
              nom_pl: 'þing', acc_pl: 'þing', dat_pl: 'þingum' },
 };
 
+// ─── LEMMATIZATION SYSTEM ────────────────────────────────────────────────────
+// Normalize word variants to base forms for dictionary lookup
+// Maps plurals, past tense, etc. to their singular/base form
+const LEMMAS = {
+  // ── Common plurals (noun singulars) ──
+  'girls':'girl', 'boys':'boy', 'women':'woman', 'children':'child',
+  'men':'man', 'kings':'king', 'queens':'queen', 'lords':'lord', 'ladies':'lady',
+  'warriors':'warrior', 'jarls':'jarl', 'thanes':'thane', 'carls':'carl', 'thralls':'thrall',
+  'friends':'friend', 'foes':'foe', 'enemies':'enemy',
+  'brothers':'brother', 'sisters':'sister', 'fathers':'father', 'mothers':'mother',
+  'sons':'son', 'daughters':'daughter', 'wives':'wife', 'husbands':'husband',
+  'gods':'god', 'goddesses':'goddess',
+  'worlds':'world', 'earths':'earth', 'skies':'sky', 'seas':'sea', 'oceans':'ocean',
+  'lands':'land', 'islands':'island', 'forests':'forest', 'mountains':'mountain',
+  'rivers':'river', 'fires':'fire', 'winds':'wind', 'storms':'storm', 'snows':'snow', 'rains':'rain',
+  'suns':'sun', 'moons':'moon', 'stars':'star',
+  'trees':'tree', 'ashes':'ash', 'oaks':'oak', 'roots':'root', 'branches':'branch',
+  'wolves':'wolf', 'ravens':'raven', 'bears':'bear', 'horses':'horse',
+  'eagles':'eagle', 'serpents':'serpent', 'dragons':'dragon', 'oxen':'ox',
+  'swords':'sword', 'axes':'axe', 'spears':'spear', 'shields':'shield',
+  'bows':'bow', 'arrows':'arrow', 'helms':'helm',
+  'wars':'war', 'battles':'battle', 'victories':'victory', 'deaths':'death',
+  'lives':'life', 'births':'birth',
+  'ships':'ship', 'boats':'boat', 'sails':'sail',
+  'halls':'hall', 'houses':'house', 'homes':'home', 'gates':'gate',
+  'roads':'road', 'paths':'path', 'bridges':'bridge',
+  'golds':'gold', 'silvers':'silver', 'irons':'iron', 'steels':'steel',
+  'woods':'wood', 'stones':'stone', 'bones':'bone',
+  'hearts':'heart', 'souls':'soul', 'spirits':'spirit', 'minds':'mind',
+  'names':'name', 'words':'word', 'oaths':'oath',
+  'honors':'honor', 'glories':'glory', 'shames':'shame', 'courages':'courage',
+  'strengths':'strength', 'powers':'power', 'wisdoms':'wisdom', 'truths':'truth',
+  'hates':'hate', 'angers':'anger', 'griefs':'grief', 'joys':'joy',
+  'sorrows':'sorrow', 'hopes':'hope', 'dreams':'dream', 'memories':'memory',
+  'runes':'rune', 'magics':'magic', 'spells':'spell',
+  'times':'time', 'fates':'fate', 'destinies':'destiny', 'dooms':'doom',
+  'sagas':'saga', 'songs':'song',
+  'hands':'hand', 'eyes':'eye', 'heads':'head',
+  'mouths':'mouth', 'tongues':'tongue', 'voices':'voice',
+
+  // ── Past tense verbs ──
+  'loved':'love', 'adored':'adore', 'cherished':'cherish',
+  'helped':'help', 'found':'find', 'knew':'know', 'thought':'think',
+  'said':'say', 'spoke':'speak', 'asked':'ask', 'answered':'answer',
+  'gave':'give', 'took':'take', 'put':'put', 'set':'set', 'kept':'keep',
+  'became':'become', 'showed':'show', 'felt':'feel',
+  'left':'leave', 'called':'call', 'tried':'try', 'wanted':'want',
+  'lived':'live', 'died':'die',
+  'killed':'kill', 'fought':'fight',
+  'won':'win', 'lost':'lose',
+  'rode':'ride', 'ran':'run',
+  'fell':'fall',
+  'stood':'stand', 'sat':'sit',
+  'lay':'lie', 'rose':'rise',
+  'held':'hold', 'bore':'bear',
+  'brought':'bring', 'sent':'send',
+  'sought':'seek', 'heard':'hear',
+  'followed':'follow', 'led':'lead',
+  'swore':'swear', 'protected':'protect', 'guarded':'guard', 'served':'serve',
+  'returned':'return', 'rested':'rest', 'slept':'sleep',
+  'ate':'eat', 'drank':'drink',
+  'forged':'forge',
+  'carved':'carve', 'marked':'mark',
+  'awaited':'await', 'remembered':'remember', 'forgot':'forget',
+  'feared':'fear', 'hoped':'hope',
+
+  // ── Gerund/participle forms ──
+  'loving':'love', 'being':'be', 'having':'have',
+  'doing':'do', 'making':'make',
+  'going':'go', 'coming':'come',
+  'seeing':'see', 'knowing':'know',
+  'living':'live', 'dying':'die',
+  'fighting':'fight', 'riding':'ride', 'running':'run',
+  'falling':'fall', 'standing':'stand', 'sitting':'sit',
+  'lying':'lie', 'rising':'rise',
+};
+
+// ─── IRREGULAR PLURALS ────────────────────────────────────────────────────────
+// Edge cases not covered by simple pluralization rules
+const IRREGULAR_PLURALS = {
+  'oxen':'ox', 'men':'man', 'women':'woman', 'children':'child',
+  'feet':'foot', 'teeth':'tooth', 'geese':'goose',
+};
+
+// ─── SYNONYM FALLBACK MAP ─────────────────────────────────────────────────────
+// For missing words, try semantic alternatives before marking as unknown
+// Use cautiously — only for high-confidence synonym pairs
+const SYNONYMS = {
+  // Adjectives
+  'sweet':'dear', 'pleasant':'good', 'lovely':'beautiful', 'fair':'good',
+  'bold':'brave', 'courageous':'brave', 'fearless':'brave',
+  'noble':'good', 'honourable':'good', 'dignified':'good',
+  'gentle':'good', 'kind':'good', 'benevolent':'good',
+  'keen':'strong', 'intense':'strong', 'mighty':'strong',
+  'wise':'great', 'clever':'great', 'intelligent':'great',
+
+  // Verbs
+  'wish':'want', 'desire':'want', 'need':'want',
+  'discover':'find', 'locate':'find', 'encounter':'find',
+  'study':'learn', 'study':'know', 'examine':'know',
+  'observe':'see', 'watch':'see', 'behold':'see',
+  'possess':'have', 'own':'have', 'hold':'have',
+  'create':'make', 'build':'make', 'construct':'make',
+  'depart':'go', 'leave':'go', 'journey':'go',
+  'arrive':'come', 'return':'come', 'reach':'come',
+
+  // Nouns
+  'knight':'warrior', 'soldier':'warrior', 'fighter':'warrior',
+  'lady':'woman', 'maiden':'woman', 'lass':'woman', 'damsel':'woman',
+  'prince':'king', 'ruler':'king', 'monarch':'king',
+  'princess':'queen', 'lady-ruler':'queen',
+  'lad':'boy', 'youth':'boy', 'youngster':'boy',
+  'companion':'friend', 'ally':'friend', 'comrade':'friend',
+  'adversary':'enemy', 'foe':'enemy', 'opponent':'enemy',
+  'dwelling':'house', 'residence':'house', 'abode':'house',
+  'fortress':'house', 'castle':'house', 'stronghold':'house',
+  'feast':'food', 'meal':'food', 'victuals':'food',
+  'vessel':'ship', 'boat':'ship', 'craft':'ship',
+  'flower':'rose', 'blossom':'rose', 'bloom':'rose',
+  'deity':'god', 'divine-being':'god',
+
+  // Backwards compat—some duplicates from above
+  'colour':'color', 'grey':'gray',
+};
+
 // ─── ENGLISH → OLD NORSE DICTIONARY ─────────────────────────────────────────
 // "the" removed — ON definite article is a suffix, not a standalone word.
 // Pronouns handled separately via PRONOUNS table above.
@@ -1071,10 +1196,37 @@ function processSentence(sentence) {
       // Noun with tracked gender — look up translation from dictionary
       const on = EN_TO_ON[clean] || clean;
       classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[clean]});
-    } else if(EN_TO_ON[clean]) {
-      classified.push({type:'word', en:clean, on:EN_TO_ON[clean]});
     } else {
-      classified.push({type:'unknown', en:clean});
+      // Try lemmatization: reduce plural/past forms to base form
+      const lemma = LEMMAS[clean];
+      const baseWord = lemma || clean;
+
+      if(NOUN_GENDER[baseWord]) {
+        // Lemmatized noun found
+        const on = EN_TO_ON[baseWord] || baseWord;
+        classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[baseWord]});
+      } else if(EN_TO_ON[baseWord]) {
+        // Lemmatized word found in dictionary
+        classified.push({type:'word', en:clean, on:EN_TO_ON[baseWord]});
+      } else {
+        // Word not found — try synonym fallback
+        const synonym = SYNONYMS[clean];
+        if(synonym) {
+          // Synonym found — use it (will be marked as approximation in output)
+          const synonymLemma = LEMMAS[synonym] || synonym;
+          if(NOUN_GENDER[synonymLemma]) {
+            const on = EN_TO_ON[synonymLemma] || synonymLemma;
+            classified.push({type:'synonym', en:clean, originalEn:synonym, on:on, gender:NOUN_GENDER[synonymLemma]});
+          } else if(EN_TO_ON[synonymLemma]) {
+            classified.push({type:'synonym', en:clean, originalEn:synonym, on:EN_TO_ON[synonymLemma]});
+          } else {
+            classified.push({type:'unknown', en:clean});
+          }
+        } else {
+          // No synonym available — mark as unknown
+          classified.push({type:'unknown', en:clean});
+        }
+      }
     }
     i++;
   }
@@ -1192,7 +1344,7 @@ function processSentence(sentence) {
       }
       const nextTok = conjugated[nextNounIdx];
 
-      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
         const possForm = POSSESSIVES[tok.en];
         if(possForm) {
@@ -1218,7 +1370,7 @@ function processSentence(sentence) {
       }
       const nextTok = conjugated[nextNounIdx];
 
-      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
 
         // Detect if noun is plural: ends in 's' or is irregular plural
@@ -1252,8 +1404,8 @@ function processSentence(sentence) {
       return { ...tok, on: EN_TO_ON[tok.en] || ADJECTIVES[tok.en]?.base || tok.en };
     }
 
-    // Handle nouns: detect case, number, and apply full declension
-    if(tok.type === 'noun') {
+    // Handle nouns & synonyms: detect case, number, and apply full declension
+    if(tok.type === 'noun' || tok.type === 'synonym') {
       const gender = tok.gender || NOUN_GENDER[tok.en] || 'm';
 
       // Detect if noun is plural
@@ -1616,7 +1768,7 @@ function processSentence(sentence) {
         onStr += ' ';
       }
     } else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
-              t.type === 'adjective' || t.type === 'possessive') {
+              t.type === 'adjective' || t.type === 'possessive' || t.type === 'synonym') {
       onStr += (t.on || t.en) + ' ';
     } else if(t.type === 'unknown') {
       // Mark unknown words with brackets
