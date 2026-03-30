@@ -1126,10 +1126,10 @@ function processSentence(sentence) {
 
   // Step 5: apply gender agreement (adjectives & possessives)
   // First, pre-compute verb positions for accurate noun case detection
-  const verbPositions = [];
+  const verbIndices = [];
   for(let i = 0; i < conjugated.length; i++) {
     if(conjugated[i].type === 'verb') {
-      verbPositions.push(i);
+      verbIndices.push(i);
     }
   }
 
