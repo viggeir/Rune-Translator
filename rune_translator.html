@@ -147,6 +147,16 @@ function onToRunes(text) {
   const result = [];
   while(i < lower.length) {
     if(lower[i] === ' ') { result.push({space:true}); i++; continue; }
+    // Handle brackets (pass through as marker text, not runes)
+    if(lower[i] === '[') {
+      let endIdx = lower.indexOf(']', i);
+      if(endIdx !== -1) {
+        const unknownText = lower.substring(i+1, endIdx);
+        result.push({text:'['+unknownText+']', isUnknown:true});
+        i = endIdx + 1;
+        continue;
+      }
+    }
     // Skip true geminates (already handled by rules, catch any remaining)
     if(i > 0 && lower[i] === lower[i-1] && !'aeiouáéíóúýæøöǫ'.includes(lower[i])) { i++; continue; }
     let matched = false;
@@ -169,6 +179,14 @@ function onToEnglish(text) {
   const unknowns = [];
 
   words.forEach(word => {
+    // Handle bracketed unknowns (from marked unknowns)
+    if(word.startsWith('[') && word.endsWith(']')) {
+      const bracketed = word.slice(1, -1);
+      result.push('[' + bracketed + ']');
+      unknowns.push(bracketed);
+      return;
+    }
+
     // Remove punctuation for lookup
     const cleanWord = word.replace(/[.,!?;:\-'"]/g, '');
     const translation = ON_TO_EN[cleanWord];
@@ -577,6 +595,13 @@ const ADJECTIVES = {
   },
 };
 
+// ─── INTERJECTION SYSTEM ──────────────────────────────────────────────────────
+// Interjections treated separately from regular words: standalone or vocative format
+const INTERJECTIONS = new Set([
+  'hello', 'hi', 'hail', 'greetings', 'farewell', 'goodbye', 'hail',
+  'hail', 'welcome', 'farewell', 'ho', 'alas', 'woe',
+]);
+
 // ─── POSSESSIVE INFLECTION SYSTEM (Phase 2) ─────────────────────────────────
 // Possessives vary by gender of possessed noun
 // Format: { pronoun: { masc_sg, fem_sg, neut_sg } }
@@ -943,6 +968,7 @@ function renderRunes(onStr) {
 
   return runes.map(r => {
     if(r.space) return '<span class="rune-char space"> </span>';
+    if(r.isUnknown) return `<span class="unknown" title="No match">${r.text}</span>`;
     return `<span class="tooltip-wrap"><span class="rune-char">${r.rune}</span><span class="tip">${r.name}</span></span>`;
   }).join('');
 }
@@ -963,7 +989,10 @@ function updateAllOutputs(enStr, onStr, runesStr, unknowns, ukEl, activeType) {
     } else {
       const onWords = onStr.trim().split(' ');
       onWords.forEach(word => {
-        if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
+        // Check if word is already bracketed (marked unknown)
+        if(word.startsWith('[') && word.endsWith(']')) {
+          onHTML += `<span class="unknown" title="No match">${word}</span> `;
+        } else if(unknowns && unknowns.some(u => word.toLowerCase().includes(u.toLowerCase()))) {
           onHTML += `<span class="unknown" title="No match">${word}</span> `;
         } else {
           onHTML += word + ' ';
@@ -1000,20 +1029,34 @@ function processSentence(sentence) {
     if(/^\s+$/.test(tok))                        { classified.push({type:'space'}); i++; continue; }
     if(!/[a-záéíóúýæøöǫþðä]/.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
 
-    // Two-word phrase check first
+    // Two-word phrase check first (with compound fallback)
     let phraseMatched = false;
     if(i+2 < raw.length && /^\s+$/.test(raw[i+1]) && /[a-z]/.test(raw[i+2])) {
       const phrase = tok + ' ' + raw[i+2];
       if(EN_TO_ON[phrase]) {
+        // Exact phrase found in dictionary
         classified.push({type:'word', en:phrase, on:EN_TO_ON[phrase]});
         i += 3; phraseMatched = true;
+      } else {
+        // No exact phrase match — try concatenation fallback (compound noun)
+        const word1 = EN_TO_ON[tok];
+        const word2_raw = raw[i+2];
+        const word2 = EN_TO_ON[word2_raw];
+        if(word1 && word2) {
+          // Both words are translatable — concatenate as compound
+          classified.push({type:'word', en:phrase, on:word1 + word2});
+          i += 3; phraseMatched = true;
+        }
       }
     }
     if(phraseMatched) continue;
 
     const clean = tok.replace(/^'+|'+$/g,'');
 
-    if(PRONOUNS[clean]) {
+    if(INTERJECTIONS.has(clean)) {
+      // Interjection — will apply vocative formatting in step 9
+      classified.push({type:'interjection', en:clean, on:EN_TO_ON[clean] || 'heil'});
+    } else if(PRONOUNS[clean]) {
       // Classify as subject or object pronoun — will resolve case in step 3
       classified.push({type:'pronoun', en:clean, pron:PRONOUNS[clean]});
     } else if(CONJ[clean]) {
@@ -1546,14 +1589,41 @@ function processSentence(sentence) {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
+  // Step 9: apply interjection vocative formatting
+  // Build final string with interjection formatting and bracket marking
   let onStr = '';
-  reorderedTokens.forEach(t => {
-    if     (t.type === 'space')   onStr += ' ';
-    else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
-            t.type === 'adjective' || t.type === 'possessive') onStr += (t.on || t.en) + ' ';
-    else if(t.type === 'unknown') onStr += t.en + ' ';
+  for(let i = 0; i < reorderedTokens.length; i++) {
+    const t = reorderedTokens[i];
+
+    if(t.type === 'space') {
+      onStr += ' ';
+    } else if(t.type === 'interjection') {
+      // Add interjection and check if followed by content
+      onStr += (t.on || t.en);
+
+      // Check if interjection is followed by non-space/non-punct content
+      let hasFollowingContent = false;
+      for(let j = i + 1; j < reorderedTokens.length; j++) {
+        if(reorderedTokens[j].type !== 'space' && reorderedTokens[j].type !== 'punct') {
+          hasFollowingContent = true;
+          break;
+        }
+      }
+
+      if(hasFollowingContent) {
+        onStr += ', ';
+      } else {
+        onStr += ' ';
+      }
+    } else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
+              t.type === 'adjective' || t.type === 'possessive') {
+      onStr += (t.on || t.en) + ' ';
+    } else if(t.type === 'unknown') {
+      // Mark unknown words with brackets
+      onStr += '[' + t.en + '] ';
+    }
     // punct skipped
-  });
+  }
   onStr = onStr.trim();
 
   return { onStr, unknowns };
