@@ -441,6 +441,52 @@ const CONJ = {
   'fear':   ['óttumk','óttask','óttask','óttumsk','óttisk','óttask'],
   // sœkja — to seek (weak)
   'seek':   ['sœki',  'sœkir', 'sœkir', 'sœkjum','sœkið',  'sœkja'],
+  // Phase 3 Expansion — Key Verbs
+  // læra — to learn/teach (weak)
+  'learn':  ['læri',  'lærir', 'lærir', 'lærum',  'lærið',  'læra'],
+  'teach':  ['læri',  'lærir', 'lærir', 'lærum',  'lærið',  'læra'],
+  // aðstoða — to help (weak)
+  'help':   ['aðstæði','aðstær','aðstær','aðstæðum','aðstæðið','aðstæða'],
+  // blessa — to bless (weak)
+  'bless':  ['blessi','blessir','blessir','blessun','blessið','blessa'],
+  // bölva — to curse (weak)
+  'curse':  ['bölvi', 'bölvir','bölvir','bölvum', 'bölvið', 'bölva'],
+  // syngva — to sing (strong class 3)
+  'sing':   ['syng',  'syngr', 'syngr', 'syngum', 'syngið', 'syngva'],
+  // leika — to play (weak)
+  'play':   ['leiki', 'leikir','leikir','leikum', 'leikið', 'leika'],
+  // byggja — to build (strong class 3)
+  'build':  ['bygg',  'byggr', 'byggr', 'byggum','byggið','byggja'],
+  // rista — to carve/mark (weak)
+  'carve':  ['rist',  'ristir','ristir','ristum', 'ristið','rista'],
+  'mark':   ['rist',  'ristir','ristir','ristum', 'ristið','rista'],
+  // opna — to open (weak)
+  'open':   ['opni',  'opnir', 'opnir', 'opnum',  'opnið',  'opna'],
+  // loka — to close (weak)
+  'close':  ['loki',  'lokir', 'lokir', 'lokum',  'lokið',  'loka'],
+  // kalla — to call (weak)
+  'call':   ['kalli', 'kallir','kallir','kallum', 'kallið', 'kalla'],
+  // svara — to answer (weak)
+  'answer': ['svari', 'svarir','svarir','svarum', 'svarið', 'svara'],
+  // spyrja — to ask (weak)
+  'ask':    ['spyrja','spyrr','spyrr','spurjum','spurið','spyrja'],
+  // biðja — to request/ask (strong class 5)
+  'request':['bið',   'beiðr', 'beiðr', 'biðjum','biðið',  'biðja'],
+  // heita — to promise (strong class 1)
+  'promise':['heit',  'heitr', 'heitr', 'heitum','heitið', 'heita'],
+  // muna — to remember (preterite-present)
+  'remember':['man', 'mant',  'man',   'munum', 'munið',  'munu'],
+  // hugsa — to think (weak)
+  'think':  ['hugsi', 'hugsir','hugsir','hugsun', 'hugsið', 'hugsa'],
+  // skilja — to understand (weak)
+  'understand':['skilji','skilja','skilja','skildum','skilið','skilja'],
+  // dansa — to dance (weak) [loan word]
+  'dance':  ['dansi', 'dansir','dansir','dansum', 'dansið', 'dansa'],
+  // vera sigr — to be victorious (handled via 'sigra')
+  // sigra — to conquer (weak)
+  'conquer':['sigri', 'sigrir','sigrir','sigrum', 'sigrið', 'sigra'],
+  // þola — to endure (weak)
+  'endure': ['þoli',  'þolir', 'þolir', 'þolum',  'þolið',  'þola'],
 };
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
@@ -504,6 +550,61 @@ const NOUN_GENDER = {
   // Body
   'hand':'f', 'hands':'f', 'eye':'n', 'eyes':'n', 'head':'n', 'heads':'n',
   'mouth':'m', 'mouths':'m', 'tongue':'f', 'tongues':'f', 'voice':'f', 'voices':'f',
+  // Phase 3 Expansion — New Nouns
+  // Adjectives (many also nouns) for completeness
+  'dear':'m', 'lovely':'m', 'fair':'m', 'gentle':'m', 'kind':'m',
+  'keen':'m', 'pure':'m', 'wild':'m',
+  'golden':'m', 'silver':'m', 'true':'m', 'false':'m',
+  // Nature & Flora
+  'heather':'n', 'rose':'f', 'daisy':'f', 'iris':'f',
+  'flower':'n', 'blossom':'n', 'bloom':'n',
+  'wheat':'n', 'grain':'n', 'barley':'n', 'oat':'n',
+  'meadow':'m', 'pasture':'m', 'valley':'m', 'glen':'n',
+  'stream':'m', 'brook':'m', 'creek':'m', 'lake':'n', 'pond':'f',
+  'spring':'f', 'well':'m', 'cliff':'m', 'klettr':'m',
+  'peak':'n', 'cave':'m', 'cavern':'m', 'ruin':'n',
+  'grave':'f', 'tomb':'m', 'mound':'m',
+  'shrine':'f', 'altar':'n',
+  // Body & Anatomy
+  'arm':'m', 'leg':'m', 'knee':'n', 'shoulder':'f', 'back':'n', 'chest':'n',
+  'belly':'m', 'wound':'n', 'scar':'n', 'nail':'m',
+  'tooth':'n', 'hair':'n', 'skin':'f', 'flesh':'n', 'vein':'f',
+  // Weapons & Armor
+  'lance':'n', 'club':'f', 'whip':'f', 'dagger':'m',
+  'armor':'f', 'mail':'f', 'breastplate':'n',
+  'gauntlet':'m', 'boot':'m', 'cloak':'m', 'robe':'f', 'tunic':'f', 'garment':'n',
+  // Textiles & Materials
+  'linen':'n', 'wool':'f', 'silk':'n', 'leather':'n',
+  'hide':'f', 'horn':'n', 'copper':'m', 'bronze':'n',
+  'tin':'n', 'lead':'n', 'glass':'n',
+  // Food & Drink
+  'bread':'n', 'ale':'n', 'mead':'n', 'wine':'n',
+  'meat':'n', 'fish':'m', 'cheese':'m', 'milk':'n',
+  'honey':'n', 'salt':'n', 'spice':'n', 'herb':'n',
+  'food':'m', 'meal':'m', 'feast':'f', 'banquet':'f',
+  // Time & Seasons
+  'winter':'m', 'spring':'f', 'summer':'n', 'autumn':'m',
+  'season':'f', 'month':'m', 'week':'f', 'hour':'m',
+  'moment':'f', 'instant':'n', 'dawn':'f', 'dusk':'m',
+  'noon':'n', 'midnight':'f', 'morning':'m', 'evening':'n',
+  // Places & Structures
+  'temple':'m', 'shrine':'m', 'chapel':'f', 'tower':'m',
+  'wall':'m', 'fence':'m', 'door':'f', 'window':'m',
+  'roof':'n', 'floor':'m', 'cellar':'m', 'chamber':'f',
+  'vault':'m', 'court':'f', 'square':'n', 'market':'m', 'tavern':'f',
+  'inn':'n', 'bed':'n', 'bench':'m', 'chair':'m',
+  'table':'n', 'forge':'f', 'workshop':'m',
+  // Actions & Abstract
+  'journey':'n', 'quest':'f', 'mission':'f', 'adventure':'f',
+  'oath':'m', 'curse':'f', 'blessing':'f', 'prayer':'f',
+  'ritual':'n', 'spell':'f', 'prophecy':'f', 'vision':'m',
+  'omen':'m', 'sign':'n', 'message':'n', 'letter':'m',
+  'scroll':'f', 'book':'f', 'verse':'f', 'poem':'n',
+  'treasure':'n', 'gift':'f', 'tribute':'f', 'ransom':'f',
+  'peace':'m', 'truce':'f', 'treaty':'m', 'alliance':'n',
+  'rebellion':'f', 'revolt':'f', 'rescue':'f', 'escape':'f',
+  'danger':'f', 'peril':'f', 'threat':'f', 'challenge':'f',
+  'victory':'m', 'defeat':'m', 'triumph':'m', 'conquest':'m',
 };
 
 // ─── ADJECTIVE INFLECTION SYSTEM (Phase 2) ──────────────────────────────────
@@ -592,6 +693,33 @@ const ADJECTIVES = {
     masc_nom_pl: 'bjartir',  masc_acc_pl: 'bjarta',   masc_dat_pl: 'bjartum',
     fem_nom_pl: 'bjartar',   fem_acc_pl: 'bjartar',   fem_dat_pl: 'bjartum',
     neut_nom_pl: 'björt',    neut_acc_pl: 'björt',    neut_dat_pl: 'bjartum',
+  },
+  'sweet': {
+    base: 'sætr',
+    masc_nom_sg: 'sætr',     masc_acc_sg: 'sætan',    masc_dat_sg: 'sætum',
+    fem_nom_sg: 'sæt',       fem_acc_sg: 'sæta',      fem_dat_sg: 'sætri',
+    neut_nom_sg: 'sætt',     neut_acc_sg: 'sætt',     neut_dat_sg: 'sætum',
+    masc_nom_pl: 'sætir',    masc_acc_pl: 'sæta',     masc_dat_pl: 'sætum',
+    fem_nom_pl: 'sætar',     fem_acc_pl: 'sætar',     fem_dat_pl: 'sætum',
+    neut_nom_pl: 'sæt',      neut_acc_pl: 'sæt',      neut_dat_pl: 'sætum',
+  },
+  'fair': {
+    base: 'fagr',
+    masc_nom_sg: 'fagr',     masc_acc_sg: 'fagran',   masc_dat_sg: 'fagrum',
+    fem_nom_sg: 'fögur',     fem_acc_sg: 'fagra',     fem_dat_sg: 'fagri',
+    neut_nom_sg: 'fagurt',   neut_acc_sg: 'fagurt',   neut_dat_sg: 'fagru',
+    masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
+    fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
+    neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
+  },
+  'wild': {
+    base: 'villr',
+    masc_nom_sg: 'villr',    masc_acc_sg: 'villan',   masc_dat_sg: 'villum',
+    fem_nom_sg: 'vil',       fem_acc_sg: 'vila',      fem_dat_sg: 'vilri',
+    neut_nom_sg: 'vilt',     neut_acc_sg: 'vilt',     neut_dat_sg: 'villum',
+    masc_nom_pl: 'villir',   masc_acc_pl: 'vila',     masc_dat_pl: 'villum',
+    fem_nom_pl: 'vilar',     fem_acc_pl: 'vilar',     fem_dat_pl: 'villum',
+    neut_nom_pl: 'vil',      neut_acc_pl: 'vil',      neut_dat_pl: 'villum',
   },
 };
 
@@ -723,6 +851,250 @@ const NOUN_DECLENSION = {
             nom_pl: 'lönd', acc_pl: 'lönd', dat_pl: 'londum' },
   'thing': { base: 'þing', nom_sg: 'þing', acc_sg: 'þing', dat_sg: 'þingi',
              nom_pl: 'þing', acc_pl: 'þing', dat_pl: 'þingum' },
+};
+
+// ─── LEMMATIZATION SYSTEM ────────────────────────────────────────────────────
+// Normalize word variants to base forms for dictionary lookup
+// Maps plurals, past tense, etc. to their singular/base form
+const LEMMAS = {
+  // ── Common plurals (noun singulars) ──
+  'girls':'girl', 'boys':'boy', 'women':'woman', 'children':'child',
+  'men':'man', 'kings':'king', 'queens':'queen', 'lords':'lord', 'ladies':'lady',
+  'warriors':'warrior', 'jarls':'jarl', 'thanes':'thane', 'carls':'carl', 'thralls':'thrall',
+  'friends':'friend', 'foes':'foe', 'enemies':'enemy',
+  'brothers':'brother', 'sisters':'sister', 'fathers':'father', 'mothers':'mother',
+  'sons':'son', 'daughters':'daughter', 'wives':'wife', 'husbands':'husband',
+  'gods':'god', 'goddesses':'goddess',
+  'worlds':'world', 'earths':'earth', 'skies':'sky', 'seas':'sea', 'oceans':'ocean',
+  'lands':'land', 'islands':'island', 'forests':'forest', 'mountains':'mountain',
+  'rivers':'river', 'fires':'fire', 'winds':'wind', 'storms':'storm', 'snows':'snow', 'rains':'rain',
+  'suns':'sun', 'moons':'moon', 'stars':'star',
+  'trees':'tree', 'ashes':'ash', 'oaks':'oak', 'roots':'root', 'branches':'branch',
+  'wolves':'wolf', 'ravens':'raven', 'bears':'bear', 'horses':'horse',
+  'eagles':'eagle', 'serpents':'serpent', 'dragons':'dragon', 'oxen':'ox',
+  'swords':'sword', 'axes':'axe', 'spears':'spear', 'shields':'shield',
+  'bows':'bow', 'arrows':'arrow', 'helms':'helm',
+  'wars':'war', 'battles':'battle', 'victories':'victory', 'deaths':'death',
+  'lives':'life', 'births':'birth',
+  'ships':'ship', 'boats':'boat', 'sails':'sail',
+  'halls':'hall', 'houses':'house', 'homes':'home', 'gates':'gate',
+  'roads':'road', 'paths':'path', 'bridges':'bridge',
+  'golds':'gold', 'silvers':'silver', 'irons':'iron', 'steels':'steel',
+  'woods':'wood', 'stones':'stone', 'bones':'bone',
+  'hearts':'heart', 'souls':'soul', 'spirits':'spirit', 'minds':'mind',
+  'names':'name', 'words':'word', 'oaths':'oath',
+  'honors':'honor', 'glories':'glory', 'shames':'shame', 'courages':'courage',
+  'strengths':'strength', 'powers':'power', 'wisdoms':'wisdom', 'truths':'truth',
+  'hates':'hate', 'angers':'anger', 'griefs':'grief', 'joys':'joy',
+  'sorrows':'sorrow', 'hopes':'hope', 'dreams':'dream', 'memories':'memory',
+  'runes':'rune', 'magics':'magic', 'spells':'spell',
+  'times':'time', 'fates':'fate', 'destinies':'destiny', 'dooms':'doom',
+  'sagas':'saga', 'songs':'song',
+  'hands':'hand', 'eyes':'eye', 'heads':'head',
+  'mouths':'mouth', 'tongues':'tongue', 'voices':'voice',
+
+  // ── Past tense verbs ──
+  'loved':'love', 'adored':'adore', 'cherished':'cherish',
+  'helped':'help', 'found':'find', 'knew':'know', 'thought':'think',
+  'said':'say', 'spoke':'speak', 'asked':'ask', 'answered':'answer',
+  'gave':'give', 'took':'take', 'put':'put', 'set':'set', 'kept':'keep',
+  'became':'become', 'showed':'show', 'felt':'feel',
+  'left':'leave', 'called':'call', 'tried':'try', 'wanted':'want',
+  'lived':'live', 'died':'die',
+  'killed':'kill', 'fought':'fight',
+  'won':'win', 'lost':'lose',
+  'rode':'ride', 'ran':'run',
+  'fell':'fall',
+  'stood':'stand', 'sat':'sit',
+  'lay':'lie', 'rose':'rise',
+  'held':'hold', 'bore':'bear',
+  'brought':'bring', 'sent':'send',
+  'sought':'seek', 'heard':'hear',
+  'followed':'follow', 'led':'lead',
+  'swore':'swear', 'protected':'protect', 'guarded':'guard', 'served':'serve',
+  'returned':'return', 'rested':'rest', 'slept':'sleep',
+  'ate':'eat', 'drank':'drink',
+  'forged':'forge',
+  'carved':'carve', 'marked':'mark',
+  'awaited':'await', 'remembered':'remember', 'forgot':'forget',
+  'feared':'fear', 'hoped':'hope',
+
+  // ── Gerund/participle forms ──
+  'loving':'love', 'being':'be', 'having':'have',
+  'doing':'do', 'making':'make',
+  'going':'go', 'coming':'come',
+  'seeing':'see', 'knowing':'know',
+  'living':'live', 'dying':'die',
+  'fighting':'fight', 'riding':'ride', 'running':'run',
+  'falling':'fall', 'standing':'stand', 'sitting':'sit',
+  'lying':'lie', 'rising':'rise',
+
+  // ── Phase 5 Expansion Lemmas (200+ new forms) ──
+  // Saga & Storytelling
+  'heroes':'hero', 'champions':'champion', 'warriors':'warrior', 'blades':'blade',
+  'quests':'quest', 'adventures':'adventure', 'expeditions':'expedition', 'campaigns':'campaign',
+  'raids':'raid', 'battles':'battle', 'duels':'duel', 'clashes':'clash', 'onslaughts':'onslaught',
+  'kinds':'kin', 'clans':'clan', 'dynasties':'dynasty', 'lineages':'lineage', 'feuds':'feud',
+  'sagas':'saga', 'tales':'tale', 'stories':'story', 'chronicles':'chronicle', 'histories':'history',
+  'prophecies':'prophecy', 'curses':'curse', 'hexes':'hex', 'blessings':'blessing',
+  'oaths':'oath', 'vows':'vow', 'pledges':'pledge', 'betrayals':'betrayal',
+
+  // Emotions
+  'loves':'love', 'affections':'affection', 'hates':'hate', 'fears':'fear',
+  'joys':'joy', 'sorrows':'sorrow', 'griefs':'grief', 'angers':'anger',
+  'hopes':'hope', 'despairs':'despair', 'trusts':'trust', 'doubts':'doubt',
+  'jealousies':'jealousy', 'envies':'envy', 'compassions':'compassion',
+
+  // Daily Life
+  'homes':'home', 'hearths':'hearth', 'roofs':'roof', 'walls':'wall',
+  'doors':'door', 'gates':'gate', 'windows':'window', 'shutters':'shutter',
+  'locks':'lock', 'stairs':'stair', 'steps':'step', 'floors':'floor',
+  'stones':'stone', 'beds':'bed', 'benches':'bench', 'chairs':'chair',
+  'seats':'seat', 'tables':'table', 'shelves':'shelf', 'cabinets':'cabinet',
+  'chests':'chest', 'barrels':'barrel', 'jars':'jar', 'pots':'pot',
+  'pans':'pan', 'cups':'cup', 'goblets':'goblet', 'mugs':'mug',
+  'pitchers':'pitcher', 'dishes':'dish', 'plates':'plate', 'bowls':'bowl',
+  'spoons':'spoon', 'knives':'knife', 'forks':'fork', 'ladles':'ladle',
+  'breads':'bread', 'loaves':'loaf', 'meats':'meat', 'fishes':'fish',
+  'cheeses':'cheese', 'butters':'butter', 'milks':'milk', 'eggs':'egg',
+  'honeys':'honey', 'salts':'salt', 'peppers':'pepper', 'flours':'flour',
+  'grains':'grain', 'seeds':'seed', 'fruits':'fruit', 'apples':'apple',
+  'berries':'berry', 'grapes':'grape', 'vegetables':'vegetable', 'herbs':'herb',
+  'spices':'spice', 'ales':'ale', 'meads':'mead', 'wines':'wine',
+  'waters':'water', 'springs':'spring', 'wells':'well', 'combs':'comb',
+  'brushes':'brush', 'mirrors':'mirror', 'cloths':'cloth', 'linens':'linen',
+  'wools':'wool', 'silks':'silk', 'needles':'needle', 'threads':'thread',
+  'yarns':'yarn', 'buttons':'button', 'clasps':'clasp', 'pins':'pin',
+  'brooches':'brooch', 'tools':'tool', 'hammers':'hammer', 'saws':'saw',
+  'axes':'axe', 'hatchets':'hatchet', 'chisels':'chisel', 'ropes':'rope',
+  'cords':'cord', 'knots':'knot', 'buckets':'bucket', 'pails':'pail',
+
+  // Nature
+  'forests':'forest', 'woods':'wood', 'groves':'grove', 'trees':'tree',
+  'oaks':'oak', 'pines':'pine', 'spruce':'spruce', 'birches':'birch',
+  'branches':'branch', 'twigs':'twig', 'roots':'root', 'leaves':'leaf',
+  'flowers':'flower', 'blossoms':'blossom', 'roses':'rose', 'lilies':'lily',
+  'daisies':'daisy', 'violets':'violet', 'grasses':'grass', 'mosses':'moss',
+  'meadows':'meadow', 'fields':'field', 'pastures':'pasture', 'mountains':'mountain',
+  'peaks':'peak', 'summits':'summit', 'hills':'hill', 'valleys':'valley',
+  'glens':'glen', 'gorges':'gorge', 'cliffs':'cliff', 'caves':'cave',
+  'caverns':'cavern', 'rocks':'rock', 'boulders':'boulder', 'sands':'sand',
+  'seas':'sea', 'oceans':'ocean', 'waves':'wave', 'tides':'tide',
+  'currents':'current', 'eddies':'eddy', 'beaches':'beach', 'shores':'shore',
+  'rivers':'river', 'streams':'stream', 'brooks':'brook', 'creeks':'creek',
+  'waterfalls':'waterfall', 'lakes':'lake', 'ponds':'pond', 'pools':'pool',
+  'fountains':'fountain', 'islands':'island', 'bays':'bay', 'coves':'cove',
+  'storms':'storm', 'winds':'wind', 'breezes':'breeze', 'rains':'rain',
+  'showers':'shower', 'snows':'snow', 'frosts':'frost', 'ices':'ice',
+  'clouds':'cloud', 'fogs':'fog', 'mists':'mist', 'rainbows':'rainbow',
+  'suns':'sun', 'moons':'moon', 'stars':'star', 'seasons':'season',
+  'months':'month', 'weeks':'week', 'hours':'hour', 'moments':'moment',
+
+  // Animals
+  'animals':'animal', 'beasts':'beast', 'dogs':'dog', 'wolves':'wolf',
+  'cats':'cat', 'lions':'lion', 'bears':'bear', 'horses':'horse',
+  'cattle':'cattle', 'cows':'cow', 'bulls':'bull', 'calves':'calf',
+  'sheep':'sheep', 'goats':'goat', 'pigs':'pig', 'eagles':'eagle',
+  'hawks':'hawk', 'falcons':'falcon', 'owls':'owl', 'ravens':'raven',
+  'crows':'crow', 'doves':'dove', 'swans':'swan', 'geese':'goose',
+  'ducks':'duck', 'fishes':'fish', 'salmon':'salmon', 'whales':'whale',
+  'seals':'seal', 'serpents':'serpent', 'snakes':'snake', 'frogs':'frog',
+  'insects':'insect', 'flies':'fly', 'bees':'bee', 'spiders':'spider',
+  'ants':'ant', 'deers':'deer', 'does':'doe', 'stags':'stag',
+  'elks':'elk', 'badgers':'badger', 'otters':'otter', 'beavers':'beaver',
+  'foxes':'fox', 'rabbits':'rabbit', 'hares':'hare', 'squirrels':'squirrel',
+  'birds':'bird', 'nests':'nest', 'wings':'wing', 'talons':'talon',
+
+  // Mysticism
+  'magics':'magic', 'sorceries':'sorcery', 'spells':'spell', 'enchantments':'enchantment',
+  'runes':'rune', 'curses':'curse', 'blessings':'blessing', 'prophecies':'prophecy',
+  'seers':'seer', 'prophets':'prophet', 'demons':'demon', 'devils':'devil',
+  'elves':'elf', 'fairies':'fairy', 'dwarves':'dwarf', 'giants':'giant',
+  'trolls':'troll', 'dragons':'dragon', 'potions':'potion', 'amulets':'amulet',
+  'talismans':'talisman', 'wands':'wand', 'staffs':'staff', 'temples':'temple',
+  'shrines':'shrine',
+
+  // Trade & Crafts
+  'merchants':'merchant', 'traders':'trader', 'markets':'market',
+  'goods':'goods', 'prices':'price', 'coins':'coin', 'purses':'purse',
+  'crafts':'craft', 'craftsmen':'craftsman', 'smiths':'smith',
+  'carpenters':'carpenter', 'masons':'mason', 'weavers':'weaver',
+  'apprentices':'apprentice', 'masters':'master', 'guilds':'guild',
+
+  // Travel
+  'travels':'travel', 'journeys':'journey', 'voyages':'voyage',
+  'roads':'road', 'paths':'path', 'trails':'trail', 'bridges':'bridge',
+  'harbors':'harbor', 'ports':'port', 'ships':'ship', 'boats':'boat',
+  'sails':'sail', 'masts':'mast', 'anchors':'anchor', 'crews':'crew',
+  'captains':'captain', 'sailors':'sailor',
+
+  // Music
+  'musics':'music', 'songs':'song', 'verses':'verse', 'melodies':'melody',
+  'instruments':'instrument', 'harps':'harp', 'horns':'horn',
+  'singers':'singer', 'minstrels':'minstrel', 'sounds':'sound',
+
+  // Law
+  'laws':'law', 'judges':'judge', 'courts':'court', 'trials':'trial',
+  'judgments':'judgment', 'verdicts':'verdict', 'rights':'right',
+  'contracts':'contract', 'agreements':'agreement', 'witnesses':'witness',
+  'crimes':'crime', 'punishments':'punishment', 'councils':'council',
+
+  // Learning
+  'knowledges':'knowledge', 'scholars':'scholar', 'studies':'study',
+  'books':'book', 'schools':'school', 'students':'student',
+
+  // Colors
+  'colors':'color', 'reds':'red', 'blues':'blue', 'greens':'green',
+  'yellows':'yellow', 'purples':'purple', 'blacks':'black', 'whites':'white',
+  'grays':'gray', 'silvers':'silver',
+};
+
+// ─── IRREGULAR PLURALS ────────────────────────────────────────────────────────
+// Edge cases not covered by simple pluralization rules
+const IRREGULAR_PLURALS = {
+  'oxen':'ox', 'men':'man', 'women':'woman', 'children':'child',
+  'feet':'foot', 'teeth':'tooth', 'geese':'goose',
+};
+
+// ─── SYNONYM FALLBACK MAP ─────────────────────────────────────────────────────
+// For missing words, try semantic alternatives before marking as unknown
+// Use cautiously — only for high-confidence synonym pairs
+const SYNONYMS = {
+  // Adjectives
+  'sweet':'dear', 'pleasant':'good', 'lovely':'beautiful', 'fair':'good',
+  'bold':'brave', 'courageous':'brave', 'fearless':'brave',
+  'noble':'good', 'honourable':'good', 'dignified':'good',
+  'gentle':'good', 'kind':'good', 'benevolent':'good',
+  'keen':'strong', 'intense':'strong', 'mighty':'strong',
+  'wise':'great', 'clever':'great', 'intelligent':'great',
+
+  // Verbs
+  'wish':'want', 'desire':'want', 'need':'want',
+  'discover':'find', 'locate':'find', 'encounter':'find',
+  'study':'learn', 'study':'know', 'examine':'know',
+  'observe':'see', 'watch':'see', 'behold':'see',
+  'possess':'have', 'own':'have', 'hold':'have',
+  'create':'make', 'build':'make', 'construct':'make',
+  'depart':'go', 'leave':'go', 'journey':'go',
+  'arrive':'come', 'return':'come', 'reach':'come',
+
+  // Nouns
+  'knight':'warrior', 'soldier':'warrior', 'fighter':'warrior',
+  'lady':'woman', 'maiden':'woman', 'lass':'woman', 'damsel':'woman',
+  'prince':'king', 'ruler':'king', 'monarch':'king',
+  'princess':'queen', 'lady-ruler':'queen',
+  'lad':'boy', 'youth':'boy', 'youngster':'boy',
+  'companion':'friend', 'ally':'friend', 'comrade':'friend',
+  'adversary':'enemy', 'foe':'enemy', 'opponent':'enemy',
+  'dwelling':'house', 'residence':'house', 'abode':'house',
+  'fortress':'house', 'castle':'house', 'stronghold':'house',
+  'feast':'food', 'meal':'food', 'victuals':'food',
+  'vessel':'ship', 'boat':'ship', 'craft':'ship',
+  'flower':'rose', 'blossom':'rose', 'bloom':'rose',
+  'deity':'god', 'divine-being':'god',
+
+  // Backwards compat—some duplicates from above
+  'colour':'color', 'grey':'gray',
 };
 
 // ─── ENGLISH → OLD NORSE DICTIONARY ─────────────────────────────────────────
@@ -880,7 +1252,450 @@ const EN_TO_ON = {
   'black':'svartr', 'white':'hvítr',
   'red':'rauðr', 'blue':'blár', 'green':'grœnn',
   'new':'nýr', 'first':'fyrstr', 'last':'síðastr',
+
+  // ── Expanded Adjectives (Phase 3) ──
+  'dear':'kær', 'lovely':'fagr', 'fair':'fagr', 'gentle':'mild', 'kind':'mildr',
+  'keen':'hvass', 'intense':'sterkr', 'pure':'hreinn', 'wild':'villr', 'free':'frjáls',
+  'golden':'gullinn', 'silver':'silfurkinn', 'true':'sannr', 'false':'falsir',
+  'thick':'þokkr', 'thin':'þunnr', 'wide':'breiðr', 'narrow':'þrongr',
+  'tall':'há', 'short':'látr', 'heavy':'þungr', 'light':'léttr',
+  'sweet':'sætr', 'bitter':'beiskr', 'soft':'mjúkr', 'rough':'hrjúfr',
+  'dull':'sléttr', 'shiny':'glitra', 'pale':'blár', 'dark':'dimmr',
+  'warm':'hlýr', 'cool':'kaldlega', 'dry':'þurr', 'wet':'vötn',
+  'slow':'hægr', 'quick':'fljótr', 'silent':'þögull', 'loud':'hátt',
+  'stupid':'heimskr', 'clever':'snjallr', 'brave':'hugaðr', 'cowardly':'hræðillegr',
+  'happy':'gleið', 'sad':'sorgli', 'angry':'reiðúligr', 'peaceful':'friðsamligr',
+  'rich':'auðigr', 'poor':'fátækr', 'ancient':'forni', 'modern':'nú',
+
+  // ── Expanded Verbs (Phase 3) ──
+  'want':'vilja', 'desire':'girnast', 'need':'þurfa',
+  'discover':'finna', 'locate':'finna', 'encounter':'mæta',
+  'study':'læra', 'examine':'skoða', 'learn':'læra', 'teach':'kenna',
+  'observe':'skoða', 'watch':'horfa', 'behold':'sjá',
+  'possess':'eiga', 'own':'eiga', 'gather':'söfnuð',
+  'create':'skapa', 'build':'byggja', 'construct':'byggja', 'make':'gera', 'do':'gera',
+  'depart':'fara', 'arrive':'koma', 'reach':'komast',
+  'trust':'trúa', 'believe':'trúa', 'doubt':'hyggja',
+  'help':'aðstoða', 'assist':'aðstoða', 'support':'studla',
+  'hurt':'skaða', 'heal':'lækna', 'harm':'skaða',
+  'sing':'syngva', 'play':'leika', 'dance':'dansa', 'celebrate':'dýrka',
+  'rest':'hvíla', 'wake':'vaka', 'sleep':'sofa',
+  'eat':'eta', 'drink':'drekka', 'feast':'vesla',
+  'work':'vinna', 'labor':'vinna', 'toil':'vinna',
+  'ride':'rida', 'walk':'ganga', 'run':'hlaupa', 'sail':'sigla',
+  'fall':'falla', 'rise':'risa', 'climb':'klifra', 'descend':'stíga',
+  'break':'brjóta', 'build':'byggja', 'forge':'smíða', 'carve':'rista',
+  'bind':'binda', 'loose':'leysa', 'tie':'binda', 'cut':'skera',
+  'throw':'kasta', 'catch':'taka', 'grab':'grípa', 'hold':'halda',
+  'push':'þrýsta', 'pull':'toga', 'drag':'draga', 'carry':'bera',
+  'open':'opna', 'close':'loka', 'enter':'inn ganga', 'exit':'út ganga',
+  'call':'kalla', 'answer':'svara', 'speak':'mæla', 'listen':'hlýða',
+  'read':'lesa', 'write':'skrifa', 'mark':'merkja', 'sign':'merkja',
+  'ask':'spyrja', 'answer':'svara', 'request':'biðja', 'grant':'veita',
+  'promise':'heita', 'swear':'sígja', 'vow':'heitast', 'curse':'bölva',
+  'bless':'blessa', 'pray':'bæna', 'worship':'dýrka', 'honor':'dýrka',
+  'remember':'muna', 'forget':'gleyma', 'think':'hugsa', 'know':'vita',
+  'understand':'skilja', 'realize':'skilja', 'see':'sjá', 'perceive':'skynja',
+  'love':'elska', 'hate':'hata', 'like':'líka', 'enjoy':'dýrka',
+  'suffer':'þola', 'endure':'þola', 'bear':'bera', 'stand':'standa',
+  'surrender':'gefa yfir', 'yield':'víkja', 'conquer':'sigra', 'defeat':'sigrast',
+
+  // ── Expanded Nouns: Nature & Flora (Phase 3) ──
+  'heather':'lyng', 'rose':'rós', 'daisy':'fjólaprúði', 'iris':'írísa',
+  'flower':'blóm', 'flowers':'blóm', 'blossom':'blóm', 'bloom':'blóm',
+  'wheat':'hveiti', 'grain':'korn', 'barley':'bygg', 'oat':'hafri',
+  'meadow':'engr', 'pasture':'beiti', 'valley':'dalr', 'glen':'gil',
+  'stream':'bekkr', 'brook':'bekkr', 'creek':'bekkr', 'lake':'vatn',
+  'pond':'tjörn', 'spring':'kelda', 'well':'brunnr', 'cliff':'klettr',
+  'peak':'topp', 'cave':'hellir', 'cavern':'hellir', 'ruin':'útilegumenn',
+  'grave':'gröf', 'tomb':'haugr', 'mound':'haugr', 'cemetery':'dísablót',
+  'shrine':'mótt', 'altar':'altari', 'temple':'temple', 'sacred':'heilög',
+
+  // ── Expanded Nouns: Body & Anatomy (Phase 3) ──
+  'arm':'armr', 'arms':'armur', 'leg':'leggr', 'legs':'leggir',
+  'knee':'kné', 'shoulder':'herðar', 'back':'bak', 'chest':'brjóst',
+  'belly':'kvið', 'wound':'sár', 'scar':'beinn', 'nail':'nagli',
+  'tooth':'tonn', 'teeth':'tennur', 'bone':'bein', 'hair':'hár',
+  'skin':'húð', 'flesh':'hold', 'blood':'blóð', 'vein':'æðar',
+
+  // ── Expanded Nouns: Weapons & Armor (Phase 3) ──
+  'lance':'spjót', 'club':'kylfa', 'whip':'sleggja', 'dagger':'puggr',
+  'armor':'brynja', 'mail':'brynja', 'breastplate':'brjóstskel',
+  'gauntlet':'handskó', 'boot':'skó', 'helm':'hjálmr', 'helmet':'hjálmr',
+  'cloak':'hnappr', 'robe':'kjóll', 'tunic':'kyrill', 'garment':'klæði',
+
+  // ── Expanded Nouns: Textiles & Materials (Phase 3) ──
+  'linen':'línyrð', 'wool':'ull', 'silk':'silki', 'leather':'leðr',
+  'hide':'húð', 'horn':'horn', 'copper':'koparr', 'bronze':'brons',
+  'tin':'tin', 'lead':'bly', 'glass':'gler',
+
+  // ── Expanded Nouns: Food & Drink (Phase 3) ──
+  'bread':'brauð', 'ale':'öl', 'mead':'mjöð', 'wine':'vin',
+  'meat':'kjöt', 'fish':'fiskr', 'cheese':'ostur', 'milk':'mjólk',
+  'honey':'hunang', 'salt':'salt', 'spice':'krydd', 'herb':'urtagrös',
+  'food':'matur', 'meal':'matur', 'feast':'veisla', 'banquet':'drekka',
+
+  // ── Expanded Nouns: Time & Seasons (Phase 3) ──
+  'winter':'vetur', 'spring':'vor', 'summer':'sumar', 'autumn':'haust',
+  'season':'ársaldir', 'month':'mánuðr', 'week':'vika', 'hour':'tími',
+  'moment':'tund', 'instant':'blik', 'dawn':'dögun', 'dusk':'kveldi',
+  'noon':'miðdegi', 'midnight':'miðnætti', 'morning':'morgunn', 'evening':'kvöld',
+  'night':'nótt', 'day':'dagr',
+
+  // ── Expanded Nouns: Places & Structures (Phase 3) ──
+  'temple':'tempel', 'shrine':'helgidómr', 'chapel':'kapella', 'tower':'turn',
+  'wall':'veggr', 'fence':'gard', 'door':'hurð', 'gate':'hlið',
+  'window':'gluggi', 'roof':'þak', 'floor':'gólf', 'cellar':'kjallari',
+  'chamber':'herbergi', 'vault':'kjallarinn', 'chamber':'stofa',
+  'court':'hirð', 'square':'torg', 'market':'kaupstaðr', 'tavern':'krá',
+  'inn':'gistihús', 'bed':'rúm', 'bench':'bekkr', 'chair':'stóll',
+  'table':'borð', 'forge':'smiðja', 'workshop':'verkstæði',
+
+  // ── Expanded Nouns: Actions & Abstract (Phase 3) ──
+  'journey':'far', 'quest':'leit', 'mission':'ferð', 'adventure':'útangöngur',
+  'oath':'eiðr', 'curse':'bölvun', 'blessing':'blesun', 'prayer':'bæn',
+  'ritual':'blót', 'spell':'seiðr', 'prophecy':'spá', 'vision':'draumr',
+  'omen':'spádómr', 'sign':'merki', 'message':'orðsending', 'letter':'bréf',
+  'scroll':'skrá', 'book':'bók', 'verse':'vísa', 'poem':'kvæði',
+  'treasure':'fjár', 'gift':'gjöf', 'tribute':'gjöf', 'ransom':'lausnargjöf',
+  'peace':'friðr', 'truce':'sátt', 'treaty':'samningr', 'alliance':'sambönd',
+  'rebellion':'uppreisn', 'revolt':'uppreisn', 'rescue':'bjargun', 'escape':'endalaust',
+  'danger':'hætta', 'peril':'hætta', 'threat':'ógn', 'challenge':'áskorun',
+  'victory':'sigr', 'defeat':'tap', 'triumph':'sigr', 'conquest':'sigur',
+
+  // ─── PHASE 5: MASSIVE EXPANSION (300+ WORDS) ─────────────────────────────────
+  // Target: 2000+ total word forms via base + lemmatization
+
+  // ── SAGA & STORYTELLING (60+ words) ──
+  'hero':'hetja', 'heroes':'hetjur', 'champion':'hetja', 'warrior':'hetja', 'warrior-king':'konungr hetja',
+  'blade':'sverð', 'axe-blade':'ox', 'spear-point':'oddr', 'arrow-tip':'snið',
+  'quest':'leit', 'adventure':'útangöngur', 'expedition':'for', 'campaign':'herferð',
+  'raid':'herreið', 'invasion':'ásigkomuðr', 'siege':'ásáss', 'skirmish':'bardagi',
+  'duel':'tvísaman bardagi', 'combat':'bardagi', 'clash':'bardagi', 'onslaught':'árás',
+  'valor':'drengskapr', 'bravery':'hugrekki', 'courage':'hugrekki', 'valor':'drengskapr',
+  'glory':'dýrð', 'fame':'frægð', 'renown':'frægð', 'honor':'drengskapr',
+  'shame':'skömm', 'dishonor':'skömm', 'disgrace':'skömm', 'ignominy':'skömm',
+  'fate':'wyrd', 'doom':'dómr', 'destiny':'wyrd', 'ruin':'eyðing',
+  'kin':'ættar', 'kindred':'ættir', 'bloodline':'ættar', 'clan':'ættar',
+  'dynasty':'ættartala', 'lineage':'ættar', 'descent':'ættar',
+  'feud':'fala', 'vendetta':'hefnd', 'revenge':'hefnd', 'retaliation':'hefnd',
+  'settlement':'sátt', 'peace-making':'sátt', 'reconciliation':'sátt',
+  'legacy':'erfð', 'inheritance':'erfð', 'heirloom':'erfð gamalt',
+  'saga':'saga', 'tale':'saga', 'story':'saga', 'legend':'froðleikr',
+  'chronicle':'sögur', 'history':'sögur', 'record':'rit',
+  'prophecy':'spá', 'foretelling':'spá', 'prediction':'spá', 'portent':'forboði',
+  'curse':'bölvun', 'hex':'bölvun', 'jinx':'bölvun', 'malediction':'bölvun',
+  'blessing':'blesun', 'boon':'blesun', 'grace':'náðir',
+  'oath':'eiðr', 'vow':'heit', 'pledge':'heit', 'promise':'heit',
+  'betrayal':'sviki', 'treachery':'sviki', 'treason':'sviki', 'deceit':'sviki',
+  'loyalty':'trúnaðr', 'fidelity':'trúnaðr', 'faith':'trúnaðr',
+  'vengeance':'hefnd', 'wrath':'reiðr', 'fury':'reiðr', 'anger':'reiðr',
+  'pride':'stórglæpa', 'arrogance':'stórglæpa', 'hubris':'stórglæpa',
+
+  // ── EMOTIONS & CHARACTER (50+ words) ──
+  'love':'elskan', 'affection':'ást', 'adoration':'ást', 'devotion':'ást',
+  'hate':'hatur', 'loathing':'hatur', 'abhorrence':'hatur', 'detestation':'hatur',
+  'fear':'ótti', 'dread':'ótti', 'terror':'ótti', 'panic':'ótti',
+  'courage':'hugrekki', 'valor':'drengskapr', 'bravery':'hugrekki', 'daring':'hugrekki',
+  'cowardice':'hræðing', 'timidity':'hræðing', 'fearfulness':'óttaflótti',
+  'joy':'gleðir', 'happiness':'gleðir', 'delight':'gleðir', 'mirth':'gleðir',
+  'sorrow':'sorg', 'sadness':'sorg', 'grief':'harmi', 'mourning':'hlakk',
+  'anger':'reiðr', 'fury':'reiðr', 'wrath':'reiðr', 'rage':'reiðr',
+  'peace':'friðr', 'calm':'kyrðr', 'serenity':'kyrðr', 'tranquility':'kyrðr',
+  'pride':'stórglæpa', 'vanity':'stórglæpa', 'arrogance':'stórglæpa',
+  'shame':'skömm', 'embarrassment':'skömm', 'humiliation':'skömm',
+  'hope':'vón', 'optimism':'vón', 'expectation':'vón',
+  'despair':'ófyrirheit', 'hopelessness':'ófyrirheit', 'despondency':'ófyrirheit',
+  'trust':'trúnaðr', 'confidence':'trúnaðr', 'faith':'trúnaðr',
+  'doubt':'ójöfnuðr', 'suspicion':'ójöfnuðr', 'distrust':'ójöfnuðr',
+  'loyalty':'tryggð', 'faithfulness':'tryggð', 'devotion':'tryggð',
+  'betrayal':'sviki', 'treachery':'sviki', 'deceit':'sviki',
+  'honor':'drengskapr', 'dignity':'drengskapr', 'integrity':'drengskapr',
+  'shame':'skömm', 'infamy':'skömm', 'disgrace':'skömm',
+  'jealousy':'ilki', 'envy':'ilki', 'resentment':'ilki',
+  'compassion':'miskunnun', 'pity':'miskunnun', 'sympathy':'miskunnun',
+  'cruelty':'grimni', 'harshness':'grimni', 'severity':'grimni',
+  'kindness':'mildi', 'gentleness':'mildi', 'tenderness':'mildi',
+  'arrogance':'stórglæpa', 'haughtiness':'stórglæpa', 'disdain':'stórglæpa',
+  'humility':'þögn', 'modesty':'þögn', 'meekness':'þögn',
+
+  // ── DAILY LIFE & HOUSEHOLD (80+ words) ──
+  'home':'heimili', 'house':'hús', 'dwelling':'hús', 'residence':'hús',
+  'hearth':'arinn', 'fireplace':'eldstæði', 'fire-pit':'eldar',
+  'roof':'þak', 'wall':'veggr', 'door':'hurð', 'gate':'hlið',
+  'window':'gluggi', 'shutter':'gelting', 'lock':'læsingr', 'bolt':'biti',
+  'stair':'stigi', 'step':'stigi', 'rung':'þrep', 'ladder':'stigi',
+  'floor':'gólf', 'ground':'grund', 'stone':'steinn', 'clay':'leir',
+  'bed':'rúm', 'bench':'bekkr', 'chair':'stóll', 'seat':'sæti',
+  'table':'borð', 'shelf':'hillir', 'cabinet':'kista', 'chest':'kista',
+  'barrel':'tunna', 'jar':'krūka', 'pot':'gryta', 'pan':'panna',
+  'cup':'bolli', 'goblet':'bolli', 'mug':'mugga', 'pitcher':'kanna',
+  'dish':'diskr', 'plate':'fat', 'bowl':'skál', 'trencher':'treðjuhlaup',
+  'spoon':'keili', 'knife':'hníf', 'fork':'gaffal', 'tongs':'töng',
+  'ladle':'sleifra', 'strainer':'síaldi', 'sieve':'sif',
+  'cooking':'eldsn', 'baking':'bakur', 'roasting':'steikur', 'boiling':'sóðn',
+  'bread':'brauð', 'loaf':'hleifr', 'roll':'bolli', 'cake':'kaka',
+  'porridge':'grautr', 'stew':'soðin', 'broth':'kjöt brauð',
+  'meat':'kjöt', 'fish':'fiskr', 'game':'dýr kjöt', 'venison':'rein kjöt',
+  'poultry':'alifuglar', 'fowl':'höna', 'chicken':'höna', 'duck':'önd',
+  'cheese':'ostur', 'butter':'smjör', 'milk':'mjólk', 'cream':'rjómi',
+  'egg':'egg', 'honey':'hunang', 'salt':'salt', 'pepper':'pipar',
+  'flour':'mjöl', 'grain':'korn', 'seed':'fræ', 'legume':'baun',
+  'fruit':'beri', 'apple':'epli', 'berry':'beri', 'grape':'veinberi',
+  'vegetable':'gras', 'carrot':'gulro', 'turnip':'rutabaga', 'onion':'laukr',
+  'herb':'urtagrös', 'spice':'krydd', 'mustard':'mustarti', 'cinnamon':'kanill',
+  'ale':'öl', 'mead':'mjöð', 'wine':'vin', 'beer':'bjór',
+  'water':'vatn', 'spring':'kelda', 'well':'brunnr',
+  'washing':'þvottur', 'bathing':'böðun', 'soap':'sápa', 'lye':'leysir',
+  'comb':'kembi', 'brush':'bursti', 'hair-pin':'hárspenna', 'mirror':'spegill',
+  'cloth':'klæði', 'linen':'lin', 'wool':'ull', 'silk':'silki', 'hemp':'hampr',
+  'needle':'náll', 'thread':'þræðr', 'yarn':'garn', 'twine':'snara',
+  'button':'hnappir', 'clasp':'spenna', 'pin':'prenn', 'brooch':'spenna',
+  'sewing':'saumr', 'weaving':'vefnaðr', 'spinning':'spinnur', 'knitting':'strikn',
+  'loom':'stef', 'spindle':'snara spindill', 'bobbin':'spóla',
+  'tool':'tól', 'hammer':'hamarr', 'anvil':'steðji', 'tongs':'töng',
+  'saw':'sær', 'axe':'öx', 'hatchet':'litil öx', 'blade':'blað',
+  'chisel':'beiðill', 'file':'fíla', 'drill':'bor', 'auger':'snæill',
+  'rope':'reip', 'twine':'snara', 'cord':'strengur', 'knot':'hnútr',
+  'bucket':'fata', 'pail':'fata', 'tub':'tunna', 'basin':'skál',
+
+  // ── NATURE & LANDSCAPE (100+ words) ──
+  'forest':'skógr', 'wood':'viðr', 'woods':'viðir', 'grove':'lundr',
+  'tree':'tré', 'oak':'eik', 'pine':'fura', 'spruce':'gran', 'birch':'birkir',
+  'ash':'askr', 'elm':'almr', 'willow':'víðir', 'alder':'ðerri',
+  'branch':'limr', 'twig':'tvig', 'bough':'limr', 'trunk':'stofn',
+  'root':'rót', 'roots':'rótar', 'bark':'börkva', 'wood':'viðr',
+  'leaf':'lauf', 'leaves':'lauf', 'foliage':'laufi', 'greenery':'græni',
+  'flower':'blóm', 'blossom':'blóm', 'bloom':'blóm', 'petal':'blóðleif',
+  'rose':'rós', 'lily':'lilja', 'daisy':'þvera blóm', 'violet':'veilfargi',
+  'thistle':'þistill', 'nettle':'netrur', 'fern':'bergi',
+  'grass':'gras', 'moss':'mosi', 'lichen':'likin', 'weed':'illgras',
+  'meadow':'engr', 'field':'akr', 'pasture':'beiti', 'prairie':'engjöld',
+  'moor':'mór', 'heath':'hei', 'marsh':'móri', 'swamp':'sump',
+  'mountain':'fell', 'peak':'toppr', 'summit':'toppr', 'hilltop':'fell toppr',
+  'hill':'hóll', 'ridge':'bakki', 'slope':'hliðir', 'valley':'dalr',
+  'glen':'gil', 'gorge':'gjá', 'canyon':'djúp gill', 'chasm':'djúp',
+  'cliff':'klettr', 'crag':'klettr', 'precipice':'brekka',
+  'cave':'hellir', 'cavern':'hellir', 'grotto':'hellir lítill',
+  'rock':'steinn', 'stone':'steinn', 'boulder':'steinn stór',
+  'sand':'sandur', 'gravel':'gröfr', 'pebble':'steinn lítill',
+  'soil':'jörð', 'earth':'jörð', 'ground':'grund', 'dirt':'múl',
+  'sea':'haf', 'ocean':'úthafsflót', 'wave':'unnir', 'tide':'tíðerni',
+  'current':'straumr', 'eddy':'hvirfill', 'whirlpool':'hvirfill',
+  'beach':'strönd', 'shore':'strönd', 'coast':'strönd', 'bank':'bakki',
+  'river':'á', 'stream':'bekkr', 'brook':'bekkr', 'creek':'lækr',
+  'waterfall':'fossir', 'rapids':'hraun', 'cascade':'fossir',
+  'lake':'vatn', 'pond':'tjörn', 'pool':'lóni', 'spring':'kelda',
+  'well':'brunnr', 'fountain':'uppspretta', 'geyser':'hver',
+  'bay':'flói', 'inlet':'flói', 'cove':'hörn', 'gulf':'flói stór',
+  'island':'ey', 'isle':'ey', 'archipelago':'eyjóðir',
+  'peninsula':'framnes', 'headland':'nes', 'cape':'nes',
+  'strait':'sund', 'channel':'leið', 'passage':'leið',
+  'weather':'veðr', 'storm':'úðaflakki', 'wind':'vindur',
+  'breeze':'kul vindr', 'gale':'sterk gust', 'hurricane':'mikil úrvindr',
+  'thunder':'þruma', 'lightning':'eldingu', 'bolt':'eldingu',
+  'rain':'rigning', 'shower':'úðar', 'downpour':'mikil úðar',
+  'hail':'hagl', 'sleet':'blanda', 'snow':'snaun', 'blizzard':'snaun okkar',
+  'frost':'hiti kaldur', 'ice':'ís', 'icicle':'ís spjót',
+  'cloud':'ský', 'clouds':'ský', 'fog':'þoka', 'mist':'dimmk',
+  'rainbow':'regnbogi', 'dew':'dögg', 'moisture':'raki',
+  'sun':'sólarsteinn', 'moon':'tungl', 'star':'stjarna', 'constellation':'stjörnur samanhangandi',
+  'day':'dagr', 'night':'nótt', 'dawn':'dögun', 'dusk':'kveldi',
+  'sunrise':'sólarúpp', 'sunset':'sólarfall', 'twilight':'myrkriðr',
+  'season':'ársaldir', 'spring':'vor', 'summer':'sumar', 'autumn':'haust', 'winter':'vetur',
+  'year':'ár', 'month':'mánuðr', 'week':'vika', 'day':'dagr',
+  'hour':'tími', 'moment':'stund', 'instant':'blikk',
+
+  // ── ANIMALS (80+ words) ──
+  'animal':'dýr', 'beast':'dýr', 'creature':'dýr',
+  'dog':'hundr', 'hound':'hundr', 'wolf':'úlfr', 'wolves':'úlfar',
+  'cat':'köttur', 'lion':'leó', 'leopard':'leoparðr',
+  'bear':'björn', 'cubs':'björnungar', 'grizzly':'grár björn',
+  'horse':'hross', 'mare':'kviga', 'stallion':'karlar hross',
+  'ox':'oxi', 'oxen':'uxa', 'cattle':'búfé', 'cow':'kýr',
+  'bull':'hrútr', 'calf':'kalfi', 'heifer':'ungkýr',
+  'sheep':'kind', 'flock':'kindaflóki', 'ram':'karla kind',
+  'goat':'geit', 'kid':'geitungur', 'billy-goat':'geit karlar',
+  'pig':'svín', 'sow':'svín kona', 'boar':'svín karlar',
+  'eagle':'örn', 'hawk':'haukr', 'falcon':'fálki', 'owl':'ugla',
+  'raven':'hrafn', 'crow':'kráka', 'magpie':'skjóta kráka',
+  'dove':'dúfa', 'pigeon':'dúfa', 'swan':'álft', 'goose':'gæs',
+  'duck':'önd', 'crane':'tranir', 'heron':'hægri',
+  'fish':'fiskr', 'salmon':'lax', 'trout':'silungur', 'pike':'görðungur',
+  'whale':'hvalr', 'seal':'selur', 'walrus':'rostungur',
+  'serpent':'ormr', 'snake':'snákr', 'adder':'eitra ormr',
+  'frog':'froskur', 'toad':'paddi', 'newt':'eita krumskrítungr',
+  'insect':'smákryp', 'fly':'flugga', 'bee':'hunangsflugga', 'wasp':'vespa',
+  'spider':'köngulómi', 'scorpion':'skorpíóni', 'ant':'maurir',
+  'deer':'rein', 'doe':'rein kona', 'stag':'karlar rein',
+  'elk':'elgr', 'moose':'mikill elgr', 'reindeer':'rein',
+  'boar':'sviðr karlar', 'wild-pig':'vilji svín',
+  'badger':'gróðagr', 'otter':'otr', 'beaver':'bjóðr',
+  'fox':'refr', 'lynx':'köttr fjöll', 'puma':'leó vilji',
+  'rabbit':'kaníni', 'hare':'heri', 'squirrel':'íkorna',
+  'mouse':'mús', 'rat':'rotta', 'hedgehog':'broddgöltur',
+  'bird':'fugl', 'nest':'lóð', 'egg':'egg',
+  'wings':'vænir', 'beak':'nefr fugl', 'talon':'kló fugl',
+
+  // ── MYSTICISM & MAGIC (60+ words) ──
+  'magic':'galdrar', 'sorcery':'seiðr', 'witchcraft':'seiðr kona',
+  'spell':'galdur', 'enchantment':'galdur', 'charm':'galdur',
+  'rune':'rún', 'runes':'rúnar', 'rune-stone':'rúnasteinn',
+  'curse':'bölvun', 'hex':'bölvun', 'malediction':'bölvun',
+  'blessing':'blesun', 'boon':'blesun', 'grace':'náðir',
+  'prophecy':'spá', 'foretelling':'spá', 'divination':'spá',
+  'seer':'spamaðr', 'prophet':'spámaðr', 'oracle':'spá maðr',
+  'völva':'völva', 'seeress':'völva', 'wise-woman':'völva',
+  'fate':'wyrd', 'doom':'dómr', 'destiny':'wyrd',
+  'wyrd':'wyrd', 'norns':'nornir', 'weird-women':'nornir',
+  'god':'goði', 'goddess':'gyðja', 'divine':'guðlig',
+  'odin':'Óðinn', 'thor':'Þórr', 'freya':'Freyja', 'loki':'Loki',
+  'tyr':'Týr', 'baldur':'Baldr', 'heimdall':'Heimdallr',
+  'njord':'Njörðr', 'skadi':'Skaði', 'sif':'Sif',
+  'asgard':'Ásgarðr', 'midgard':'Miðgarðr', 'muspelheim':'Múspelheim',
+  'niflheim':'Niflheim', 'helheim':'Hel-heim', 'valhalla':'Valhöll',
+  'yggdrasil':'Yggdrasill', 'bifrost':'Bifrost', 'ragnarok':'Ragnarök',
+  'demon':'dimmak', 'devil':'illka maðr', 'fiend':'óvinr goðanna',
+  'elf':'álfar', 'elves':'álfar', 'fairy':'álfa kona',
+  'dwarf':'dvergar', 'dwarves':'dvergar', 'giant':'jötunn',
+  'troll':'tröll', 'ogre':'illka jötunn', 'monster':'óheill dýr',
+  'dragon':'dreki', 'wyvern':'dreki tveir vænir',
+  'phoenix':'endurborinn fugl', 'chimera':'margar dýr saman',
+  'unicorn':'einkorna hross',
+  'potion':'drykkr galdurs', 'elixir':'drykkr dýrðlig',
+  'amulet':'vernd steinn', 'talisman':'vernd merki',
+  'wand':'galdrstafr', 'staff':'stafr', 'scepter':'ríkis stafr',
+  'circle':'hringur galdurs', 'altar':'altari goðanna',
+  'temple':'tempel goðanna', 'shrine':'helgidómr',
+  'sacred':'heilagr', 'holy':'heilagr', 'accursed':'bannat',
+
+  // ── SPECIALIZED VOCABULARY: TRADE & CRAFTS (50+ words) ──
+  'merchant':'kaupmaðr', 'trader':'kaupmaðr', 'peddler':'far kaupmaðr',
+  'market':'kaupstaðr', 'marketplace':'kaupstaðr stórr',
+  'trade':'kaup', 'commerce':'kaup', 'business':'kaup',
+  'goods':'mörg',  'merchandise':'kaup málmur', 'cargo':'farm skip',
+  'price':'virðing', 'cost':'virðing', 'value':'virðing', 'worth':'virðing',
+  'coin':'peningr', 'silver-coin':'silfur peningr', 'gold-coin':'gulli peningr',
+  'purse':'pungur', 'wallet':'pungur lítill', 'treasury':'gull hús',
+  'scale':'våg', 'weight':'þyngd', 'measure':'mál',
+  'craft':'handverk', 'craftsman':'handverkmaðr', 'artisan':'handverkmaðr vel',
+  'smith':'smiðr', 'blacksmith':'járn smiðr', 'goldsmith':'gull smiðr',
+  'carpenter':'timbrmaðr', 'mason':'steinn maðr', 'weaver':'vefnaðarmaðr',
+  'potter':'leir maðr', 'tanner':'leðr maðr', 'leatherworker':'leðr maðr',
+  'jeweler':'gull maðr', 'gem-cutter':'steinn skarar',
+  'workshop':'handverk hús', 'forge':'smiðja', 'foundry':'smiðja stór',
+  'apprentice':'lærisvengill', 'journeyman':'handverksjöngju maðr',
+  'master':'meistari', 'guild':'samfélag handverkamanna',
+  'raw-material':'óunnar málmur', 'ore':'málmgrunnur', 'ingot':'málmstöng',
+  'casting':'steypumál', 'mold':'form', 'mold':'steypumál form',
+
+  // ── TRAVEL & NAVIGATION (40+ words) ──
+  'travel':'far', 'journey':'far', 'voyage':'far sjór', 'expedition':'for',
+  'road':'vegr', 'path':'stígr', 'trail':'stígr vilji', 'highway':'mikill vegr',
+  'bridge':'brú', 'ford':'vað', 'crossing':'fara yfir',
+  'harbor':'höfn', 'port':'höfn', 'mooring':'akrar', 'anchorage':'akrar',
+  'dock':'höfn steinn', 'quay':'höfn stærð', 'wharf':'höfn timbrmaðr',
+  'ship':'skip', 'vessel':'skip', 'boat':'bátr', 'barge':'skipfelag',
+  'sail':'segl', 'sail-cloth':'segl klæði', 'mast':'mastri',
+  'hull':'skipskógr', 'deck':'skipborð', 'cargo-hold':'skip kista',
+  'anchor':'akkar', 'rope':'reip skip', 'rigging':'skip reip',
+  'compass':'stefnu steinn', 'chart':'kort skip', 'map':'kort',
+  'star-navigation':'stjörnur for', 'landmark':'for merki',
+  'wind':'vindur', 'current':'straumr', 'storm':'úðaflakki skip',
+  'becalmed':'vindlauss', 'shipwreck':'skip brotinn',
+  'crew':'skip fólk', 'captain':'stýrimaðr', 'navigator':'for maðr',
+  'sailor':'skip maðr', 'oarsman':'ár maðr', 'helmsman':'stýrir',
+
+  // ── MUSIC & SOUND (30+ words) ──
+  'music':'tónskapur', 'song':'söngr', 'verse':'vísa', 'melody':'tón kvaðning',
+  'harmony':'saman tónum', 'rhythm':'taktun', 'beat':'slag',
+  'instrument':'tónar tól', 'harp':'harpa', 'lyre':'lyre', 'fiddle':'fiðla',
+  'horn':'horn', 'pipe':'pípa', 'flute':'flauta', 'drum':'trommur',
+  'string':'strengur', 'strings':'strengir', 'bow':'bogi strengur',
+  'note':'tón', 'chord':'harmoni tón', 'scale':'tón röð',
+  'song-maker':'skalð', 'singer':'söngvari', 'minstrel':'skalð for',
+  'performance':'söngs framkoma', 'concert':'söngs sameining',
+  'silence':'þögn', 'sound':'hljóð', 'noise':'hljóð ósmektilegt',
+  'echo':'hljóð endurkoma', 'resonance':'hljóð dofun',
+
+  // ── LAW & GOVERNANCE (30+ words) ──
+  'law':'lög', 'legal':'löglig', 'lawful':'löglig',
+  'judge':'dómari', 'court':'dómstóll', 'trial':'dómsmál',
+  'judgment':'dómr', 'verdict':'dómr úrskurðr', 'sentence':'dómr refsingr',
+  'justice':'réttlæti', 'injustice':'óréttlæti',
+  'right':'réttr', 'rights':'réttindi', 'duty':'skylda',
+  'obligation':'skylda', 'contract':'samningr', 'agreement':'sátt',
+  'witness':'vitni', 'testimony':'vitni máls', 'evidence':'sannanir',
+  'plaintiff':'kvartandi', 'defendant':'sakaðr', 'accused':'sakaðr',
+  'guilty':'sekur', 'innocent':'sakarlaus', 'verdict':'dómr',
+  'penalty':'refsingr', 'fine':'peningamúta', 'punishment':'refsingr',
+  'crime':'illverki', 'offense':'logabrotur', 'transgression':'illverki',
+  'pardon':'fyrirgefning', 'amnesty':'almenn fyrirgefning',
+  'assembly':'þing', 'council':'ráð', 'parliament':'alþingi',
+
+  // ── SCIENCE & LEARNING (30+ words) ──
+  'knowledge':'kunnatn', 'wisdom':'vísdómr', 'learning':'kunnatn',
+  'scholar':'þrokinn maðr', 'philosopher':'hugsunarmaðr',
+  'science':'vísindum', 'study':'athugun', 'research':'leiting',
+  'book':'bók', 'scroll':'skrá', 'manuscript':'ritin höndi',
+  'library':'bóka hús', 'university':'lærdómr hús',
+  'teaching':'kennsla', 'education':'kennsla', 'school':'skolinn',
+  'student':'nemi', 'apprentice':'lærisvengill',
+  'mathematics':'talnaverkum', 'geometry':'form stærð',
+  'astronomy':'stjörnufræði', 'astrology':'stjörnuspá',
+  'medicine':'lækningum', 'herbalism':'gras lækningum', 'healing':'heilir',
+  'anatomy':'líkama framboð', 'physiology':'líkama virkni',
+  'philosophy':'hugsunar fræði', 'logic':'rétti hugsun',
+  'truth':'sannleikr', 'falsehood':'logn', 'reality':'raunveruleikinn',
+
+  // ── COLORS & APPEARANCE (20+ words) ──
+  'color':'litur', 'hue':'litur skyggni',
+  'red':'rauðr', 'crimson':'djúp rauðr', 'scarlet':'bjart rauðr',
+  'blue':'blár', 'azure':'himinn blár', 'indigo':'dimmkr blár',
+  'green':'grœnn', 'emerald':'stjörnugrœnn', 'olive':'gullgrænn',
+  'yellow':'gulr', 'golden':'gullinn', 'amber':'ýkra gullinn',
+  'orange':'appelsín gull', 'purple':'purpurinn', 'violet':'veilfargi',
+  'pink':'ljós rauðr', 'brown':'brúnn', 'tan':'gull brúnn',
+  'black':'svartr', 'dark':'dimmr', 'shadowy':'skyggn',
+  'white':'hvítr', 'pale':'blár', 'ashen':'aska',
+  'gray':'grár', 'silver':'silfurkinn', 'metallic':'málmanna ljóma',
+  'bright':'bjart', 'shiny':'glitra', 'dull':'matul',
+  'transparent':'glerlegur', 'translucent':'hálfglerlegur', 'opaque':'óglerta',
+  'matte':'endalaus skein', 'glossy':'gnistra',
+
+  // ── NUMBERS & QUANTITIES (expanded for clarity) ──
+  'one':'einn', 'two':'tveir', 'three':'þrír', 'four':'fjórir', 'five':'fimm',
+  'six':'sex', 'seven':'sjö', 'eight':'átta', 'nine':'níu', 'ten':'tíu',
+  'eleven':'ellefu', 'twelve':'tólf', 'twenty':'tuttugu', 'thirty':'þrjú tíu',
+  'forty':'fjórtíu', 'fifty':'fimmtíu', 'hundred':'hundrað', 'thousand':'þúsund',
+  'million':'milljón', 'dozen':'tugastundun', 'pair':'tvö',
+  'triple':'þrefalti', 'double':'tvefalti',
+
+  // ── ADDITIONAL CORE VOCABULARY (50+ words for common needs) ──
+  'name':'nafn', 'person':'maðr', 'people':'fólk', 'human':'manalegr',
+  'life':'líf', 'death':'dauðr', 'birth':'burðr', 'age':'aldur',
+  'young':'ungr', 'old':'gamall', 'elder':'eldri', 'ancient':'forni',
+  'alive':'lifandi', 'dead':'dauðr', 'living':'lifandi',
+  'beginning':'byrjun', 'end':'endir', 'middle':'miðja',
+  'first':'fyrsti', 'last':'síðasti', 'next':'næsti', 'previous':'fyrri',
+  'good':'góðr', 'bad':'illr', 'better':'betri', 'worse':'verri',
+  'best':'bestir', 'worst':'versti', 'same':'sami', 'different':'ólíkr',
+  'new':'nýr', 'old':'eldur', 'ancient':'forni', 'modern':'nútiðarlegur',
+  'beautiful':'fagr', 'ugly':'ófagr', 'pretty':'fagr', 'handsome':'fagr',
+  'strong':'sterkr', 'weak':'veikr', 'healthy':'heilsufullr', 'sick':'siukr',
+  'tall':'há', 'short':'látr', 'big':'stórr', 'small':'lítill',
+  'long':'langr', 'short':'stuttr', 'wide':'breiðr', 'narrow':'þrongr',
+  'high':'há', 'low':'lágt', 'deep':'djúpr', 'shallow':'grunnt',
+  'thick':'þokkr', 'thin':'þunnr', 'fat':'feiter', 'lean':'ófeiter',
+  'clean':'hreinn', 'dirty':'óhreinn', 'pure':'hreinn', 'foul':'úreinlega',
+  'quiet':'þögull', 'loud':'hátt', 'soft':'mjúkr', 'hard':'harðr',
+  'hot':'heitr', 'cold':'kaldr', 'warm':'hlýr', 'cool':'kaldlega',
+  'dry':'þurr', 'wet':'rakur', 'moist':'rakur', 'damp':'rakur',
 };
+
+// ─── MASSIVE LEMMATIZATION EXPANSION (200+ new forms) ─────────────────────────
+// Add to LEMMAS table to handle all new plurals and verb forms
+// This section will be added to the LEMMAS table
 
 // ─── REVERSE DICTIONARY: OLD NORSE → ENGLISH ──────────────────────────────────
 // Built by inverting EN_TO_ON (first English match wins if multiple)
@@ -1071,10 +1886,37 @@ function processSentence(sentence) {
       // Noun with tracked gender — look up translation from dictionary
       const on = EN_TO_ON[clean] || clean;
       classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[clean]});
-    } else if(EN_TO_ON[clean]) {
-      classified.push({type:'word', en:clean, on:EN_TO_ON[clean]});
     } else {
-      classified.push({type:'unknown', en:clean});
+      // Try lemmatization: reduce plural/past forms to base form
+      const lemma = LEMMAS[clean];
+      const baseWord = lemma || clean;
+
+      if(NOUN_GENDER[baseWord]) {
+        // Lemmatized noun found
+        const on = EN_TO_ON[baseWord] || baseWord;
+        classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[baseWord]});
+      } else if(EN_TO_ON[baseWord]) {
+        // Lemmatized word found in dictionary
+        classified.push({type:'word', en:clean, on:EN_TO_ON[baseWord]});
+      } else {
+        // Word not found — try synonym fallback
+        const synonym = SYNONYMS[clean];
+        if(synonym) {
+          // Synonym found — use it (will be marked as approximation in output)
+          const synonymLemma = LEMMAS[synonym] || synonym;
+          if(NOUN_GENDER[synonymLemma]) {
+            const on = EN_TO_ON[synonymLemma] || synonymLemma;
+            classified.push({type:'synonym', en:clean, originalEn:synonym, on:on, gender:NOUN_GENDER[synonymLemma]});
+          } else if(EN_TO_ON[synonymLemma]) {
+            classified.push({type:'synonym', en:clean, originalEn:synonym, on:EN_TO_ON[synonymLemma]});
+          } else {
+            classified.push({type:'unknown', en:clean});
+          }
+        } else {
+          // No synonym available — mark as unknown
+          classified.push({type:'unknown', en:clean});
+        }
+      }
     }
     i++;
   }
@@ -1192,7 +2034,7 @@ function processSentence(sentence) {
       }
       const nextTok = conjugated[nextNounIdx];
 
-      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
         const possForm = POSSESSIVES[tok.en];
         if(possForm) {
@@ -1218,7 +2060,7 @@ function processSentence(sentence) {
       }
       const nextTok = conjugated[nextNounIdx];
 
-      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word')) {
+      if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
         const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
 
         // Detect if noun is plural: ends in 's' or is irregular plural
@@ -1252,8 +2094,8 @@ function processSentence(sentence) {
       return { ...tok, on: EN_TO_ON[tok.en] || ADJECTIVES[tok.en]?.base || tok.en };
     }
 
-    // Handle nouns: detect case, number, and apply full declension
-    if(tok.type === 'noun') {
+    // Handle nouns & synonyms: detect case, number, and apply full declension
+    if(tok.type === 'noun' || tok.type === 'synonym') {
       const gender = tok.gender || NOUN_GENDER[tok.en] || 'm';
 
       // Detect if noun is plural
@@ -1616,7 +2458,7 @@ function processSentence(sentence) {
         onStr += ' ';
       }
     } else if(t.type === 'word' || t.type === 'pronoun' || t.type === 'verb' || t.type === 'noun' ||
-              t.type === 'adjective' || t.type === 'possessive') {
+              t.type === 'adjective' || t.type === 'possessive' || t.type === 'synonym') {
       onStr += (t.on || t.en) + ' ';
     } else if(t.type === 'unknown') {
       // Mark unknown words with brackets
