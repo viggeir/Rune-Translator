@@ -1845,22 +1845,34 @@ function processSentence(sentence) {
     if(!/[a-záéíóúýæøöǫþðä]/.test(tok))          { classified.push({type:'punct',val:tok}); i++; continue; }
 
     // Two-word phrase check first (with compound fallback)
+    // BUT: skip this for adjectives (they should remain separate)
     let phraseMatched = false;
     if(i+2 < raw.length && /^\s+$/.test(raw[i+1]) && /[a-z]/.test(raw[i+2])) {
       const phrase = tok + ' ' + raw[i+2];
-      if(EN_TO_ON[phrase]) {
-        // Exact phrase found in dictionary
-        classified.push({type:'word', en:phrase, on:EN_TO_ON[phrase]});
-        i += 3; phraseMatched = true;
-      } else {
-        // No exact phrase match — try concatenation fallback (compound noun)
-        const word1 = EN_TO_ON[tok];
-        const word2_raw = raw[i+2];
-        const word2 = EN_TO_ON[word2_raw];
-        if(word1 && word2) {
-          // Both words are translatable — concatenate as compound
-          classified.push({type:'word', en:phrase, on:word1 + word2});
+      const tok_is_adjective = ADJECTIVES[tok.toLowerCase()];
+      const next_is_adjective = ADJECTIVES[raw[i+2].toLowerCase()];
+
+      // Only apply phrase fallback if NOT both adjectives
+      if(!tok_is_adjective || !next_is_adjective) {
+        if(EN_TO_ON[phrase]) {
+          // Exact phrase found in dictionary
+          // Determine gender from head noun (last word)
+          const word2_raw = raw[i+2];
+          const gender = NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
+          classified.push({type:'word', en:phrase, on:EN_TO_ON[phrase], gender:gender});
           i += 3; phraseMatched = true;
+        } else {
+          // No exact phrase match — try concatenation fallback (compound noun)
+          const word1 = EN_TO_ON[tok];
+          const word2_raw = raw[i+2];
+          const word2 = EN_TO_ON[word2_raw];
+          if(word1 && word2 && !tok_is_adjective && !next_is_adjective) {
+            // Both words are translatable AND neither is adjective — concatenate as compound
+            // Determine gender from head noun (last word)
+            const gender = NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
+            classified.push({type:'word', en:phrase, on:word1 + word2, gender:gender});
+            i += 3; phraseMatched = true;
+          }
         }
       }
     }
@@ -2024,6 +2036,31 @@ function processSentence(sentence) {
   const withAgreement = conjugated.map((tok, idx) => {
     // Handle possessives: find the following noun
     if(tok.type === 'possessive') {
+      // Check if this possessive already appeared after the last noun (skip duplicates)
+      let lastNounIdx = -1;
+      for(let j = idx - 1; j >= 0; j--) {
+        if(conjugated[j].type === 'noun' || conjugated[j].type === 'word' ||
+           conjugated[j].type === 'synonym') {
+          lastNounIdx = j;
+          break;
+        }
+      }
+
+      if(lastNounIdx !== -1) {
+        let hasDuplicatePossessive = false;
+        for(let j = lastNounIdx + 1; j < idx; j++) {
+          if(conjugated[j].type === 'possessive' && conjugated[j].en === tok.en) {
+            hasDuplicatePossessive = true;
+            break;
+          }
+        }
+
+        if(hasDuplicatePossessive) {
+          // Skip this duplicate possessive by marking as space
+          return { ...tok, type: 'space' };
+        }
+      }
+
       // Look ahead for the noun (skip spaces, adjectives, punctuation)
       let nextNounIdx = idx + 1;
       while(nextNounIdx < conjugated.length &&
@@ -2035,7 +2072,15 @@ function processSentence(sentence) {
       const nextTok = conjugated[nextNounIdx];
 
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
-        const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
+        // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
+        let gender = nextTok.gender;
+        if(!gender) {
+          gender = NOUN_GENDER[nextTok.en];
+        }
+        if(!gender) {
+          gender = 'm'; // Final fallback to masculine
+        }
+
         const possForm = POSSESSIVES[tok.en];
         if(possForm) {
           // Apply appropriate form based on noun's gender
@@ -2051,7 +2096,7 @@ function processSentence(sentence) {
 
     // Handle adjectives: find the following noun (English: adjective BEFORE noun)
     if(tok.type === 'adjective') {
-      // Look forward for the noun (skip spaces/punctuation)
+      // Look forward for the noun (skip spaces/punctuation/adjectives)
       let nextNounIdx = idx + 1;
       while(nextNounIdx < conjugated.length &&
             (conjugated[nextNounIdx].type === 'space' ||
@@ -2061,7 +2106,14 @@ function processSentence(sentence) {
       const nextTok = conjugated[nextNounIdx];
 
       if(nextTok && (nextTok.type === 'noun' || nextTok.type === 'word' || nextTok.type === 'synonym')) {
-        const gender = nextTok.gender || NOUN_GENDER[nextTok.en] || 'm';
+        // Improved gender detection: check stored gender first, then NOUN_GENDER lookup
+        let gender = nextTok.gender;
+        if(!gender) {
+          gender = NOUN_GENDER[nextTok.en];
+        }
+        if(!gender) {
+          gender = 'm'; // Fallback to masculine
+        }
 
         // Detect if noun is plural: ends in 's' or is irregular plural
         const isPlural = nextTok.en.endsWith('s') ||
@@ -2088,6 +2140,12 @@ function processSentence(sentence) {
           const key = `${gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc'}_${caseForm}_${numberForm}`;
           const form = adjForm[key] || adjForm.base;
           return { ...tok, on: form };
+        }
+      } else if(nextTok && nextTok.type === 'adjective') {
+        // Adjacent adjective: use masculine nominative singular as default
+        const adjForm = ADJECTIVES[tok.en];
+        if(adjForm) {
+          return { ...tok, on: adjForm.masc_nom_sg || adjForm.base };
         }
       }
       // Fallback: use base form from dictionary
