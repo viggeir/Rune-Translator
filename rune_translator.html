@@ -808,6 +808,28 @@ const POSSESSIVES = {
   },
 };
 
+// ─── DEMONSTRATIVES with Gender Agreement ─────────────────────────────────────
+// Demonstratives (this, that, etc.) that inflect for gender and case
+// Used to ensure proper agreement with the head noun
+const DEMONSTRATIVES = {
+  'this': {
+    masc_sg: 'þessi',  fem_sg: 'þessi',  neut_sg: 'þetta',
+    masc_acc: 'þennan', fem_acc: 'þessa', neut_acc: 'þetta',
+    masc_dat: 'þessum', fem_dat: 'þessari', neut_dat: 'þessum',
+  },
+  'that': {
+    masc_sg: 'sá',     fem_sg: 'sú',     neut_sg: 'þat',
+    masc_acc: 'þann',  fem_acc: 'þá',    neut_acc: 'þat',
+    masc_dat: 'þeim',  fem_dat: 'þeirri', neut_dat: 'þeim',
+  },
+  'these': {
+    masc_sg: 'þessir', fem_sg: 'þessar', neut_sg: 'þessi',
+  },
+  'those': {
+    masc_sg: 'þeir',   fem_sg: 'þær',    neut_sg: 'þau',
+  },
+};
+
 // ─── SPECIAL COMPOUNDS (Centralized) ───────────────────────────────────────────
 // Consolidated list of known compounds and special word combinations
 const SPECIAL_COMPOUNDS = {
@@ -2385,7 +2407,7 @@ function detectPhrase(tokens, startIndex) {
           const possessive = phraseTokens[0]?.value;
           const noun = phraseTokens[1]?.value;
           const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
-          
+
           if (nounTranslation) {
             const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
             const possForm = POSSESSIVES[possessive];
@@ -2402,6 +2424,36 @@ function detectPhrase(tokens, startIndex) {
               confidence: 0.9,
               gender: gender,
               possessive: possessive,
+              noun: noun
+            };
+            break;
+          }
+        }
+
+        // Fallback: Check for demonstrative + noun pattern (e.g., "this stone")
+        // Demonstratives must agree in gender and case with the head noun
+        if (length === 2 && DEMONSTRATIVES[phraseTokens[0]?.value]) {
+          const demonstrative = phraseTokens[0]?.value;
+          const noun = phraseTokens[1]?.value;
+          const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
+
+          if (nounTranslation) {
+            const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
+            const demonstForm = DEMONSTRATIVES[demonstrative];
+            // Use nominative singular form (most common default)
+            const form = gender === 'f' ? demonstForm.fem_sg
+                       : gender === 'n' ? demonstForm.neut_sg
+                       : demonstForm.masc_sg;
+
+            bestPhrase = {
+              type: 'demonstrative-phrase',
+              value: phraseString,
+              translation: `${form} ${nounTranslation}`,
+              tokens: phraseTokens,
+              length: phraseTokens.length + (phraseTokens.length - 1),
+              confidence: 0.85,
+              gender: gender,
+              demonstrative: demonstrative,
               noun: noun
             };
             break;
