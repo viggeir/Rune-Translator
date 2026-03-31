@@ -3972,16 +3972,43 @@ function copyRunes() {
 function flashCopy(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1400); }
 
 // ─── SMART AUTO-COMPOUNDER ─────────────────────────────────────────────────────
+// Noun case forms for compound usage — maps nominative form to accusative/dative variants
+// These are primarily used for the second element in compounds
+const NOUN_CASE_FORMS = {
+  // Stone family - masculine
+  'steinn': { nom: 'steinn', acc: 'stein', dat: 'steini', gen: 'steins' },
+  'stein': { nom: 'stein', acc: 'stein', dat: 'steini', gen: 'steins' },
+  // Add more as needed for other commonly-compounded nouns
+};
+
+// Words that should NOT form generic compounds (Rule 5)
+// Includes pronouns, demonstratives, common adverbs, etc.
+const COMPOUND_BLACKLIST = new Set([
+  // Pronouns
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+  'who', 'whom', 'what', 'which',
+  // Demonstratives & articles
+  'this', 'that', 'these', 'those', 'the', 'a', 'an',
+  // Common adverbs
+  'very', 'so', 'too', 'quite', 'just', 'only', 'well', 'now', 'then', 'here', 'there',
+  'up', 'down', 'out', 'in', 'on', 'off', 'over', 'under', 'before', 'after',
+  // Conjunctions & prepositions (shouldn't form compounds)
+  'and', 'or', 'but', 'if', 'as', 'for', 'of', 'to', 'from', 'at', 'by', 'with', 'in', 'on',
+  // Verbs (shouldn't form compounds as first element typically)
+  'be', 'have', 'do', 'go', 'come', 'see', 'know', 'think', 'make', 'take', 'give',
+  'is', 'are', 'was', 'were', 'being', 'been', 'has', 'have', 'had', 'does', 'did'
+]);
+
 // Intelligently forms Old Norse compounds following linguistic patterns
-function trySmartCompound(word1_en, word2_en) {
+function trySmartCompound(word1_en, word2_en, compoundCase = 'nom') {
   const word1_on = EN_TO_ON[word1_en];
   const word2_on = EN_TO_ON[word2_en];
 
   if(!word1_on || !word2_on) return null;
-  
+
   // Get gender from the head noun (second word)
   const gender = NOUN_GENDER[word2_en] || NOUN_GENDER[LEMMAS[word2_en]] || 'm';
-  
+
   // Apply Old Norse compound formation rules
   
   // Rule 1: Nature compounds (heather + rose, mountain + peak, etc.)
@@ -4118,40 +4145,59 @@ function trySmartCompound(word1_en, word2_en) {
   }
   
   // Rule 5: Generic compound with phonetic adaptation
+  // RESTRICTION: Don't create compounds with blacklisted words
+  // This prevents inappropriate combinations like "this stone" or "very good"
+  if (COMPOUND_BLACKLIST.has(word1_en) || COMPOUND_BLACKLIST.has(word2_en)) {
+    return null;
+  }
+
   // Apply common Old Norse compound sound changes
   let firstWord = word1_on;
   let secondWord = word2_on;
-  
+
+  // Apply case inflection to the second word if needed
+  // Most compounds use nominative, but some contexts may require accusative/dative
+  if (compoundCase !== 'nom' && NOUN_CASE_FORMS[word2_en]) {
+    const caseMap = NOUN_CASE_FORMS[word2_en];
+    if (compoundCase === 'acc' && caseMap.acc) {
+      secondWord = caseMap.acc;
+    } else if (compoundCase === 'dat' && caseMap.dat) {
+      secondWord = caseMap.dat;
+    } else if (compoundCase === 'gen' && caseMap.gen) {
+      secondWord = caseMap.gen;
+    }
+  }
+
   // Common sound changes in compounds:
   // 1. Final consonant often assimilates
   if(firstWord.endsWith('r') && secondWord.startsWith('r')) {
     firstWord = firstWord.slice(0, -1); // Remove final r before r
   }
-  
+
   // 2. Final -n often drops before consonants
   if(firstWord.endsWith('n') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
     firstWord = firstWord.slice(0, -1);
   }
-  
-  // 3. Final -t often drops before consonants  
+
+  // 3. Final -t often drops before consonants
   if(firstWord.endsWith('t') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
     firstWord = firstWord.slice(0, -1);
   }
-  
+
   // 4. Connecting vowel insertion for difficult consonant clusters
   const difficultClusters = [
     { pattern: /([lrndm])([lrndm])$/, insert: 'a' },
     { pattern: /([kgpt])([kgpt])$/, insert: 'a' },
     { pattern: /([st])([st])$/, insert: 'i' }
   ];
-  
+
   for(const cluster of difficultClusters) {
     if(firstWord.match(cluster.pattern)) {
       firstWord += cluster.insert;
       break;
     }
   }
-  
+
   return { on: firstWord + secondWord, gender: gender };
 }
 
