@@ -385,7 +385,7 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
-const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within','after','before']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
 const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
@@ -529,6 +529,8 @@ const CONJ = {
   'conquer':['sigri', 'sigrir','sigrir','sigrum', 'sigrið', 'sigra'],
   // þola — to endure (weak)
   'endure': ['þoli',  'þolir', 'þolir', 'þolum',  'þolið',  'þola'],
+  // reisa — to raise (weak class 2)
+  'raise':  ['reisa', 'reisir','reisir','reissum','reisið', 'reisa'],
 };
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
@@ -546,7 +548,7 @@ const NOUN_GENDER = {
   'man':'m', 'men':'m', 'woman':'f', 'women':'f',
   'girl':'f', 'girls':'f', 'boy':'m', 'boys':'m', 'maiden':'f', 'maidens':'f',
   'king':'m', 'kings':'m', 'queen':'f', 'queens':'f', 'lord':'m', 'lords':'m', 'lady':'f', 'ladies':'f',
-  'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m',
+  'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m', 'viking':'m', 'vikings':'m',
   'friend':'m', 'friends':'m', 'foe':'m', 'foes':'m', 'enemy':'m', 'enemies':'m',
   'brother':'m', 'brothers':'m', 'sister':'f', 'sisters':'f', 'father':'m', 'fathers':'m', 'mother':'f', 'mothers':'f',
   'son':'m', 'sons':'m', 'daughter':'f', 'daughters':'f', 'wife':'f', 'wives':'f', 'husband':'m', 'husbands':'m',
@@ -849,7 +851,7 @@ const NOUN_DECLENSION = {
              nom_pl: 'óvinir', acc_pl: 'ófína', dat_pl: 'óvinum' },
   'jarl': { base: 'jarl', nom_sg: 'jarl', acc_sg: 'jarl', dat_sg: 'jarli',
             nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
-  'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðir',
+  'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðri',
                nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
   'father': { base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
               nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
@@ -871,6 +873,8 @@ const NOUN_DECLENSION = {
             nom_pl: 'úlfar', acc_pl: 'úlfa', dat_pl: 'úlfum' },
   'raven': { base: 'hrafn', nom_sg: 'hrafn', acc_sg: 'hrafn', dat_sg: 'hrafni',
              nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum' },
+  'viking': { base: 'víking', nom_sg: 'víking', acc_sg: 'víking', dat_sg: 'vítingi',
+              nom_pl: 'vítingar', acc_pl: 'vítinga', dat_pl: 'vítingum' },
 
   // ── Feminine o-stem ──
   'woman': { base: 'kona', nom_sg: 'kona', acc_sg: 'konu', dat_sg: 'konu',
@@ -1177,8 +1181,8 @@ const EN_TO_ON = {
   'mine':'minn', 'yours':'þinn', 'ours':'várr', 'theirs':'þeirra',
   'myself':'sjálfr mér', 'yourself':'sjálfr þér', 'himself':'sjálfr honum',
   'herself':'sjálfr henni', 'itself':'sjálft þat', 'ourselves':'sjálfir oss',
-  'this':'þetta', 'that':'þat', 'these':'þessi', 'those':'þeir',
-  'who':'hverr', 'whom':'hverjum', 'which':'hvert', 'what':'hvat',
+  'this':'þessi', 'that':'þat', 'these':'þessi', 'those':'þeir',
+  'who':'eR', 'whom':'eR', 'which':'hvert', 'what':'hvat',
   'where':'hvar', 'when':'hvenær', 'why':'hví', 'how':'hvernig',
   'someone':'nokkverr', 'something':'nokkut', 'anyone':'hverr sem',
   'anything':'hvat sem', 'everyone':'allir', 'everything':'allt', 'nothing':'ekkert',
@@ -1186,7 +1190,7 @@ const EN_TO_ON = {
   // "the" intentionally omitted — ON uses suffixed articles
   // "a/an" removed — ON usually omits indefinite article
   'and':'ok', 'or':'eða', 'but':'en', 'if':'ef', 'then':'þá', 'so':'svá',
-  'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjök', 'too':'of', 'also':'ok',
+  'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjǫk', 'too':'of', 'also':'ok',
   'now':'nú', 'here':'hér', 'there':'þar', 'still':'enn',
   'ever':'jafnan', 'never':'aldri', 'always':'jafnan', 'often':'opt',
   'much':'mjök', 'many':'margr', 'more':'meir', 'most':'mest',
@@ -1220,14 +1224,14 @@ const EN_TO_ON = {
   'became':'varð',
   'showed':'sýndi', 'felt':'fann',
   'found':'fann', 'left':'fór',
-  'called':'kallaði', 'tried':'freisti', 'wanted':'vildi',
+  'called':'kallaði', 'tried':'freisti', 'wanted':'vildi', 'was called':'hét',
   'lived':'lifði', 'died':'dó',
   'killed':'drap', 'fought':'barðist',
   'won':'vann', 'lost':'tapað',
   'rode':'reið', 'ran':'rann',
   'fell':'fell',
   'stood':'stóð', 'sat':'sat',
-  'lay':'lá', 'rose':'reis',
+  'lay':'lá', 'rose':'reis', 'raised':'reisti',
   'held':'hélt', 'bore':'bar',
   'brought':'fœrði', 'sent':'sendi',
   'sought':'sótti', 'heard':'heyrði',
@@ -1432,6 +1436,7 @@ const EN_TO_ON = {
 
   // ── SAGA & STORYTELLING (60+ words) ──
   'hero':'hetja', 'heroes':'hetjur', 'champion':'hetja', 'warrior':'hetja', 'warrior-king':'konungr hetja',
+  'viking':'víking', 'vikings':'vítingur',
   'blade':'sverð', 'axe-blade':'ox', 'spear-point':'oddr', 'arrow-tip':'snið',
   'quest':'leit', 'adventure':'útangöngur', 'expedition':'for', 'campaign':'herferð',
   'raid':'herreið', 'invasion':'ásigkomuðr', 'siege':'ásáss', 'skirmish':'bardagi',
