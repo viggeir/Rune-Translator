@@ -326,7 +326,24 @@ function onToRunes(text) {
     let matched = false;
     for(const [pat, sound] of ON_SORTED) {
       if(lower.slice(i, i+pat.length) === pat) {
-        // Special handling for 'e' pattern: check if should use 'a' sound instead (etymological rule)
+        // Special handling for diphthongs that should be represented by two runes
+        if(pat === 'ei') {
+          // 'ei' from historical 'ai' → ᛅ (Óss/'a') + ᛁ (Íss/'i')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᛁ', name:'Íss'});
+        } else if(pat === 'ey') {
+          // 'ey' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᚢ', name:'Úr'});
+        } else if(pat === 'au') {
+          // 'au' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᚢ', name:'Úr'});
+        } else {
+          const entry = soundToRune[sound];
+          if(entry) result.push({rune:entry.r, name:entry.name});
+        }
+        // Special handling for 'r': use r_final if at end of word
         let finalSound = sound;
         if(pat === 'e' && sound === 'i') {
           const { word, relativePos } = getCurrentWord(i);
@@ -538,6 +555,15 @@ const PRONOUNS = {
   'it':   { nom:'þat',  acc:'þat',   dat:'því' },
   'we':   { nom:'vér',  acc:'oss',   dat:'oss' },
   'they': { nom:'þeir', acc:'þá',    dat:'þeim' },
+  // Reflexive pronouns — map to sik (acc) and sér (dat) regardless of person
+  'myself':     { nom:'ek',    acc:'sik',   dat:'sér' },
+  'yourself':   { nom:'þú',    acc:'sik',   dat:'sér' },
+  'himself':    { nom:'hann',  acc:'sik',   dat:'sér' },
+  'herself':    { nom:'hon',   acc:'sik',   dat:'sér' },
+  'itself':     { nom:'þat',   acc:'sik',   dat:'sér' },
+  'ourselves':  { nom:'vér',   acc:'sik',   dat:'sér' },
+  'yourselves': { nom:'þér',   acc:'sik',   dat:'sér' },
+  'themselves': { nom:'þeir',  acc:'sik',   dat:'sér' },
 };
 
 // English subject pronouns — used to detect nominative position
@@ -545,6 +571,9 @@ const SUBJECT_PRONOUNS = new Set(['i','you','he','she','it','we','they','who']);
 
 // English object/preposition pronouns — used to detect accusative position
 const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom']);
+
+// English reflexive pronouns — map to sik (acc) and sér (dat) in Old Norse
+const REFLEXIVE_PRONOUNS = new Set(['myself','yourself','himself','herself','itself','ourselves','yourselves','themselves']);
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
@@ -679,6 +708,8 @@ const CONJ = {
   'request':['bið',   'beiðr', 'beiðr', 'biðjum','biðið',  'biðja'],
   // heita — to promise (strong class 1)
   'promise':['heit',  'heitr', 'heitr', 'heitum','heitið', 'heita'],
+  // heita — to be called (strong class 1)
+  'heita':  ['heiti', 'heitir','heitir','heitum','heitið', 'heita'],
   // muna — to remember (preterite-present)
   'remember':['man', 'mant',  'man',   'munum', 'munið',  'munu'],
   // hugsa — to think (weak)
@@ -949,28 +980,36 @@ const INTERJECTIONS = new Set([
 
 // ─── POSSESSIVE INFLECTION SYSTEM (Phase 2) ─────────────────────────────────
 // Possessives vary by gender of possessed noun
-// Format: { pronoun: { masc_sg, fem_sg, neut_sg } }
+// Format: { pronoun: { masc_sg, fem_sg, neut_sg, reflexive: {masc_sg, fem_sg, neut_sg} } }
+// Note: Reflexive forms are used when the possessed noun is the object of the subject's action
 const POSSESSIVES = {
   'my': {
     masc_sg: 'minn',  fem_sg: 'mín',   neut_sg: 'mitt',
+    // 1st person possessives are inherently reflexive
   },
   'your': {
     masc_sg: 'þinn',  fem_sg: 'þín',   neut_sg: 'þitt',
+    // 2nd person possessives are inherently reflexive
   },
   'his': {
-    masc_sg: 'hans',  fem_sg: 'hans',  neut_sg: 'hans', // hans doesn't inflect
+    masc_sg: 'hans',  fem_sg: 'hans',  neut_sg: 'hans', // non-reflexive
+    reflexive: { masc_sg: 'sínn', fem_sg: 'sín', neut_sg: 'sitt' }
   },
   'hers': {
-    masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // hennar doesn't inflect
+    masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // non-reflexive
+    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín' } // sín doesn't inflect in reflexive form
   },
   'its': {
-    masc_sg: 'þess', fem_sg: 'þess', neut_sg: 'þess', // þess doesn't inflect
+    masc_sg: 'þess', fem_sg: 'þess', neut_sg: 'þess', // non-reflexive
+    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín' } // sín doesn't inflect in reflexive form
   },
   'our': {
     masc_sg: 'várr',  fem_sg: 'vár',   neut_sg: 'várt',
+    // 1st person possessives are inherently reflexive
   },
   'their': {
-    masc_sg: 'þeirra', fem_sg: 'þeirra', neut_sg: 'þeirra', // þeirra doesn't inflect
+    masc_sg: 'þeirra', fem_sg: 'þeirra', neut_sg: 'þeirra', // non-reflexive
+    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín' } // sín doesn't inflect in reflexive form
   },
 };
 
@@ -1388,7 +1427,7 @@ const EN_TO_ON = {
   'in':'í', 'on':'á', 'at':'at', 'to':'til', 'of':'af', 'from':'frá',
   'with':'með', 'by':'við', 'for':'fyrir', 'about':'um', 'as':'sem',
   'into':'í', 'over':'yfir', 'under':'undir',
-  'before':'fyrir', 'after':'eptir', 'between':'milli', 'against':'gegn',
+  'before':'fyrir', 'after':'eftir', 'between':'milli', 'against':'gegn',
   'without':'án', 'within':'innan', 'above':'ofan', 'below':'neðan', 'beside':'hjá',
   // ── Verbs — present tense conjugated dynamically via CONJ table ──
   // Past tense & participles kept here as static lookups
@@ -1412,6 +1451,8 @@ const EN_TO_ON = {
   'showed':'sýndi', 'felt':'fann',
   'found':'fann', 'left':'fór',
   'called':'kallaði', 'tried':'freisti', 'wanted':'vildi', 'was called':'hét',
+  'is called':'heitir', 'are called':'heita', 'be called':'heita', 'being called':'heitandi',
+  'who was called':'er hét', 'who is called':'er heitir', 'who are called':'er heita',
   'lived':'lifði', 'died':'dó',
   'killed':'drap', 'fought':'barðist',
   'won':'vann', 'lost':'tapað',
@@ -2704,6 +2745,12 @@ class GrammarEngine {
         analysis.wordType = 'possessive-compound';
         analysis.translation = phrase.translation;
         analysis.gender = phrase.gender;
+      } else if (['is called', 'am called', 'are called', 'be called', 'being called'].includes(phrase.value)) {
+        // Special handling for "be called" verb phrases - map to heita
+        analysis.wordType = 'verb';
+        analysis.verbData = CONJ['heita'];
+        analysis.conjugation = 'heita-phrase';
+        analysis.isBeCalledPhrase = true;
       } else {
         analysis.wordType = 'translated';
         analysis.translation = phrase.translation;
@@ -2726,6 +2773,10 @@ class GrammarEngine {
   
   // Determine pronoun case based on context
   determinePronounCase(index, context) {
+    // Check if this is a reflexive pronoun
+    const pronounValue = context[index]?.value?.toLowerCase();
+    const isReflexive = REFLEXIVE_PRONOUNS.has(pronounValue);
+
     // Look for preceding prepositions
     for (let i = index - 1; i >= 0; i--) {
       const item = context[i];
@@ -2739,7 +2790,7 @@ class GrammarEngine {
         break; // New sentence
       }
     }
-    
+
     // Look for verbs to determine subject vs object
     let seenVerb = false;
     for (let i = 0; i < index; i++) {
@@ -2749,7 +2800,12 @@ class GrammarEngine {
         break;
       }
     }
-    
+
+    // Reflexive pronouns are typically accusative or dative (never nominative)
+    if (isReflexive) {
+      return seenVerb ? 'acc' : 'dat'; // Default to dative if no verb (e.g., "by myself")
+    }
+
     return seenVerb ? 'acc' : 'nom';
   }
   
@@ -2845,10 +2901,13 @@ class GrammarEngine {
             }
           }
 
-          const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender);
+          // Determine if this possessive is reflexive (object position vs subject/predicate position)
+          const isReflexive = this.isReflexivePossessive(i, analysis);
+          const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender, isReflexive);
           inflected.push({
             ...item,
-            inflected: possessiveForm
+            inflected: possessiveForm,
+            reflexive: isReflexive
           });
           break;
           
@@ -2900,12 +2959,86 @@ class GrammarEngine {
   }
   
   // Get appropriate possessive form
-  getPossessiveForm(possessiveData, gender) {
+  getPossessiveForm(possessiveData, gender, isReflexive = false) {
+    // Use reflexive form if available and reflexive is true
+    if (isReflexive && possessiveData.reflexive) {
+      return gender === 'f' ? possessiveData.reflexive.fem_sg :
+             gender === 'n' ? possessiveData.reflexive.neut_sg :
+             possessiveData.reflexive.masc_sg;
+    }
+    // Otherwise use standard form
     return gender === 'f' ? possessiveData.fem_sg :
            gender === 'n' ? possessiveData.neut_sg :
            possessiveData.masc_sg;
   }
-  
+
+  // Check if a verb is a linking verb (be, become, seem, etc.)
+  isLinkingVerb(verbValue) {
+    const linkingVerbs = new Set(['be', 'am', 'is', 'are', 'was', 'were', 'been',
+                                  'become', 'becomes', 'became', 'seem', 'seems', 'seemed',
+                                  'appear', 'appears', 'appeared', 'look', 'looks', 'looked',
+                                  'feel', 'feels', 'felt', 'sound', 'sounds', 'sounded',
+                                  'taste', 'tastes', 'tasted', 'smell', 'smells', 'smelled']);
+    return linkingVerbs.has(verbValue);
+  }
+
+  // Determine if a possessive is reflexive (referring back to the subject)
+  isReflexivePossessive(index, analysis) {
+    // Find the noun that follows this possessive
+    let targetNounIndex = -1;
+    for (let j = index + 1; j < analysis.length; j++) {
+      const item = analysis[j];
+      if (item.type === 'space' || item.type === 'punctuation') continue;
+      if (item.wordType === 'adjective') continue; // Skip adjectives
+      if (item.wordType === 'noun' || (item.type === 'compound') || (item.type === 'translated')) {
+        targetNounIndex = j;
+        break;
+      }
+      break; // Hit different type of word
+    }
+
+    if (targetNounIndex === -1) return false; // No noun found, default to non-reflexive
+
+    // Look backward to find the subject (nominative pronoun or noun)
+    let subjectIndex = -1;
+    for (let j = index - 1; j >= 0; j--) {
+      const item = analysis[j];
+      if (item.type === 'space') continue;
+      if (item.type === 'punctuation') break;
+      if (item.wordType === 'pronoun' && item.case === 'nom') {
+        subjectIndex = j;
+        break;
+      }
+      if (item.wordType === 'noun') {
+        subjectIndex = j;
+        break;
+      }
+    }
+
+    // Look for a verb between the subject and the target noun
+    let verbIndex = -1;
+    for (let j = index - 1; j >= 0; j--) {
+      const item = analysis[j];
+      if (item.type === 'word' && (CONJ[item.value] || item.wordType === 'verb')) {
+        verbIndex = j;
+        break;
+      }
+    }
+
+    // If there's no verb before the possessive, or the possessive-noun is before the verb, it's non-reflexive
+    if (verbIndex === -1) {
+      return false; // No verb found, it's non-reflexive (e.g., in subject position)
+    }
+
+    // If the verb is a linking verb and the noun is after it, it's non-reflexive (predicate position)
+    if (this.isLinkingVerb(analysis[verbIndex]?.value?.toLowerCase() || '')) {
+      return false; // Linking verb indicates predicate position, non-reflexive
+    }
+
+    // If the target noun comes after the verb, it's in object position, so reflexive
+    return targetNounIndex > verbIndex;
+  }
+
   // Get appropriate noun form
   getNounForm(noun, case_, number) {
     if (noun.wordType === 'translated' && noun.translation) {
