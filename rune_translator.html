@@ -152,6 +152,131 @@ const REGEX_HAS_LETTER = /[a-záéíóúýæøöǫþðä]/;
 const REGEX_NEWLINE = /\n/;
 const REGEX_BRACKET_TEXT = /\[([^\]]*)\]/;
 
+// ─── PROTO-GERMANIC ETYMOLOGICAL PATTERNS ────────────────────────────────────
+// Auto-detection patterns for 'e' that came from Proto-Germanic 'a'
+// These patterns identify words that commonly underwent 'a' → 'e' vowel shifts
+const PROTO_E_FROM_A_PATTERNS = [
+  /enn$/,      // -enn endings (þenna, menn < þanǭ, manǭ)
+  /eri$/,      // -eri endings
+  /ella$/,     // -ella endings
+  /ett$/,      // -ett endings
+];
+
+// ─── ETYMOLOGICAL VOWEL SELECTION HELPERS ────────────────────────────────────
+
+/**
+ * Get the Proto-Germanic form of an Old Norse word by looking it up in EN_TO_ON
+ * This searches for which English word produces this Old Norse form
+ * @param {string} onWord - The Old Norse word to look up
+ * @returns {string|null} The Proto-Germanic form if found, or null
+ */
+function getProtoGermanicForm(onWord) {
+  if(!onWord) return null;
+
+  for(const [english, entry] of Object.entries(EN_TO_ON)) {
+    // Handle both simple string mappings and complex declension objects
+    let protoForm = null;
+
+    if(typeof entry === 'string') {
+      // Simple mapping - no Proto-Germanic data available
+      continue;
+    } else if(typeof entry === 'object' && entry.protoGermanic) {
+      protoForm = entry.protoGermanic;
+    } else if(typeof entry === 'object' && entry.base) {
+      // Check if any form of this word matches the onWord
+      const forms = [
+        entry.base, entry.nom_sg, entry.acc_sg, entry.dat_sg,
+        entry.nom_pl, entry.acc_pl, entry.dat_pl
+      ];
+
+      if(forms.includes(onWord) && entry.protoGermanic) {
+        return entry.protoGermanic;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if 'e' at a given position in an Old Norse word should use ᛅ (Ár) instead of ᛁ (Íss)
+ * This implements the rule: 'e' that came from Proto-Germanic 'a' should use ᛅ
+ * @param {string} onWord - The full Old Norse word
+ * @param {number} position - The position of 'e' in the word
+ * @returns {boolean} True if should use ᛅ (Ár), false if should use ᛁ (Íss)
+ */
+function shouldUseAForE(onWord, position) {
+  if(!onWord || position < 0 || position >= onWord.length) return false;
+
+  const char = onWord.toLowerCase()[position];
+  if(char !== 'e') return false;
+
+  // First: try to find Proto-Germanic form with explicit mapping
+  const protoForm = getProtoGermanicForm(onWord);
+  if(protoForm) {
+    const correspondenceMap = vowelCorrespondenceMap(onWord, protoForm);
+    if(correspondenceMap && correspondenceMap.has(position)) {
+      return correspondenceMap.get(position) === 'a';
+    }
+  }
+
+  // Second: try auto-detection patterns for words without explicit Proto-Germanic data
+  for(const pattern of PROTO_E_FROM_A_PATTERNS) {
+    if(pattern.test(onWord.toLowerCase())) {
+      // Words matching these patterns commonly have 'a' → 'e' shifts
+      return true;
+    }
+  }
+
+  // Default: use modern spelling (e → ᛁ)
+  return false;
+}
+
+/**
+ * Build a vowel position mapping between Old Norse and Proto-Germanic forms
+ * Maps which vowels in the Old Norse word correspond to which in Proto-Germanic
+ * @param {string} onWord - The Old Norse word
+ * @param {string} protoWord - The Proto-Germanic form
+ * @returns {Map|null} Map of position → original vowel from Proto-Germanic, or null if can't map
+ */
+function vowelCorrespondenceMap(onWord, protoWord) {
+  if(!onWord || !protoWord) return null;
+
+  const lowerOn = onWord.toLowerCase();
+  const lowerProto = protoWord.toLowerCase();
+
+  // Simple alignment: if lengths are similar, assume direct character mapping
+  // This is a heuristic for words with regular phonetic changes
+  if(Math.abs(lowerOn.length - lowerProto.length) <= 2) {
+    const map = new Map();
+    let protoIdx = 0;
+
+    for(let i = 0; i < lowerOn.length && protoIdx < lowerProto.length; i++) {
+      // Only map vowels
+      if('aeiouáéíóúýæøöǫ'.includes(lowerOn[i])) {
+        // Find corresponding vowel in Proto-Germanic word
+        while(protoIdx < lowerProto.length && !'aeiouáéíóúýæøöǫ'.includes(lowerProto[protoIdx])) {
+          protoIdx++;
+        }
+
+        if(protoIdx < lowerProto.length) {
+          // Record what vowel was in Proto-Germanic at this position
+          const protoVowel = lowerProto[protoIdx];
+          // Normalize all 'a' variants to 'a', all 'o' variants to 'o', etc.
+          if('aáæ'.includes(protoVowel)) {
+            map.set(i, 'a');
+          }
+          protoIdx++;
+        }
+      }
+    }
+
+    return map.size > 0 ? map : null;
+  }
+
+  return null;
+}
+
 function onToRunes(text) {
   // Input validation
   if(!text || typeof text !== 'string') return [];
@@ -166,6 +291,21 @@ function onToRunes(text) {
     if(pos >= lower.length) return true;
     const ch = lower[pos];
     return /[\s\n\-.,;:!?\[\]]/.test(ch);
+  };
+
+  // Helper: extract the current word being processed (for etymological context)
+  const getCurrentWord = (pos) => {
+    // Find word start (go backwards from pos to word boundary)
+    let start = pos;
+    while(start > 0 && !/[\s\n\-.,;:!?\[\]]/.test(lower[start-1])) {
+      start--;
+    }
+    // Find word end (go forwards from pos to word boundary)
+    let end = pos;
+    while(end < lower.length && !/[\s\n\-.,;:!?\[\]]/.test(lower[end])) {
+      end++;
+    }
+    return { word: lower.substring(start, end), wordStart: start, relativePos: pos - start };
   };
 
   while(i < lower.length) {
@@ -205,7 +345,14 @@ function onToRunes(text) {
         }
         // Special handling for 'r': use r_final if at end of word
         let finalSound = sound;
-        if(pat === 'r' && isWordBoundary(i + pat.length)) {
+        if(pat === 'e' && sound === 'i') {
+          const { word, relativePos } = getCurrentWord(i);
+          if(shouldUseAForE(word, relativePos)) {
+            finalSound = 'a';
+          }
+        }
+        // Special handling for 'r': use r_final if at end of word
+        else if(pat === 'r' && isWordBoundary(i + pat.length)) {
           finalSound = 'r_final';
         }
 
@@ -732,6 +879,7 @@ const ADJECTIVES = {
     neut_nom_pl: 'ung',      neut_acc_pl: 'ung',      neut_dat_pl: 'ungum',
   },
   'strong': {
+    protoGermanic: 'starkaz',
     base: 'sterkr',
     masc_nom_sg: 'sterkr',   masc_acc_sg: 'sterkan',  masc_dat_sg: 'sterkum',
     fem_nom_sg: 'sterk',     fem_acc_sg: 'sterka',    fem_dat_sg: 'sterkri',
@@ -870,6 +1018,7 @@ const POSSESSIVES = {
 // Used to ensure proper agreement with the head noun
 const DEMONSTRATIVES = {
   'this': {
+    protoGermanic: 'þasja',  // Proto-Germanic form with 'a' vowels
     masc_sg: 'þessi',  fem_sg: 'þessi',  neut_sg: 'þetta',
     masc_acc: 'þennan', fem_acc: 'þessa', neut_acc: 'þetta',
     masc_dat: 'þessum', fem_dat: 'þessari', neut_dat: 'þessum',
@@ -914,7 +1063,7 @@ const NOUN_DECLENSION = {
   // ── Masculine strong (a-stem consonant) ──
   // Class: Strong masculine (like maðr, kappi, konungr)
   // Pattern: nom -r/-∅, acc -n/-∅, dat -i/-∅ (or -um/-um for plural)
-  'man': { base: 'maðr', nom_sg: 'maðr', acc_sg: 'mann', dat_sg: 'manni',
+  'man': { protoGermanic: 'manaz', base: 'maðr', nom_sg: 'maðr', acc_sg: 'mann', dat_sg: 'manni',
            nom_pl: 'menn', acc_pl: 'menn', dat_pl: 'mönnum' },
   'warrior': { base: 'kappi', nom_sg: 'kappi', acc_sg: 'kappa', dat_sg: 'kappa',
                nom_pl: 'kappar', acc_pl: 'kappa', dat_pl: 'kappum' },
@@ -930,9 +1079,9 @@ const NOUN_DECLENSION = {
             nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
   'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðri',
                nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
-  'father': { base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
+  'father': { protoGermanic: 'faderaz', base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
               nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
-  'fire': { base: 'eldr', nom_sg: 'eldr', acc_sg: 'eld', dat_sg: 'eldi',
+  'fire': { protoGermanic: 'aldiz', base: 'eldr', nom_sg: 'eldr', acc_sg: 'eld', dat_sg: 'eldi',
             nom_pl: 'eldar', acc_pl: 'elda', dat_pl: 'eldum' },
   'day': { base: 'dagr', nom_sg: 'dagr', acc_sg: 'dag', dat_sg: 'degi',
            nom_pl: 'dagar', acc_pl: 'daga', dat_pl: 'dagum' },
@@ -976,7 +1125,7 @@ const NOUN_DECLENSION = {
              nom_pl: 'nætr', acc_pl: 'nætr', dat_pl: 'nóttum' },
 
   // ── Neuter consonant-stem ──
-  'sword': { base: 'sverð', nom_sg: 'sverð', acc_sg: 'sverð', dat_sg: 'sverði',
+  'sword': { protoGermanic: 'swardiz', base: 'sverð', nom_sg: 'sverð', acc_sg: 'sverð', dat_sg: 'sverði',
              nom_pl: 'sverd', acc_pl: 'sverd', dat_pl: 'sverðum' },
   'house': { base: 'hús', nom_sg: 'hús', acc_sg: 'hús', dat_sg: 'húsi',
              nom_pl: 'hús', acc_pl: 'hús', dat_pl: 'húsum' },
