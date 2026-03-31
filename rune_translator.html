@@ -532,6 +532,8 @@ const CONJ = {
   'request':['bið',   'beiðr', 'beiðr', 'biðjum','biðið',  'biðja'],
   // heita — to promise (strong class 1)
   'promise':['heit',  'heitr', 'heitr', 'heitum','heitið', 'heita'],
+  // heita — to be called (strong class 1)
+  'heita':  ['heiti', 'heitir','heitir','heitum','heitið', 'heita'],
   // muna — to remember (preterite-present)
   'remember':['man', 'mant',  'man',   'munum', 'munið',  'munu'],
   // hugsa — to think (weak)
@@ -1263,6 +1265,8 @@ const EN_TO_ON = {
   'showed':'sýndi', 'felt':'fann',
   'found':'fann', 'left':'fór',
   'called':'kallaði', 'tried':'freisti', 'wanted':'vildi', 'was called':'hét',
+  'is called':'heitir', 'are called':'heita', 'be called':'heita', 'being called':'heitandi',
+  'who was called':'er hét', 'who is called':'er heitir', 'who are called':'er heita',
   'lived':'lifði', 'died':'dó',
   'killed':'drap', 'fought':'barðist',
   'won':'vann', 'lost':'tapað',
@@ -2555,6 +2559,12 @@ class GrammarEngine {
         analysis.wordType = 'possessive-compound';
         analysis.translation = phrase.translation;
         analysis.gender = phrase.gender;
+      } else if (['is called', 'am called', 'are called', 'be called', 'being called'].includes(phrase.value)) {
+        // Special handling for "be called" verb phrases - map to heita
+        analysis.wordType = 'verb';
+        analysis.verbData = CONJ['heita'];
+        analysis.conjugation = 'heita-phrase';
+        analysis.isBeCalledPhrase = true;
       } else {
         analysis.wordType = 'translated';
         analysis.translation = phrase.translation;
