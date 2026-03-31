@@ -176,8 +176,23 @@ function onToRunes(text) {
     let matched = false;
     for(const [pat, sound] of ON_SORTED) {
       if(lower.slice(i, i+pat.length) === pat) {
-        const entry = soundToRune[sound];
-        if(entry) result.push({rune:entry.r, name:entry.name});
+        // Special handling for diphthongs that should be represented by two runes
+        if(pat === 'ei') {
+          // 'ei' from historical 'ai' → ᛅ (Óss/'a') + ᛁ (Íss/'i')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᛁ', name:'Íss'});
+        } else if(pat === 'ey') {
+          // 'ey' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᚢ', name:'Úr'});
+        } else if(pat === 'au') {
+          // 'au' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Óss'});
+          result.push({rune:'ᚢ', name:'Úr'});
+        } else {
+          const entry = soundToRune[sound];
+          if(entry) result.push({rune:entry.r, name:entry.name});
+        }
         i += pat.length; matched = true; break;
       }
     }
