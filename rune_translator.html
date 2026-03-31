@@ -82,10 +82,12 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 // One rune covers multiple sounds — ambiguity is a feature, not a bug.
 const FUTHARK = [
   {r:'ᚠ', sounds:['f','v'],        name:'Fé'},
-  {r:'ᚢ', sounds:['u','o','w'],    name:'Úr'},
+  {r:'ᚢ', sounds:['u','w'],        name:'Úr'},
   {r:'ᚦ', sounds:['th','dh'],      name:'Þurs'},
-  {r:'ᚬ', sounds:['a','æ','o2'],   name:'Óss'},
+  {r:'ᛅ', sounds:['a'],            name:'Ár'},
+  {r:'ᚬ', sounds:['o'],            name:'Óss'},
   {r:'ᚱ', sounds:['r'],            name:'Reið'},
+  {r:'ᛦ', sounds:['r_final'],      name:'Ýr'},
   {r:'ᚴ', sounds:['k','g'],        name:'Kaun'},
   {r:'ᚼ', sounds:['h'],            name:'Hagall'},
   {r:'ᚾ', sounds:['n'],            name:'Nauðr'},
@@ -129,13 +131,13 @@ const ON_RULES = [
   // ON special characters
   ['þ',  'th'], ['ð',  'th'],
   ['æ',  'a'],  ['œ',  'i'],
-  ['ø',  'u'],  ['ö',  'u'], ['ǫ', 'u'],
+  ['ø',  'o'],  ['ö',  'o'], ['ǫ', 'o'],
   ['á',  'a'],  ['é',  'i'], ['í', 'i'],
-  ['ó',  'u'],  ['ú',  'u'], ['ý', 'i'],
+  ['ó',  'o'],  ['ú',  'u'], ['ý', 'i'],
   // Plain letters — YF collapses
   ['a','a'], ['b','b'], ['d','t'], ['e','i'], ['f','f'],
   ['g','k'], ['h','h'], ['i','i'], ['j','i'], ['k','k'],
-  ['l','l'], ['m','m'], ['n','n'], ['o','u'], ['p','b'],
+  ['l','l'], ['m','m'], ['n','n'], ['o','o'], ['p','b'],
   ['r','r'], ['s','s'], ['t','t'], ['u','u'], ['v','f'],
   ['w','u'], ['y','i'], ['z','s'],
 ];
@@ -158,6 +160,14 @@ function onToRunes(text) {
   const lower = text.toLowerCase();
   let i = 0;
   const result = [];
+
+  // Helper: check if position is a word boundary (end of word)
+  const isWordBoundary = (pos) => {
+    if(pos >= lower.length) return true;
+    const ch = lower[pos];
+    return /[\s\n\-.,;:!?\[\]]/.test(ch);
+  };
+
   while(i < lower.length) {
     if(lower[i] === ' ') { result.push({space:true}); i++; continue; }
     if(lower[i] === '\n') { result.push({newline:true}); i++; continue; }
@@ -176,7 +186,13 @@ function onToRunes(text) {
     let matched = false;
     for(const [pat, sound] of ON_SORTED) {
       if(lower.slice(i, i+pat.length) === pat) {
-        const entry = soundToRune[sound];
+        // Special handling for 'r': use r_final if at end of word
+        let finalSound = sound;
+        if(pat === 'r' && isWordBoundary(i + pat.length)) {
+          finalSound = 'r_final';
+        }
+
+        const entry = soundToRune[finalSound];
         if(entry) result.push({rune:entry.r, name:entry.name});
         i += pat.length; matched = true; break;
       }
