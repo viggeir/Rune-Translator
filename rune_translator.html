@@ -82,10 +82,12 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 // One rune covers multiple sounds — ambiguity is a feature, not a bug.
 const FUTHARK = [
   {r:'ᚠ', sounds:['f','v'],        name:'Fé'},
-  {r:'ᚢ', sounds:['u','o','w'],    name:'Úr'},
+  {r:'ᚢ', sounds:['u','w'],        name:'Úr'},
   {r:'ᚦ', sounds:['th','dh'],      name:'Þurs'},
-  {r:'ᚬ', sounds:['a','æ','o2'],   name:'Óss'},
+  {r:'ᛅ', sounds:['a'],            name:'Ár'},
+  {r:'ᚬ', sounds:['o'],            name:'Óss'},
   {r:'ᚱ', sounds:['r'],            name:'Reið'},
+  {r:'ᛦ', sounds:['r_final'],      name:'Ýr'},
   {r:'ᚴ', sounds:['k','g'],        name:'Kaun'},
   {r:'ᚼ', sounds:['h'],            name:'Hagall'},
   {r:'ᚾ', sounds:['n'],            name:'Nauðr'},
@@ -129,13 +131,13 @@ const ON_RULES = [
   // ON special characters
   ['þ',  'th'], ['ð',  'th'],
   ['æ',  'a'],  ['œ',  'i'],
-  ['ø',  'u'],  ['ö',  'u'], ['ǫ', 'u'],
+  ['ø',  'o'],  ['ö',  'o'], ['ǫ', 'o'],
   ['á',  'a'],  ['é',  'i'], ['í', 'i'],
-  ['ó',  'u'],  ['ú',  'u'], ['ý', 'i'],
+  ['ó',  'o'],  ['ú',  'u'], ['ý', 'i'],
   // Plain letters — YF collapses
   ['a','a'], ['b','b'], ['d','t'], ['e','i'], ['f','f'],
   ['g','k'], ['h','h'], ['i','i'], ['j','i'], ['k','k'],
-  ['l','l'], ['m','m'], ['n','n'], ['o','u'], ['p','b'],
+  ['l','l'], ['m','m'], ['n','n'], ['o','o'], ['p','b'],
   ['r','r'], ['s','s'], ['t','t'], ['u','u'], ['v','f'],
   ['w','u'], ['y','i'], ['z','s'],
 ];
@@ -158,6 +160,14 @@ function onToRunes(text) {
   const lower = text.toLowerCase();
   let i = 0;
   const result = [];
+
+  // Helper: check if position is a word boundary (end of word)
+  const isWordBoundary = (pos) => {
+    if(pos >= lower.length) return true;
+    const ch = lower[pos];
+    return /[\s\n\-.,;:!?\[\]]/.test(ch);
+  };
+
   while(i < lower.length) {
     if(lower[i] === ' ') { result.push({space:true}); i++; continue; }
     if(lower[i] === '\n') { result.push({newline:true}); i++; continue; }
@@ -193,6 +203,14 @@ function onToRunes(text) {
           const entry = soundToRune[sound];
           if(entry) result.push({rune:entry.r, name:entry.name});
         }
+        // Special handling for 'r': use r_final if at end of word
+        let finalSound = sound;
+        if(pat === 'r' && isWordBoundary(i + pat.length)) {
+          finalSound = 'r_final';
+        }
+
+        const entry = soundToRune[finalSound];
+        if(entry) result.push({rune:entry.r, name:entry.name});
         i += pat.length; matched = true; break;
       }
     }
@@ -400,7 +418,7 @@ const OBJECT_PRONOUNS  = new Set(['me','you','him','her','it','us','them','whom'
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
-const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within']);
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within','after','before']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
 const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
@@ -544,6 +562,8 @@ const CONJ = {
   'conquer':['sigri', 'sigrir','sigrir','sigrum', 'sigrið', 'sigra'],
   // þola — to endure (weak)
   'endure': ['þoli',  'þolir', 'þolir', 'þolum',  'þolið',  'þola'],
+  // reisa — to raise (weak class 2)
+  'raise':  ['reisa', 'reisir','reisir','reissum','reisið', 'reisa'],
 };
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
@@ -561,7 +581,7 @@ const NOUN_GENDER = {
   'man':'m', 'men':'m', 'woman':'f', 'women':'f',
   'girl':'f', 'girls':'f', 'boy':'m', 'boys':'m', 'maiden':'f', 'maidens':'f',
   'king':'m', 'kings':'m', 'queen':'f', 'queens':'f', 'lord':'m', 'lords':'m', 'lady':'f', 'ladies':'f',
-  'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m',
+  'warrior':'m', 'warriors':'m', 'jarl':'m', 'jarls':'m', 'thane':'m', 'thanes':'m', 'carl':'m', 'carls':'m', 'thrall':'m', 'thralls':'m', 'viking':'m', 'vikings':'m',
   'friend':'m', 'friends':'m', 'foe':'m', 'foes':'m', 'enemy':'m', 'enemies':'m',
   'brother':'m', 'brothers':'m', 'sister':'f', 'sisters':'f', 'father':'m', 'fathers':'m', 'mother':'f', 'mothers':'f',
   'son':'m', 'sons':'m', 'daughter':'f', 'daughters':'f', 'wife':'f', 'wives':'f', 'husband':'m', 'husbands':'m',
@@ -823,6 +843,28 @@ const POSSESSIVES = {
   },
 };
 
+// ─── DEMONSTRATIVES with Gender Agreement ─────────────────────────────────────
+// Demonstratives (this, that, etc.) that inflect for gender and case
+// Used to ensure proper agreement with the head noun
+const DEMONSTRATIVES = {
+  'this': {
+    masc_sg: 'þessi',  fem_sg: 'þessi',  neut_sg: 'þetta',
+    masc_acc: 'þennan', fem_acc: 'þessa', neut_acc: 'þetta',
+    masc_dat: 'þessum', fem_dat: 'þessari', neut_dat: 'þessum',
+  },
+  'that': {
+    masc_sg: 'sá',     fem_sg: 'sú',     neut_sg: 'þat',
+    masc_acc: 'þann',  fem_acc: 'þá',    neut_acc: 'þat',
+    masc_dat: 'þeim',  fem_dat: 'þeirri', neut_dat: 'þeim',
+  },
+  'these': {
+    masc_sg: 'þessir', fem_sg: 'þessar', neut_sg: 'þessi',
+  },
+  'those': {
+    masc_sg: 'þeir',   fem_sg: 'þær',    neut_sg: 'þau',
+  },
+};
+
 // ─── SPECIAL COMPOUNDS (Centralized) ───────────────────────────────────────────
 // Consolidated list of known compounds and special word combinations
 const SPECIAL_COMPOUNDS = {
@@ -864,7 +906,7 @@ const NOUN_DECLENSION = {
              nom_pl: 'óvinir', acc_pl: 'ófína', dat_pl: 'óvinum' },
   'jarl': { base: 'jarl', nom_sg: 'jarl', acc_sg: 'jarl', dat_sg: 'jarli',
             nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
-  'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðir',
+  'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðri',
                nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
   'father': { base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
               nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
@@ -886,6 +928,8 @@ const NOUN_DECLENSION = {
             nom_pl: 'úlfar', acc_pl: 'úlfa', dat_pl: 'úlfum' },
   'raven': { base: 'hrafn', nom_sg: 'hrafn', acc_sg: 'hrafn', dat_sg: 'hrafni',
              nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum' },
+  'viking': { base: 'víking', nom_sg: 'víking', acc_sg: 'víking', dat_sg: 'vítingi',
+              nom_pl: 'vítingar', acc_pl: 'vítinga', dat_pl: 'vítingum' },
 
   // ── Feminine o-stem ──
   'woman': { base: 'kona', nom_sg: 'kona', acc_sg: 'konu', dat_sg: 'konu',
@@ -1192,8 +1236,8 @@ const EN_TO_ON = {
   'mine':'minn', 'yours':'þinn', 'ours':'várr', 'theirs':'þeirra',
   'myself':'sjálfr mér', 'yourself':'sjálfr þér', 'himself':'sjálfr honum',
   'herself':'sjálfr henni', 'itself':'sjálft þat', 'ourselves':'sjálfir oss',
-  'this':'þetta', 'that':'þat', 'these':'þessi', 'those':'þeir',
-  'who':'hverr', 'whom':'hverjum', 'which':'hvert', 'what':'hvat',
+  'this':'þessi', 'that':'þat', 'these':'þessi', 'those':'þeir',
+  'who':'eR', 'whom':'eR', 'which':'hvert', 'what':'hvat',
   'where':'hvar', 'when':'hvenær', 'why':'hví', 'how':'hvernig',
   'someone':'nokkverr', 'something':'nokkut', 'anyone':'hverr sem',
   'anything':'hvat sem', 'everyone':'allir', 'everything':'allt', 'nothing':'ekkert',
@@ -1201,7 +1245,7 @@ const EN_TO_ON = {
   // "the" intentionally omitted — ON uses suffixed articles
   // "a/an" removed — ON usually omits indefinite article
   'and':'ok', 'or':'eða', 'but':'en', 'if':'ef', 'then':'þá', 'so':'svá',
-  'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjök', 'too':'of', 'also':'ok',
+  'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjǫk', 'too':'of', 'also':'ok',
   'now':'nú', 'here':'hér', 'there':'þar', 'still':'enn',
   'ever':'jafnan', 'never':'aldri', 'always':'jafnan', 'often':'opt',
   'much':'mjök', 'many':'margr', 'more':'meir', 'most':'mest',
@@ -1235,14 +1279,14 @@ const EN_TO_ON = {
   'became':'varð',
   'showed':'sýndi', 'felt':'fann',
   'found':'fann', 'left':'fór',
-  'called':'kallaði', 'tried':'freisti', 'wanted':'vildi',
+  'called':'kallaði', 'tried':'freisti', 'wanted':'vildi', 'was called':'hét',
   'lived':'lifði', 'died':'dó',
   'killed':'drap', 'fought':'barðist',
   'won':'vann', 'lost':'tapað',
   'rode':'reið', 'ran':'rann',
   'fell':'fell',
   'stood':'stóð', 'sat':'sat',
-  'lay':'lá', 'rose':'reis',
+  'lay':'lá', 'rose':'reis', 'raised':'reisti',
   'held':'hélt', 'bore':'bar',
   'brought':'fœrði', 'sent':'sendi',
   'sought':'sótti', 'heard':'heyrði',
@@ -1447,6 +1491,7 @@ const EN_TO_ON = {
 
   // ── SAGA & STORYTELLING (60+ words) ──
   'hero':'hetja', 'heroes':'hetjur', 'champion':'hetja', 'warrior':'hetja', 'warrior-king':'konungr hetja',
+  'viking':'víking', 'vikings':'vítingur',
   'blade':'sverð', 'axe-blade':'ox', 'spear-point':'oddr', 'arrow-tip':'snið',
   'quest':'leit', 'adventure':'útangöngur', 'expedition':'for', 'campaign':'herferð',
   'raid':'herreið', 'invasion':'ásigkomuðr', 'siege':'ásáss', 'skirmish':'bardagi',
@@ -2400,7 +2445,7 @@ function detectPhrase(tokens, startIndex) {
           const possessive = phraseTokens[0]?.value;
           const noun = phraseTokens[1]?.value;
           const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
-          
+
           if (nounTranslation) {
             const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
             const possForm = POSSESSIVES[possessive];
@@ -2417,6 +2462,36 @@ function detectPhrase(tokens, startIndex) {
               confidence: 0.9,
               gender: gender,
               possessive: possessive,
+              noun: noun
+            };
+            break;
+          }
+        }
+
+        // Fallback: Check for demonstrative + noun pattern (e.g., "this stone")
+        // Demonstratives must agree in gender and case with the head noun
+        if (length === 2 && DEMONSTRATIVES[phraseTokens[0]?.value]) {
+          const demonstrative = phraseTokens[0]?.value;
+          const noun = phraseTokens[1]?.value;
+          const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
+
+          if (nounTranslation) {
+            const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
+            const demonstForm = DEMONSTRATIVES[demonstrative];
+            // Use nominative singular form (most common default)
+            const form = gender === 'f' ? demonstForm.fem_sg
+                       : gender === 'n' ? demonstForm.neut_sg
+                       : demonstForm.masc_sg;
+
+            bestPhrase = {
+              type: 'demonstrative-phrase',
+              value: phraseString,
+              translation: `${form} ${nounTranslation}`,
+              tokens: phraseTokens,
+              length: phraseTokens.length + (phraseTokens.length - 1),
+              confidence: 0.85,
+              gender: gender,
+              demonstrative: demonstrative,
               noun: noun
             };
             break;
@@ -3987,16 +4062,43 @@ function copyRunes() {
 function flashCopy(btn){ btn.textContent='Copied'; setTimeout(()=>btn.textContent='Copy',1400); }
 
 // ─── SMART AUTO-COMPOUNDER ─────────────────────────────────────────────────────
+// Noun case forms for compound usage — maps nominative form to accusative/dative variants
+// These are primarily used for the second element in compounds
+const NOUN_CASE_FORMS = {
+  // Stone family - masculine
+  'steinn': { nom: 'steinn', acc: 'stein', dat: 'steini', gen: 'steins' },
+  'stein': { nom: 'stein', acc: 'stein', dat: 'steini', gen: 'steins' },
+  // Add more as needed for other commonly-compounded nouns
+};
+
+// Words that should NOT form generic compounds (Rule 5)
+// Includes pronouns, demonstratives, common adverbs, etc.
+const COMPOUND_BLACKLIST = new Set([
+  // Pronouns
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them',
+  'who', 'whom', 'what', 'which',
+  // Demonstratives & articles
+  'this', 'that', 'these', 'those', 'the', 'a', 'an',
+  // Common adverbs
+  'very', 'so', 'too', 'quite', 'just', 'only', 'well', 'now', 'then', 'here', 'there',
+  'up', 'down', 'out', 'in', 'on', 'off', 'over', 'under', 'before', 'after',
+  // Conjunctions & prepositions (shouldn't form compounds)
+  'and', 'or', 'but', 'if', 'as', 'for', 'of', 'to', 'from', 'at', 'by', 'with', 'in', 'on',
+  // Verbs (shouldn't form compounds as first element typically)
+  'be', 'have', 'do', 'go', 'come', 'see', 'know', 'think', 'make', 'take', 'give',
+  'is', 'are', 'was', 'were', 'being', 'been', 'has', 'have', 'had', 'does', 'did'
+]);
+
 // Intelligently forms Old Norse compounds following linguistic patterns
-function trySmartCompound(word1_en, word2_en) {
+function trySmartCompound(word1_en, word2_en, compoundCase = 'nom') {
   const word1_on = EN_TO_ON[word1_en];
   const word2_on = EN_TO_ON[word2_en];
 
   if(!word1_on || !word2_on) return null;
-  
+
   // Get gender from the head noun (second word)
   const gender = NOUN_GENDER[word2_en] || NOUN_GENDER[LEMMAS[word2_en]] || 'm';
-  
+
   // Apply Old Norse compound formation rules
   
   // Rule 1: Nature compounds (heather + rose, mountain + peak, etc.)
@@ -4133,40 +4235,59 @@ function trySmartCompound(word1_en, word2_en) {
   }
   
   // Rule 5: Generic compound with phonetic adaptation
+  // RESTRICTION: Don't create compounds with blacklisted words
+  // This prevents inappropriate combinations like "this stone" or "very good"
+  if (COMPOUND_BLACKLIST.has(word1_en) || COMPOUND_BLACKLIST.has(word2_en)) {
+    return null;
+  }
+
   // Apply common Old Norse compound sound changes
   let firstWord = word1_on;
   let secondWord = word2_on;
-  
+
+  // Apply case inflection to the second word if needed
+  // Most compounds use nominative, but some contexts may require accusative/dative
+  if (compoundCase !== 'nom' && NOUN_CASE_FORMS[word2_en]) {
+    const caseMap = NOUN_CASE_FORMS[word2_en];
+    if (compoundCase === 'acc' && caseMap.acc) {
+      secondWord = caseMap.acc;
+    } else if (compoundCase === 'dat' && caseMap.dat) {
+      secondWord = caseMap.dat;
+    } else if (compoundCase === 'gen' && caseMap.gen) {
+      secondWord = caseMap.gen;
+    }
+  }
+
   // Common sound changes in compounds:
   // 1. Final consonant often assimilates
   if(firstWord.endsWith('r') && secondWord.startsWith('r')) {
     firstWord = firstWord.slice(0, -1); // Remove final r before r
   }
-  
+
   // 2. Final -n often drops before consonants
   if(firstWord.endsWith('n') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
     firstWord = firstWord.slice(0, -1);
   }
-  
-  // 3. Final -t often drops before consonants  
+
+  // 3. Final -t often drops before consonants
   if(firstWord.endsWith('t') && !'aeiouáéíóúýæøöǫ'.includes(secondWord[0])) {
     firstWord = firstWord.slice(0, -1);
   }
-  
+
   // 4. Connecting vowel insertion for difficult consonant clusters
   const difficultClusters = [
     { pattern: /([lrndm])([lrndm])$/, insert: 'a' },
     { pattern: /([kgpt])([kgpt])$/, insert: 'a' },
     { pattern: /([st])([st])$/, insert: 'i' }
   ];
-  
+
   for(const cluster of difficultClusters) {
     if(firstWord.match(cluster.pattern)) {
       firstWord += cluster.insert;
       break;
     }
   }
-  
+
   return { on: firstWord + secondWord, gender: gender };
 }
 
