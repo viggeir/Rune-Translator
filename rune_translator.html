@@ -6078,6 +6078,9 @@ class GrammarEngine {
     } else if (value === 'er') {
       analysis.wordType = 'grammar-marker';
       analysis.translation = 'er';
+    } else if (POSSESSIVES[value]) {
+      analysis.wordType = 'possessive';
+      analysis.possessiveData = POSSESSIVES[value];
     } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
@@ -6105,13 +6108,11 @@ class GrammarEngine {
     } else if (ADJECTIVES[value]) {
       analysis.wordType = 'adjective';
       analysis.adjectiveData = ADJECTIVES[value];
-    } else if (POSSESSIVES[value]) {
-      analysis.wordType = 'possessive';
-      analysis.possessiveData = POSSESSIVES[value];
     } else if (NOUN_GENDER[value]) {
       analysis.wordType = 'noun';
       analysis.gender = NOUN_GENDER[value];
       analysis.nounData = { gender: NOUN_GENDER[value] };
+      analysis.translation = EN_TO_ON[value] || null;
     } else if (phrase.translation) {
       // Pre-translated phrase or compound
       if (phrase.type === 'possessive-phrase') {
@@ -6621,6 +6622,10 @@ class GrammarEngine {
 
   // Determine if a possessive is reflexive (referring back to the subject)
   isReflexivePossessive(index, analysis) {
+    const possessiveToken = (analysis[index]?.value || '').toLowerCase();
+    if (['my', 'your', 'his', 'her', 'our', 'their'].includes(possessiveToken)) {
+      return false;
+    }
     // Find the noun that follows this possessive
     let targetNounIndex = -1;
     for (let j = index + 1; j < analysis.length; j++) {
@@ -6816,12 +6821,10 @@ function translateWithPhraseParser(input) {
     const ir = parseLineToSyntaxIR(normalized);
     const realized = realizeSyntaxIR(ir);
 
-    const sourceLexemes = extractPotentialSourceLexemes(normalized);
-    const leaked = sourceLexemes.filter(tok => new RegExp(`(^|\\s)${tok}(\\s|$)`, 'i').test(realized.oldNorse));
-    const leakSafeOutput = enforceNoRawSourceLeakage(realized.oldNorse, [...(realized.unknowns || []), ...leaked]);
+    const leakSafeOutput = enforceNoRawSourceLeakage(realized.oldNorse, realized.unknowns || []);
 
     translatedLines.push(leakSafeOutput);
-    [...(realized.unknowns || []), ...leaked].forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+    (realized.unknowns || []).forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
   return { oldNorse: translatedLines.join('\n'), unknowns };
@@ -6907,10 +6910,12 @@ function formatUnresolvedToken(token) {
 
 function realizeLexicalItem(item) {
   if (!item || item.type === 'space' || item.type === 'punctuation') return '';
+  const grammarWordTypes = new Set(['grammar-marker', 'preposition', 'pronoun', 'verb', 'demonstrative', 'possessive', 'article']);
   const sourceToken = (item.value || item.en || '').toLowerCase();
   const resolved = (item.inflected || item.translation || item.on || item.value || item.en || '').toString().trim();
   if (!resolved) return '';
   if (/^\[[^\]]+\]$/.test(resolved)) return resolved;
+  if (grammarWordTypes.has(item.wordType)) return resolved;
   if (!sourceToken) return resolved;
   const mapped = EN_TO_ON[sourceToken];
   const hasMeaningfulTranslation = !!mapped && mapped.toLowerCase() !== sourceToken;
@@ -7396,6 +7401,11 @@ function enforceNoRawSourceLeakage(text, unknowns = []) {
   return output.replace(/\s{2,}/g, ' ').trim();
 }
 
+function reorderPossessiveNounPhrases(text) {
+  if (!text) return text;
+  return text.replace(/\b(minn|min|mitt|mín|þinn|þín|þitt|hans|hennar|þeirra|vár|várt|vor|sinn|sín|sitt)\s+([a-záðéíóúýþæöøǫ'-]+)\b/gi, '$2 $1');
+}
+
 function translateWithPhraseParserFallback(line) {
   const grammarEngine = new GrammarEngine();
   const tokens = tokenize(line);
@@ -7414,7 +7424,7 @@ function translateWithPhraseParserFallback(line) {
       text += `${realizeLexicalItem(item)} `;
     }
   });
-  return { text: enforceNoRawSourceLeakage(text.trim(), unknowns), unknowns };
+  return { text: enforceNoRawSourceLeakage(reorderPossessiveNounPhrases(text.trim()), unknowns), unknowns };
 }
 
 function normalizeEnglishIdioms(text) {
