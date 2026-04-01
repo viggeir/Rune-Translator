@@ -703,6 +703,16 @@ const CONJ = {
   'ride':   ['ríð',   'ríðr',  'ríðr',  'ríðum',  'ríðið',  'ríða'],
   // berjast — to fight (mediopassive)
   'fight':  ['berjumk','bersk', 'bersk', 'berjumk','berjisk','berjask'],
+  // jaga — to hunt (strong class 1)
+  'hunt':   ['jaga', 'jagar', 'jagar', 'jögum', 'jagið', 'jaga'],
+  // renna — to run (strong class 7)
+  'run':    ['renn', 'rennir', 'rennir', 'rennum', 'rennið', 'renna'],
+  // búa — to prepare (weak)
+  'prepare': ['búa', 'býr', 'býr', 'búum', 'búið', 'búa'],
+  // enda — to end (weak)
+  'end':    ['enda', 'endar', 'endar', 'endum', 'endið', 'enda'],
+  // tapa — to lose (strong class 7)
+  'lose':   ['tapa', 'tapir', 'tapir', 'tapum', 'tapuð', 'tapa'],
   // vinna — to win (strong class 3)
   'win':    ['vinn',  'vinnr', 'vinnr', 'vinnum', 'vinnið', 'vinna'],
   // elska repeated entries for adore/cherish handled via alias
@@ -819,6 +829,10 @@ const NOUN_GENDER = {
   'bow':'m', 'bows':'m', 'arrow':'f', 'arrows':'f', 'helm':'m', 'helms':'m', 'mail':'f',
   'war':'f', 'wars':'f', 'battle':'m', 'battles':'m', 'victory':'f', 'victories':'f', 'death':'f', 'deaths':'f',
   'life':'f', 'lives':'f', 'birth':'f', 'births':'f',
+  // People by action/role
+  'hunter':'m', 'hunters':'m', 'runner':'m', 'runners':'m',
+  // Abstract concepts
+  'preparation':'n', 'preparations':'n', 'ending':'n', 'endings':'n', 'endless':'n',
   // Ship
   'ship':'n', 'ships':'n', 'boat':'m', 'boats':'m', 'sail':'m', 'sails':'m',
   // Place
@@ -1263,6 +1277,9 @@ const LEMMAS = {
   'won':'win', 'lost':'lose',
   'rode':'ride', 'ran':'run',
   'fell':'fall',
+  
+  // ── Present tense verbs (3rd person singular) ──
+  'runs':'run', 'hunts':'hunt', 'prepares':'prepare', 'ends':'end', 'loses':'lose',
   'stood':'stand', 'sat':'sit',
   'lay':'lie', 'rose':'rise',
   'held':'hold', 'bore':'bear',
@@ -5528,6 +5545,20 @@ const CORE_USABILITY_EXPANSION = {
   'learn':'læra', 'lesson':'kennsla', 'teacher':'kennari', 'student':'nemi',
   'write':'rita', 'read':'lesa', 'word list':'orðaskrá',
   'dictionary':'orðabók', 'translation':'þýðing', 'meaning':'merking',
+  
+  // ── VERB FORMS EXPANSION (Present Tense & Related Forms) ──
+  // Only keep nouns, adjectives, and non-conjugatable words in EN_TO_ON
+  // Verbs are now properly in CONJ table above
+  
+  // Hunter/Runner (people - nouns)
+  'hunter':'jagari', 'hunters':'jagarar', 'runner':'rennari', 'runners':'rennarar',
+  
+  // Abstract concepts (nouns) 
+  'preparation':'búnaður', 'preparations':'búnaðir', 'ending':'endir', 'endings':'endir', 'endless':'endalaus',
+  
+  // Adjectives/States
+  'ready':'búinn', 'hunted':'jagað', 'lost':'tapað', 'running':'rennandi', 'hunting':'jagandi',
+  'prepared':'búinn', 'ended':'endað', 'losing':'tapandi', 'preparing':'búandi',
 };
 
 Object.assign(EN_TO_ON, CORE_USABILITY_EXPANSION);
