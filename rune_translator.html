@@ -900,6 +900,15 @@ const NOUN_GENDER = {
 // Format: { base: 'hugaðr', weak: {...}, strong: {...} }
 // For simplicity, using strong inflection (more common in predicates)
 const ADJECTIVES = {
+  'all': {
+    base: 'allr',
+    masc_nom_sg: 'allr',     masc_acc_sg: 'allan',    masc_dat_sg: 'öllum',
+    fem_nom_sg: 'öll',       fem_acc_sg: 'alla',      fem_dat_sg: 'allri',
+    neut_nom_sg: 'allt',     neut_acc_sg: 'allt',     neut_dat_sg: 'öllu',
+    masc_nom_pl: 'allir',    masc_acc_pl: 'alla',     masc_dat_pl: 'öllum',
+    fem_nom_pl: 'allar',     fem_acc_pl: 'allar',     fem_dat_pl: 'öllum',
+    neut_nom_pl: 'öll',      neut_acc_pl: 'öll',      neut_dat_pl: 'öllum',
+  },
   'great': {
     base: 'mikill',
     masc_nom_sg: 'mikill',   masc_acc_sg: 'mikinn',   masc_dat_sg: 'mikl',
@@ -1044,6 +1053,10 @@ const POSSESSIVES = {
   'his': {
     masc_sg: 'hans',  fem_sg: 'hans',  neut_sg: 'hans', // non-reflexive
     reflexive: { masc_sg: 'sinn', fem_sg: 'sín', neut_sg: 'sitt' }
+  },
+  'her': {
+    masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // non-reflexive
+    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín' }
   },
   'hers': {
     masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // non-reflexive
@@ -6058,8 +6071,19 @@ function detectPhrase(tokens, startIndex) {
           // Simple 2-word compound
           const word1 = phraseTokens[0]?.value;
           const word2 = phraseTokens[1]?.value;
+          if (POSSESSIVES[word1] && (NOUN_GENDER[word2] || NOUN_DECLENSION[word2] || EN_TO_ON[word2])) {
+            const gender = NOUN_GENDER[word2] || 'm';
+            const nounTranslation = EN_TO_ON[word2] || word2;
+            compound = {
+              on: `${word1} ${nounTranslation}`,
+              gender,
+              type: 'possessive-phrase',
+              possessive: word1,
+              noun: word2
+            };
+          }
           if (!ADJECTIVES[word1] && word1 !== 'very') {
-            compound = trySmartCompound(word1, word2);
+            compound = compound || trySmartCompound(word1, word2);
           }
         } else if (length === 3) {
           // Try 3-word patterns: possessive + compound, adjective + noun + noun, etc.
@@ -6138,13 +6162,15 @@ function detectPhrase(tokens, startIndex) {
         
         if (compound) {
           bestPhrase = {
-            type: compound.type === 'possessive-compound' ? 'possessive-compound' : 'compound',
+            type: ['possessive-compound', 'possessive-phrase'].includes(compound.type) ? compound.type : 'compound',
             value: phraseString,
             translation: compound.on,
             tokens: phraseTokens,
             length: phraseTokens.length + (phraseTokens.length - 1),
             confidence: 0.8,
-            gender: compound.gender
+            gender: compound.gender,
+            possessive: compound.possessive,
+            noun: compound.noun
           };
           break;
         }
@@ -6243,6 +6269,7 @@ class GrammarEngine {
         analysis.gender = phrase.gender;
         analysis.possessive = phrase.possessive;
         analysis.noun = phrase.noun;
+        analysis.possessiveData = POSSESSIVES[phrase.possessive] || null;
       } else if (phrase.type === 'possessive-compound') {
         analysis.wordType = 'possessive-compound';
         analysis.translation = phrase.translation;
@@ -6352,6 +6379,44 @@ class GrammarEngine {
       clauseStart = i + 1;
     }
   }
+
+  buildNounPhraseFeatureMap(analysis, lastVerbIndex) {
+    const featureMap = new Map();
+    const isNounLike = item => item && ['noun', 'dictionary', 'translated', 'possessive-phrase', 'possessive-compound'].includes(item.wordType);
+    const isModifierLike = item => item && ['adjective', 'possessive', 'demonstrative'].includes(item.wordType);
+
+    for (let i = 0; i < analysis.length; i++) {
+      const item = analysis[i];
+      if (!isNounLike(item)) continue;
+
+      const gender = item.gender || NOUN_GENDER[item.value] || 'm';
+      const number = inferNominalNumber(item.value || '') === 'plural' ? 'plural' : 'singular';
+      const caseForm = item.case && item.case !== 'undetermined'
+        ? item.case
+        : this.determineCaseForPosition(i, analysis, lastVerbIndex);
+
+      featureMap.set(i, { gender, number, case: caseForm });
+
+      for (let left = i - 1; left >= 0; left--) {
+        const prev = analysis[left];
+        if (!prev || prev.type === 'space') continue;
+        if (prev.type === 'punctuation') break;
+        if (!isModifierLike(prev) && prev.wordType !== 'article') break;
+        if (isModifierLike(prev)) {
+          featureMap.set(left, { gender, number, case: caseForm });
+        }
+      }
+
+      for (let right = i + 1; right < analysis.length; right++) {
+        const next = analysis[right];
+        if (!next || next.type === 'space') continue;
+        if (next.type === 'punctuation') break;
+        if (!isModifierLike(next)) break;
+        featureMap.set(right, { gender, number, case: caseForm });
+      }
+    }
+    return featureMap;
+  }
   
   // Determine pronoun case based on context
   determinePronounCase(index, context) {
@@ -6404,6 +6469,7 @@ class GrammarEngine {
     let currentNumber = 'singular';
     let currentCase = 'nom';
     let lastVerbIndex = -1;
+    const nounPhraseFeatures = this.buildNounPhraseFeatureMap(analysis, lastVerbIndex);
     
     for (let i = 0; i < analysis.length; i++) {
       const item = analysis[i];
@@ -6482,15 +6548,20 @@ class GrammarEngine {
           break;
           
         case 'adjective':
-          currentCase = item.case && item.case !== 'undetermined'
+          {
+          const npFeatures = nounPhraseFeatures.get(i);
+          const adjectiveGender = npFeatures?.gender || currentGender;
+          const adjectiveNumber = npFeatures?.number || currentNumber;
+          currentCase = npFeatures?.case || (item.case && item.case !== 'undetermined'
             ? item.case
-            : this.determineCaseForPosition(i, analysis, lastVerbIndex);
-          const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, currentGender, currentCase, currentNumber);
+            : this.determineCaseForPosition(i, analysis, lastVerbIndex));
+          const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, adjectiveGender, currentCase, adjectiveNumber);
           inflected.push({
             ...item,
             inflected: adjectiveForm
           });
           break;
+          }
         
         case 'adverb':
           inflected.push({
@@ -6500,13 +6571,28 @@ class GrammarEngine {
           break;
           
         case 'possessive-phrase':
-          // Already translated with correct possessive form, just pass through
+          {
+          const npCase = item.case && item.case !== 'undetermined'
+            ? item.case
+            : this.determineCaseForPosition(i, analysis, lastVerbIndex);
+          const npNumber = inferNominalNumber(item.noun || item.value) === 'plural' ? 'plural' : 'singular';
+          const nounForm = this.getNounForm({
+            ...item,
+            wordType: 'noun',
+            value: item.noun,
+            translation: EN_TO_ON[item.noun] || item.noun
+          }, npCase, npNumber);
+          const possessiveForm = item.possessiveData
+            ? this.getPossessiveForm(item.possessiveData, item.gender || 'm', this.isReflexivePossessive(i, analysis))
+            : item.possessive;
           inflected.push({
             ...item,
-            inflected: item.translation
+            inflected: `${nounForm} ${possessiveForm}`.trim(),
+            case: npCase
           });
           currentGender = item.gender || 'm';
           break;
+          }
           
         case 'possessive-compound':
           // Already translated possessive + compound, just pass through
@@ -6537,21 +6623,26 @@ class GrammarEngine {
             }
           }
 
-          // Determine if this possessive is reflexive (object position vs subject/predicate position)
+          const npFeatures = nounPhraseFeatures.get(i);
+          targetGender = npFeatures?.gender || targetGender;
           const isReflexive = this.isReflexivePossessive(i, analysis);
           const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender, isReflexive);
           inflected.push({
             ...item,
             inflected: possessiveForm,
-            reflexive: isReflexive
+            reflexive: isReflexive,
+            case: npFeatures?.case || item.case || 'nom'
           });
           break;
           
         case 'noun':
-          currentCase = item.case && item.case !== 'undetermined'
+          {
+          const npFeatures = nounPhraseFeatures.get(i);
+          currentCase = npFeatures?.case || (item.case && item.case !== 'undetermined'
             ? item.case
-            : this.determineCaseForPosition(i, analysis, lastVerbIndex);
-          const nounForm = this.getNounForm(item, currentCase, currentNumber);
+            : this.determineCaseForPosition(i, analysis, lastVerbIndex));
+          const nounNumber = npFeatures?.number || currentNumber;
+          const nounForm = this.getNounForm(item, currentCase, nounNumber);
           inflected.push({
             ...item,
             inflected: nounForm,
@@ -6564,6 +6655,7 @@ class GrammarEngine {
             currentNumber = inferNominalNumber(item.value);
           }
           break;
+          }
         case 'grammar-marker':
           inflected.push({
             ...item,
@@ -6983,14 +7075,25 @@ function parseSimpleClause(text, clauseType) {
     const head = possessiveRelMatch[1].trim();
     const embeddedText = predBoundary ? predBoundary[1].trim() : relTail;
     const embedded = parseEmbeddedClauseRoles(embeddedText);
+    const possessorPronoun = resolveHeadPossessorPronoun(head);
+    const possessedNoun = possessiveRelMatch[2].toLowerCase();
+    embedded.objectPhrase = {
+      type: 'possessed-noun',
+      noun: possessedNoun,
+      possessor: {
+        type: 'head-reference',
+        head,
+        pronoun: possessorPronoun
+      }
+    };
     clause.text = predBoundary ? `${head}${predBoundary[2]}`.trim() : head;
     clause.relative = {
       marker: 'er',
       type: 'possessive',
       head,
       attachmentTarget: head,
-      possessedNoun: possessiveRelMatch[2].toLowerCase(),
-      possessor: 'head',
+      possessedNoun,
+      possessor: embedded.objectPhrase.possessor,
       embedded,
       clause: embeddedText
     };
@@ -7088,7 +7191,7 @@ function buildRoleBasedClauseFromEnglish(text, options = {}) {
   return [subject, verb, object].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
-function inferPossessivePronounFromHead(headText) {
+function resolveHeadPossessorPronoun(headText) {
   const head = ((headText || '').match(/\b([a-z'-]+)\b(?=[^a-z'-]*$)/i) || [null, ''])[1].toLowerCase();
   if (['man', 'king', 'lord', 'warrior'].includes(head)) return 'his';
   if (['men', 'women', 'people', 'warriors', 'lords', 'kings'].includes(head)) return 'their';
@@ -7193,8 +7296,8 @@ function realizeClause(clause, inCounterfactual) {
       const relVerb = embedded.verb || '';
       const relObjectTail = embedded.object || '';
       const relTrailing = embedded.trailing || '';
-      const inheritedPossessor = inferPossessivePronounFromHead(clause.relative.head);
-      const basePossessed = `${inheritedPossessor} ${clause.relative.possessedNoun}`.trim();
+      const possessorPronoun = clause.relative.possessor?.pronoun || 'her';
+      const basePossessed = `${possessorPronoun} ${clause.relative.possessedNoun}`.trim();
       const possessedPhrase = relObjectTail ? `${basePossessed} ${relObjectTail}` : basePossessed;
       const roleClause = buildRoleBasedClauseFromEnglish('', { subject: relSubject, verb: relVerb, object: `${possessedPhrase} ${relTrailing}`.trim() });
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${roleClause}`);
@@ -7255,8 +7358,8 @@ function realizeClause(clause, inCounterfactual) {
     let relBase;
     if (clause.relative.type === 'possessive') {
       const embedded = clause.relative.embedded || parseEmbeddedClauseRoles(clause.relative.clause || '');
-      const inheritedPossessor = inferPossessivePronounFromHead(clause.relative.head);
-      const relObject = embedded.object ? `${inheritedPossessor} ${clause.relative.possessedNoun} ${embedded.object}` : `${inheritedPossessor} ${clause.relative.possessedNoun}`;
+      const possessorPronoun = clause.relative.possessor?.pronoun || 'her';
+      const relObject = embedded.object ? `${possessorPronoun} ${clause.relative.possessedNoun} ${embedded.object}` : `${possessorPronoun} ${clause.relative.possessedNoun}`;
       const relClause = buildRoleBasedClauseFromEnglish('', {
         subject: embedded.subject || 'i',
         verb: embedded.verb || '',
