@@ -821,6 +821,7 @@ const NOUN_GENDER = {
   'ship':'n', 'ships':'n', 'boat':'m', 'boats':'m', 'sail':'m', 'sails':'m',
   // Place
   'hall':'f', 'halls':'f', 'house':'n', 'houses':'n', 'home':'n', 'homes':'n', 'gate':'f', 'gates':'f',
+  'village':'n', 'villages':'n',
   'road':'m', 'roads':'m', 'path':'m', 'paths':'m', 'bridge':'f', 'bridges':'f',
   // Materials
   'gold':'n', 'silver':'n', 'iron':'n', 'irons':'n', 'steel':'n',
@@ -1203,6 +1204,8 @@ const NOUN_DECLENSION = {
              nom_pl: 'börn', acc_pl: 'börn', dat_pl: 'börnum' },
   'ship': { base: 'skip', nom_sg: 'skip', acc_sg: 'skip', dat_sg: 'skipi',
             nom_pl: 'skip', acc_pl: 'skip', dat_pl: 'skipum' },
+  'village': { base: 'þorp', nom_sg: 'þorp', acc_sg: 'þorp', dat_sg: 'þorpi',
+               nom_pl: 'þorp', acc_pl: 'þorp', dat_pl: 'þorpum' },
   'water': { base: 'vatn', nom_sg: 'vatn', acc_sg: 'vatn', dat_sg: 'vatni',
              nom_pl: 'vötn', acc_pl: 'vötn', dat_pl: 'vötnum' },
   'tree': { base: 'tré', nom_sg: 'tré', acc_sg: 'tré', dat_sg: 'tré',
@@ -1663,6 +1666,7 @@ const EN_TO_ON = {
   'read':'lesa', 'write':'skrifa', 'mark':'merkja', 'sign':'merkja',
   'ask':'spyrja', 'answer':'svara', 'request':'biðja', 'grant':'veita',
   'promise':'heita', 'swear':'sígja', 'vow':'heitast', 'curse':'bölva',
+  'curse verb':'bölva',
   'cursed':'bölvaðr', 'cursing':'bölvandi',
   'bless':'blessa', 'pray':'bæna', 'worship':'dýrka', 'honor':'dýrka',
   'remember':'muna', 'forget':'gleyma', 'think':'hugsa', 'know':'vita',
@@ -1725,6 +1729,7 @@ const EN_TO_ON = {
   // ── Expanded Nouns: Actions & Abstract (Phase 3) ──
   'journey':'far', 'quest':'leit', 'mission':'ferð', 'adventure':'útangöngur',
   'oath':'eiðr', 'curse':'bölvun', 'blessing':'blesun', 'prayer':'bæn',
+  'curse noun':'bölvun',
   'ritual':'blót', 'spell':'seiðr', 'prophecy':'spá', 'vision':'draumr',
   'omen':'spádómr', 'sign':'merki', 'message':'orðsending', 'letter':'bréf',
   'scroll':'skrá', 'book':'bók', 'verse':'vísa', 'poem':'kvæði',
@@ -5621,6 +5626,13 @@ const CONTEXT_PATTERNS = {
       test: (word, prev, next, tokens, idx) => {
         return prev && ['will', 'would', 'can', 'could', 'may', 'might', 'shall', 'should'].includes(prev);
       }
+    },
+    // After subject pronoun with following object: "she curse my name"
+    {
+      test: (word, prev, next, tokens, idx) => {
+        return prev && ['i', 'you', 'he', 'she', 'it', 'we', 'they'].includes(prev) &&
+               !!next && !['and', 'or', 'but'].includes(next);
+      }
     }
   ]
 };
@@ -5920,8 +5932,9 @@ function detectWordSense(word, context) {
   const senses = MULTI_SENSE_WORDS[word.toLowerCase()];
   if (!senses) return null; // Word has single meaning
   
-  // Check patterns in priority order: adjective > noun > verb
-  const priorityOrder = ['adjective', 'noun', 'verb'];
+  // Check patterns in priority order: adjective > verb > noun
+  // Predicate contexts should prefer verbal readings over nominal fallback.
+  const priorityOrder = ['adjective', 'verb', 'noun'];
   
   for (const wordType of priorityOrder) {
     if (!senses[wordType]) continue;
@@ -5934,8 +5947,11 @@ function detectWordSense(word, context) {
     }
   }
   
-  // Fallback to most common usage (for colors, it's usually adjective)
-  return senses.adjective ? 'adjective' : senses.noun ? 'noun' : 'verb';
+  // Fallback to most common usage while preserving likely predicate contexts.
+  if (context.prev && ['would', 'will', 'can', 'could', 'should', 'might', 'must', 'did', 'does', 'do'].includes(context.prev)) {
+    return senses.verb ? 'verb' : (senses.adjective ? 'adjective' : 'noun');
+  }
+  return senses.adjective ? 'adjective' : senses.verb ? 'verb' : 'noun';
 }
 
 // ─── PHRASE PARSER ARCHITECTURE ─────────────────────────────────────────────────────────
@@ -6295,7 +6311,12 @@ class GrammarEngine {
       // Try lemmatization and dictionary lookup
       const normalizedValue = normalizeLexiconToken(value);
       const lemma = normalizeLexiconToken(LEMMAS[normalizedValue] || normalizedValue);
-      if (EN_TO_ON[lemma]) {
+      if (CONJ[lemma]) {
+        analysis.wordType = 'verb';
+        analysis.verbData = CONJ[lemma];
+        analysis.conjugation = 'base';
+        analysis.verbLemma = lemma;
+      } else if (EN_TO_ON[lemma]) {
         analysis.wordType = 'dictionary';
         analysis.translation = EN_TO_ON[lemma];
         analysis.gender = NOUN_GENDER[lemma] || 'm';
@@ -7037,6 +7058,15 @@ function normalizeLexiconToken(token) {
   return normalizationMap[lower] || lower;
 }
 
+function resolveVerbInfinitive(lemma) {
+  const normalizedLemma = normalizeLexiconToken(lemma || '');
+  if (!normalizedLemma) return '';
+  if (CONJ[normalizedLemma] && Array.isArray(CONJ[normalizedLemma])) {
+    return CONJ[normalizedLemma][5] || CONJ[normalizedLemma][2] || normalizedLemma;
+  }
+  return EN_TO_ON[`${normalizedLemma} verb`] || EN_TO_ON[normalizedLemma] || normalizedLemma;
+}
+
 function normalizeModifierPhrases(text) {
   if (!text) return { text, modifiers: [] };
   const modifiers = [];
@@ -7070,6 +7100,7 @@ function parseSimpleClause(text, clauseType) {
     clause.text = predBoundary ? `${relMatch[1].trim()}${predBoundary[2]}`.trim() : relMatch[1].trim();
     clause.relative = {
       marker: 'er',
+      attachmentTarget: relMatch[1].trim(),
       clause: predBoundary ? predBoundary[1].trim() : relTail
     };
   }
@@ -7127,6 +7158,7 @@ function parseSimpleClause(text, clauseType) {
     clause.counterfactual = {
       construction: 'counterfactual-result',
       mood: 'counterfactual-result',
+      strategy: 'single-counterfactual-predicate',
       predicate: counterfactualHead[2].toLowerCase(),
       subject,
       object: adverbials.baseObject,
@@ -7312,7 +7344,7 @@ function realizeClause(clause, inCounterfactual) {
       translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
       translatedText = `${antecedent.text} ${relBase.text} ${predicate.text}`.replace(/\s+/g, ' ').trim();
     } else if (relPredicateSplit) {
-      const antecedent = translateWithPhraseParserFallback(relPredicateSplit[1].trim());
+      const antecedent = translateWithPhraseParserFallback((clause.relative.attachmentTarget || relPredicateSplit[1]).trim());
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
       const predicate = translateWithPhraseParserFallback(relPredicateSplit[2].trim());
       translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
@@ -7407,9 +7439,9 @@ function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '',
   const onSubject = realizeClauseSubject(subjectPronoun);
   const modal = modalBySubject[onSubject] || 'mundi';
   const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || `[${predicateLemma}]`;
+  const infinitive = resolveVerbInfinitive(predicateLemma) || `[${predicateLemma}]`;
   const adverbText = realizeAdverbials(adverbials);
-  return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+  return `${onSubject || 'ek'} ${modal} ${infinitive} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
@@ -7456,7 +7488,8 @@ function validateGeneratedOldNorse(text) {
   return text
     .replace(/\b(mundi|skyldi|mætti|kunni)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
     .replace(/\b(hafði)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
-    .replace(/\bmundi\s+([a-záéíóúýþðæøöǫ]+)\b/gi, (m, v) => PAST_PARTICIPLES[normalizeLexiconToken(v)] ? `mundi hafa ${PAST_PARTICIPLES[normalizeLexiconToken(v)]}` : m)
+    // Keep counterfactual-result as a single abstract modal + lexical predicate construction.
+    .replace(/\bmundi\s+hafa\s+([a-záéíóúýþðæøöǫ]+)\b/gi, 'mundi $1')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+ek\b/gi, '$1 mér')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+þú\b/gi, '$1 þér')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+hann\b/gi, '$1 honum')
