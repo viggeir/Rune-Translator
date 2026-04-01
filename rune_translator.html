@@ -648,6 +648,21 @@ const MOTION_VERBS = new Set(['go','come','travel','walk','ride','sail','fly','m
 // Strategy: if only auxiliary present, move it; if main verb after, move main verb
 const AUXILIARY_VERBS = new Set(['be','have','will','shall','can','may','must','need','want']);
 
+// Phrasal verbs mapped to atomic semantic lemmas in the target lexicon.
+const PHRASAL_VERB_LEMMAS = {
+  'turn back': 'return',
+  'turned back': 'return',
+  'turning back': 'return',
+};
+
+// Past-tense paradigms (preterite) keyed by English lemma.
+// Structure: [ek, þú, hann/hon/þat, vér, þér, þeir/þær/þau]
+const PAST_CONJ = {
+  'break': ['braut', 'brauzt', 'braut', 'brutum', 'brutuð', 'brutu'],
+  'turn':  ['breytta', 'breyttir', 'breytti', 'breyttum', 'breyttuð', 'breyttu'],
+  'return':['snera', 'snerir', 'sneri', 'snerum', 'sneruð', 'sneru'],
+};
+
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
 // Pronouns: ek, þú, hann/hon/þat, vér, þér (plural you), þeir
@@ -1295,6 +1310,7 @@ const LEMMAS = {
   'ate':'eat', 'drank':'drink',
   'forged':'forge',
   'carved':'carve', 'marked':'mark',
+  'broke':'break',
   'awaited':'await', 'remembered':'remember', 'forgot':'forget',
   'feared':'fear', 'hoped':'hope',
   'faced':'face', 'cursed':'curse',
@@ -6136,7 +6152,7 @@ class GrammarEngine {
       analysis.verbData = CONJ[LEMMAS[value]];
       analysis.verbLemma = LEMMAS[value];
       analysis.tense = 'past';
-      analysis.translation = EN_TO_ON[value] || null;
+      analysis.translation = EN_TO_ON[LEMMAS[value]] || null;
     } else if ((/ed$/.test(value) || ['was', 'were'].includes(value)) && EN_TO_ON[value]) {
       analysis.wordType = 'verb';
       analysis.translation = EN_TO_ON[value];
@@ -6181,6 +6197,7 @@ class GrammarEngine {
         analysis.verbData = CONJ[lemma];
         analysis.conjugation = 'base';
         analysis.verbLemma = lemma;
+        if (isLikelyPastVerbForm(value, lemma)) analysis.tense = 'past';
       } else if (EN_TO_ON[lemma]) {
         analysis.wordType = 'dictionary';
         analysis.translation = EN_TO_ON[lemma];
@@ -6417,15 +6434,19 @@ class GrammarEngine {
           
         case 'verb':
           lastVerbIndex = i;
-          if (item.tense === 'past' && item.translation) {
-            inflected.push({
-              ...item,
-              inflected: item.translation
-            });
+          {
+          const verbLemma = normalizeLexiconToken(item.verbLemma || LEMMAS[item.value] || item.value);
+          const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
+          if (item.tense === 'past') {
+            const pastForms = PAST_CONJ[verbLemma];
+            if (pastForms) {
+              inflected.push({ ...item, inflected: pastForms[conjugationIndex] || pastForms[2], conjugation: conjugationIndex });
+            } else {
+              inflected.push({ ...item, inflected: formatUnresolvedToken(item.value || verbLemma) });
+            }
             break;
           }
           if (currentSubject && item.verbData) {
-            const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
             inflected.push({
               ...item,
               inflected: item.verbData[conjugationIndex] || item.verbData[2], // Default to 3rd person
@@ -6434,10 +6455,11 @@ class GrammarEngine {
           } else {
             inflected.push({
               ...item,
-              inflected: item.translation || item.value
+              inflected: item.verbData ? (item.verbData[2] || item.value) : formatUnresolvedToken(item.value || verbLemma)
             });
           }
           break;
+          }
           
         case 'adjective':
           {
@@ -6969,6 +6991,13 @@ function resolveVerbInfinitive(lemma) {
   return EN_TO_ON[`${normalizedLemma} verb`] || EN_TO_ON[normalizedLemma] || normalizedLemma;
 }
 
+function getVerbLemmaAndTense(token) {
+  const clean = (token || '').toLowerCase().trim();
+  const lemma = normalizeLexiconToken(LEMMAS[clean] || clean);
+  const isPast = isLikelyPastVerbForm(clean, lemma) || ['was', 'were', 'did', 'had'].includes(clean);
+  return { lemma, tense: isPast ? 'past' : 'present' };
+}
+
 function normalizeModifierPhrases(text) {
   if (!text) return { text, modifiers: [] };
   const modifiers = [];
@@ -7289,7 +7318,8 @@ function realizeClause(clause, inCounterfactual) {
       const relObjectTail = embedded.object || '';
       const relTrailing = embedded.trailing || '';
       const possessorPronoun = clause.relative.possessor?.pronoun || 'her';
-      const basePossessed = `${possessorPronoun} ${clause.relative.possessedNoun}`.trim();
+      const reflexivePossessor = `${possessorPronoun}-reflexive`;
+      const basePossessed = `${reflexivePossessor} ${clause.relative.possessedNoun}`.trim();
       const possessedPhrase = relObjectTail ? `${basePossessed} ${relObjectTail}` : basePossessed;
       const roleClause = buildRoleBasedClauseFromEnglish('', { subject: relSubject, verb: relVerb, object: `${possessedPhrase} ${relTrailing}`.trim() });
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${roleClause}`);
@@ -7338,7 +7368,8 @@ function realizeClause(clause, inCounterfactual) {
     if (clause.relative.type === 'possessive') {
       const embedded = clause.relative.embedded || parseEmbeddedClauseRoles(clause.relative.clause || '');
       const possessorPronoun = clause.relative.possessor?.pronoun || 'her';
-      const relObject = embedded.object ? `${possessorPronoun} ${clause.relative.possessedNoun} ${embedded.object}` : `${possessorPronoun} ${clause.relative.possessedNoun}`;
+      const reflexivePossessor = `${possessorPronoun}-reflexive`;
+      const relObject = embedded.object ? `${reflexivePossessor} ${clause.relative.possessedNoun} ${embedded.object}` : `${reflexivePossessor} ${clause.relative.possessedNoun}`;
       const relClause = buildRoleBasedClauseFromEnglish('', {
         subject: embedded.subject || 'i',
         verb: embedded.verb || '',
@@ -7482,6 +7513,10 @@ function normalizeEnglishIdioms(text) {
   if(!text || typeof text !== 'string') return text;
 
   return text
+    // Collapse phrasal verbs to atomic lemmas before parsing.
+    .replace(/\bturned\s+back\b/gi, 'returned')
+    .replace(/\bturning\s+back\b/gi, 'returning')
+    .replace(/\bturn\s+back\b/gi, 'return')
     // Preserve "be called" semantics so parser does not fall back to "call"
     .replace(/\bwho\s+was\s+called\b/gi, 'who-was-called')
     .replace(/\bwho\s+is\s+called\b/gi, 'who-is-called')
@@ -7644,6 +7679,17 @@ function processSentence(sentence) {
 
     // Check for smart word sense detection first
     const detectedSense = detectWordSense(tok, context);
+
+    // Phrasal verb detection: treat verb+particle as one semantic predicate.
+    if(i+2 < raw.length && REGEX_SPACE_ONLY.test(raw[i+1]) && REGEX_HAS_LETTER.test(raw[i+2])) {
+      const phrasalKey = `${tok} ${raw[i+2]}`.toLowerCase();
+      const phrasalLemma = PHRASAL_VERB_LEMMAS[phrasalKey];
+      if(phrasalLemma) {
+        classified.push({type:'verb', en:phrasalKey, lemma:phrasalLemma, tense:'present'});
+        i += 3;
+        continue;
+      }
+    }
     
     // Two-word phrase check first (with compound fallback)
     // BUT: skip this for adjectives (they should stay separate)
@@ -7737,7 +7783,8 @@ function processSentence(sentence) {
       const gender = NOUN_GENDER[clean] || NOUN_GENDER[LEMMAS[clean]] || 'm';
       classified.push({type:'noun', en:clean, on:on, gender:gender});
     } else if(detectedSense === 'verb') {
-      classified.push({type:'verb', en:clean});
+      const verbInfo = getVerbLemmaAndTense(clean);
+      classified.push({type:'verb', en:clean, lemma:verbInfo.lemma, tense:verbInfo.tense});
     } else if(INTERJECTIONS.has(clean)) {
       // Interjection — will apply vocative formatting in step 9
       classified.push({type:'interjection', en:clean, on:EN_TO_ON[clean] || 'heil'});
@@ -7745,7 +7792,8 @@ function processSentence(sentence) {
       // Classify as subject or object pronoun — will resolve case in step 3
       classified.push({type:'pronoun', en:clean, pron:PRONOUNS[clean]});
     } else if(CONJ[clean]) {
-      classified.push({type:'verb', en:clean});
+      const verbInfo = getVerbLemmaAndTense(clean);
+      classified.push({type:'verb', en:clean, lemma:verbInfo.lemma, tense:verbInfo.tense});
     } else if(POSSESSIVES[clean] || (clean.endsWith('-reflexive') && POSSESSIVES[clean.replace(/-reflexive$/,'')])) {
       // Possessive — will apply gender agreement in step 4
       const basePoss = clean.replace(/-reflexive$/,'');
@@ -7762,7 +7810,11 @@ function processSentence(sentence) {
       const lemma = LEMMAS[clean];
       const baseWord = lemma || clean;
 
-      if(NOUN_GENDER[baseWord]) {
+      if(CONJ[baseWord] && isLikelyPastVerbForm(clean, baseWord)) {
+        classified.push({type:'verb', en:clean, lemma:baseWord, tense:'past'});
+      } else if(CONJ[baseWord]) {
+        classified.push({type:'verb', en:clean, lemma:baseWord, tense:'present'});
+      } else if(NOUN_GENDER[baseWord]) {
         // Lemmatized noun found
         const on = EN_TO_ON[baseWord] || baseWord;
         classified.push({type:'noun', en:clean, on:on, gender:NOUN_GENDER[baseWord]});
@@ -7916,8 +7968,8 @@ function processSentence(sentence) {
 
     if(tok.type !== 'verb') return tok;
 
-    const forms = CONJ[tok.en];
-    if(!forms) return { ...tok, on: tok.en }; // fallback: pass through
+    const lemma = normalizeLexiconToken(tok.lemma || LEMMAS[tok.en] || tok.en);
+    const forms = CONJ[lemma];
 
     // Determine conjugation index based on subject
     let idx = 2; // default to 3rd person singular (hann)
@@ -7926,7 +7978,14 @@ function processSentence(sentence) {
     } else if(lastSubjIsPlural) {
       idx = 5; // 3rd person plural (þeir/þær/þau)
     }
-    return { ...tok, on: forms[idx] };
+    if(tok.tense === 'past') {
+      const pastForms = PAST_CONJ[lemma];
+      if(pastForms) return { ...tok, on: pastForms[idx], lemma };
+      return { ...tok, on: formatUnresolvedToken(tok.en), lemma, unresolvedVerb:true };
+    }
+
+    if(!forms) return { ...tok, on: formatUnresolvedToken(tok.en), lemma, unresolvedVerb:true };
+    return { ...tok, on: forms[idx], lemma };
   });
 
   // Step 5: apply gender agreement (adjectives & possessives)
@@ -8552,6 +8611,7 @@ function processSentence(sentence) {
   const unknowns = [];
   reorderedTokens.forEach(t => {
     if(t.type === 'unknown' && !unknowns.includes(t.en)) unknowns.push(t.en);
+    if(t.type === 'verb' && t.unresolvedVerb && t.en && !unknowns.includes(t.en)) unknowns.push(t.en);
   });
 
   // Step 11: Build noun phrases AFTER all word order manipulations
