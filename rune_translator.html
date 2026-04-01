@@ -7356,6 +7356,49 @@ function processSentence(sentence) {
     i++;
   }
 
+  // Step 2b: Detect appositive noun phrases
+  // A noun phrase after a comma that contains no verb is an appositive.
+  // Tag its tokens with appositiveHeadIdx so Step 5 can inherit the head noun's case.
+  for (let i = 0; i < classified.length; i++) {
+    if (classified[i].type !== 'punct' || classified[i].val !== ',') continue;
+
+    // Find the head noun immediately before the comma (skip spaces only)
+    let headNounIdx = -1;
+    for (let j = i - 1; j >= 0; j--) {
+      if (classified[j].type === 'space') continue;
+      if (classified[j].type === 'noun' || classified[j].type === 'word' ||
+          classified[j].type === 'synonym') { headNounIdx = j; break; }
+      break; // any other non-space token → not an appositive context
+    }
+    if (headNounIdx === -1) continue;
+
+    // Collect content tokens after the comma, up to the next comma or verb
+    let j = i + 1;
+    const apposTokens = [];
+    let hasVerb = false;
+    while (j < classified.length) {
+      const t = classified[j];
+      if (t.type === 'space') { j++; continue; }
+      if (t.type === 'punct' && t.val === ',') break;
+      if (t.type === 'verb') { hasVerb = true; break; }
+      if (t.type === 'adjective' || t.type === 'noun' ||
+          t.type === 'word'      || t.type === 'synonym') {
+        apposTokens.push(j);
+      }
+      j++;
+    }
+
+    // Only mark as appositive if no verb was found and the phrase ends with a noun-like token
+    if (!hasVerb && apposTokens.length > 0) {
+      const lastTok = classified[apposTokens[apposTokens.length - 1]];
+      if (lastTok.type === 'noun' || lastTok.type === 'word' || lastTok.type === 'synonym') {
+        for (const aIdx of apposTokens) {
+          classified[aIdx] = { ...classified[aIdx], appositiveHeadIdx: headNounIdx };
+        }
+      }
+    }
+  }
+
   // Step 3: resolve pronoun case
   // Rule: Track whether we've seen a verb in the clause
   //   - Before any verb = nominative (subject)
@@ -7461,7 +7504,10 @@ function processSentence(sentence) {
 
   // Track possessives per noun phrase to avoid duplicates
   const usedNounPhrases = new Map(); // Map of noun phrase -> possessive used
-  
+
+  // Track resolved cases for feature propagation to appositive phrases
+  const computedCases = new Map(); // absolute token index → resolved caseForm
+
   // Strategy:
   //   - Possessive + noun: possessive agrees with noun's gender
   //   - Noun + adjective: adjective agrees with noun's gender & case
@@ -7620,17 +7666,21 @@ function processSentence(sentence) {
         const isPlural = targetNoun.en.endsWith('s') ||
                         ['men','children','people','eyes','feet','teeth','oxen'].includes(targetNoun.en);
 
-        // Detect case: look back for a verb
-        // If verb found before adjective, noun is likely an object → accusative
+        // Detect case: appositive phrases inherit case from their head noun;
+        // otherwise look back for a verb (verb before adjective → accusative).
         let caseForm = 'nom';
-        for(let j = idx - 1; j >= 0; j--) {
-          if(conjugated[j].type === 'verb') {
-            caseForm = 'acc';
-            break;
-          }
-          // Stop if we hit another noun/pronoun (new phrase)
-          if(conjugated[j].type === 'noun' || (conjugated[j].type === 'pronoun' && conjugated[j].type !== 'space')) {
-            break;
+        if (tok.appositiveHeadIdx !== undefined && computedCases.has(tok.appositiveHeadIdx)) {
+          caseForm = computedCases.get(tok.appositiveHeadIdx);
+        } else {
+          for(let j = idx - 1; j >= 0; j--) {
+            if(conjugated[j].type === 'verb') {
+              caseForm = 'acc';
+              break;
+            }
+            // Stop if we hit another noun/pronoun (new phrase)
+            if(conjugated[j].type === 'noun' || (conjugated[j].type === 'pronoun' && conjugated[j].type !== 'space')) {
+              break;
+            }
           }
         }
 
@@ -7743,6 +7793,14 @@ function processSentence(sentence) {
           // If verb is after noun, stays nominative (default)
         }
       }
+
+      // Appositive phrases inherit case from their head noun (overrides verb-position detection)
+      if (tok.appositiveHeadIdx !== undefined && computedCases.has(tok.appositiveHeadIdx)) {
+        caseForm = computedCases.get(tok.appositiveHeadIdx);
+      }
+
+      // Record this noun's resolved case so appositives of this noun can inherit it
+      computedCases.set(idx, caseForm);
 
       // Try to look up in NOUN_DECLENSION
       const declension = NOUN_DECLENSION[tok.en];
@@ -8173,8 +8231,10 @@ while(idx < reorderedTokens.length) {
     } else if(t.type === 'unknown') {
       // Mark unknown words with brackets
       onStr += '[' + t.en + '] ';
+    } else if(t.type === 'punct' && t.val === ',') {
+      // Attach comma directly to preceding word, space follows with the next token
+      onStr = onStr.trimEnd() + ',';
     }
-    // punct skipped
   }
   onStr = onStr.trim();
 
