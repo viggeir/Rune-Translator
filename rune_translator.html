@@ -125,7 +125,7 @@ const ON_RULES = [
   ['nn', 'n'], ['ll', 'l'], ['rr', 'r'],
   ['ff', 'f'], ['ss', 's'], ['mm', 'm'],
   ['bb', 'b'], ['pp', 'b'],
-  ['ei', 'i'], ['ey', 'i'],
+  ['ei', 'ai'], ['ey', 'au'],
   ['au', 'u'],
   ['kv', 'k'],   // kv = k sound in YF
   // ON special characters
@@ -331,17 +331,20 @@ function onToRunes(text) {
       if(lower.slice(i, i+pat.length) === pat) {
         // Special handling for diphthongs that should be represented by two runes
         if(pat === 'ei') {
-          // 'ei' from historical 'ai' → ᛅ (Óss/'a') + ᛁ (Íss/'i')
-          result.push({rune:'ᛅ', name:'Óss'});
+          // 'ei' from historical 'ai' → ᛅ (Ár/'a') + ᛁ (Íss/'i')
+          result.push({rune:'ᛅ', name:'Ár'});
           result.push({rune:'ᛁ', name:'Íss'});
+          i += pat.length; matched = true; break;
         } else if(pat === 'ey') {
-          // 'ey' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
-          result.push({rune:'ᛅ', name:'Óss'});
+          // 'ey' from historical 'au' → ᛅ (Ár/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Ár'});
           result.push({rune:'ᚢ', name:'Úr'});
+          i += pat.length; matched = true; break;
         } else if(pat === 'au') {
-          // 'au' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
-          result.push({rune:'ᛅ', name:'Óss'});
+          // 'au' from historical 'au' → ᛅ (Ár/'a') + ᚢ (Úr/'u')
+          result.push({rune:'ᛅ', name:'Ár'});
           result.push({rune:'ᚢ', name:'Úr'});
+          i += pat.length; matched = true; break;
         }
         // Special handling for 'r': use r_final if at end of word
         let finalSound = sound;
@@ -1456,6 +1459,9 @@ const EN_TO_ON = {
   'called':'kallaði', 'tried':'freisti', 'wanted':'vildi', 'was called':'hét',
   'is called':'heitir', 'are called':'heita', 'be called':'heita', 'being called':'heitandi',
   'who was called':'er hét', 'who is called':'er heitir', 'who are called':'er heita',
+  // Hyphenated helper forms produced by input normalization
+  'was-called':'hét', 'is-called':'heitir', 'are-called':'heita',
+  'who-was-called':'er hét', 'who-is-called':'er heitir', 'who-are-called':'er heita',
   'lived':'lifði', 'died':'dó',
   'killed':'drap', 'fought':'barðist',
   'won':'vann', 'lost':'tapað',
@@ -3151,7 +3157,7 @@ function translateWithPhraseParser(input) {
       return;
     }
 
-    line = removeIndefiniteArticles(line);
+    line = normalizeEnglishIdioms(removeIndefiniteArticles(line));
     
     // Step 1: Tokenize
     const tokens = tokenize(line);
@@ -3187,6 +3193,19 @@ function translateWithPhraseParser(input) {
     oldNorse: translatedLines.join('\n'),
     unknowns: unknowns
   };
+}
+
+function normalizeEnglishIdioms(text) {
+  if(!text || typeof text !== 'string') return text;
+
+  return text
+    // Preserve "be called" semantics so parser does not fall back to "call"
+    .replace(/\bwho\s+was\s+called\b/gi, 'who-was-called')
+    .replace(/\bwho\s+is\s+called\b/gi, 'who-is-called')
+    .replace(/\bwho\s+are\s+called\b/gi, 'who-are-called')
+    .replace(/\bwas\s+called\b/gi, 'was-called')
+    .replace(/\bis\s+called\b/gi, 'is-called')
+    .replace(/\bare\s+called\b/gi, 'are-called');
 }
 
 function removeIndefiniteArticles(text) {
@@ -3380,7 +3399,13 @@ function processSentence(sentence) {
               const word1 = EN_TO_ON[tok];
               const word2_raw = raw[i+2];
               const word2 = EN_TO_ON[word2_raw];
-              if(word1 && word2 && !tok_is_adjective && !next_is_adjective) {
+              if(
+                word1 && word2 &&
+                !tok_is_adjective &&
+                !next_is_adjective &&
+                !COMPOUND_BLACKLIST.has(tok) &&
+                !COMPOUND_BLACKLIST.has(word2_raw)
+              ) {
                 // Both words are translatable AND neither is adjective — concatenate as compound
                 // Determine gender from the full phrase first, then fallback to head noun (last word)
                 const gender = NOUN_GENDER[phrase] || NOUN_GENDER[word2_raw] || NOUN_GENDER[LEMMAS[word2_raw]] || 'm';
