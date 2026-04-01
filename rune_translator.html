@@ -552,12 +552,17 @@ function normalizeToPhonemes(onWord) {
 // Dative included for prepositional contexts (to me, with him, etc.)
 const PRONOUNS = {
   'i':    { nom:'ek',   acc:'mik',   dat:'mér' },
+  'me':   { nom:'ek',   acc:'mik',   dat:'mér' },
   'you':  { nom:'þú',   acc:'þik',   dat:'þér' },
   'he':   { nom:'hann', acc:'hann',  dat:'honum' },
+  'him':  { nom:'hann', acc:'hann',  dat:'honum' },
   'she':  { nom:'hon',  acc:'hana',  dat:'henni' },
+  'her':  { nom:'hon',  acc:'hana',  dat:'henni' },
   'it':   { nom:'þat',  acc:'þat',   dat:'því' },
   'we':   { nom:'vér',  acc:'oss',   dat:'oss' },
+  'us':   { nom:'vér',  acc:'oss',   dat:'oss' },
   'they': { nom:'þeir', acc:'þá',    dat:'þeim' },
+  'them': { nom:'þeir', acc:'þá',    dat:'þeim' },
   // Reflexive pronouns — map to sik (acc) and sér (dat) regardless of person
   'myself':     { nom:'ek',    acc:'sik',   dat:'sér' },
   'yourself':   { nom:'þú',    acc:'sik',   dat:'sér' },
@@ -2485,6 +2490,14 @@ function parsePhrases(tokens) {
   return phrases;
 }
 
+function isLikelyPastVerbForm(word, lemma) {
+  if (!word || !lemma) return false;
+  if (word === lemma) return false;
+  if (/(ed|en)$/.test(word)) return true;
+  if (['was', 'were', 'had', 'did', 'knew', 'spoke', 'stood', 'took', 'gave', 'went', 'came', 'found', 'said'].includes(word)) return true;
+  return LEMMAS[word] === lemma;
+}
+
 // Detect multi-word phrases, compounds, and expressions
 function detectPhrase(tokens, startIndex) {
   const maxPhraseLength = 4; // Look ahead up to 4 words
@@ -2685,6 +2698,13 @@ class GrammarEngine {
       analysis.wordType = 'verb';
       analysis.verbData = CONJ[value];
       analysis.conjugation = 'base';
+      analysis.verbLemma = value;
+    } else if (LEMMAS[value] && CONJ[LEMMAS[value]] && isLikelyPastVerbForm(value, LEMMAS[value])) {
+      analysis.wordType = 'verb';
+      analysis.verbData = CONJ[LEMMAS[value]];
+      analysis.verbLemma = LEMMAS[value];
+      analysis.tense = 'past';
+      analysis.translation = EN_TO_ON[value] || null;
     } else if ((/ed$/.test(value) || ['was', 'were'].includes(value)) && EN_TO_ON[value]) {
       analysis.wordType = 'verb';
       analysis.translation = EN_TO_ON[value];
@@ -2741,6 +2761,7 @@ class GrammarEngine {
     // Check if this is a reflexive pronoun
     const pronounValue = context[index]?.value?.toLowerCase();
     const isReflexive = REFLEXIVE_PRONOUNS.has(pronounValue);
+    const forceObjectPronoun = OBJECT_PRONOUNS.has(pronounValue);
 
     // Look for preceding prepositions
     for (let i = index - 1; i >= 0; i--) {
@@ -2769,6 +2790,10 @@ class GrammarEngine {
     // Reflexive pronouns are typically accusative or dative (never nominative)
     if (isReflexive) {
       return seenVerb ? 'acc' : 'dat'; // Default to dative if no verb (e.g., "by myself")
+    }
+
+    if (forceObjectPronoun) {
+      return seenVerb ? 'acc' : 'dat';
     }
 
     return seenVerb ? 'acc' : 'nom';
@@ -2833,6 +2858,13 @@ class GrammarEngine {
           
         case 'verb':
           lastVerbIndex = i;
+          if (item.tense === 'past' && item.translation) {
+            inflected.push({
+              ...item,
+              inflected: item.translation
+            });
+            break;
+          }
           if (currentSubject && item.verbData) {
             const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
             inflected.push({
@@ -3158,6 +3190,13 @@ function translateWithPhraseParser(input) {
     }
 
     line = normalizeEnglishIdioms(removeIndefiniteArticles(line));
+
+    const counterfactual = translateCounterfactualConditionalLine(line);
+    if (counterfactual) {
+      translatedLines.push(counterfactual.oldNorse);
+      counterfactual.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+      return;
+    }
     
     // Step 1: Tokenize
     const tokens = tokenize(line);
@@ -3193,6 +3232,61 @@ function translateWithPhraseParser(input) {
     oldNorse: translatedLines.join('\n'),
     unknowns: unknowns
   };
+}
+
+function translateCounterfactualConditionalLine(line) {
+  const pattern = /^\s*if\s+(.+?),\s*(.+)$/i;
+  const match = line.match(pattern);
+  if (!match) return null;
+
+  const protasisRaw = match[1].trim();
+  const apodosisRaw = match[2].trim();
+  if (!/\bhad\b/i.test(protasisRaw) || !/\bwould\b/i.test(apodosisRaw)) return null;
+
+  const protasis = translateProtasisClause(protasisRaw);
+  const apodosis = translateApodosisClause(apodosisRaw);
+
+  return {
+    oldNorse: `ef ${protasis.text}, ${apodosis.text}`.replace(/\s+/g, ' ').trim(),
+    unknowns: [...new Set([...(protasis.unknowns || []), ...(apodosis.unknowns || [])])]
+  };
+}
+
+function translateProtasisClause(text) {
+  let unknowns = [];
+  let clause = text.replace(/^\s*i\s+had\s+/i, 'ek hafði ');
+  const translated = translateWithPhraseParserFallback(clause);
+  unknowns = [...new Set([...unknowns, ...translated.unknowns])];
+  return { text: translated.text, unknowns };
+}
+
+function translateApodosisClause(text) {
+  let unknowns = [];
+  let clause = text.replace(/^\s*i\s+would\s+have\s+/i, 'ek mundi hafa ');
+  const translated = translateWithPhraseParserFallback(clause);
+  unknowns = [...new Set([...unknowns, ...translated.unknowns])];
+  return { text: translated.text, unknowns };
+}
+
+function translateWithPhraseParserFallback(line) {
+  const grammarEngine = new GrammarEngine();
+  const tokens = tokenize(line);
+  const phrases = parsePhrases(tokens);
+  const analysis = grammarEngine.analyzePhrase(phrases);
+  const inflected = grammarEngine.applyInflections(analysis);
+  const unknowns = [];
+  let text = '';
+  inflected.forEach(item => {
+    if (item.type === 'space') text += item.value;
+    else if (item.type === 'punctuation') text += item.value;
+    else if (item.wordType === 'unknown') {
+      text += `[${item.value}] `;
+      if (!unknowns.includes(item.value)) unknowns.push(item.value);
+    } else {
+      text += (item.inflected || item.translation || item.value) + ' ';
+    }
+  });
+  return { text: text.trim(), unknowns };
 }
 
 function normalizeEnglishIdioms(text) {
@@ -4605,6 +4699,39 @@ function trySmartCompound(word1_en, word2_en, compoundCase = 'nom') {
   }
 
   return { on: firstWord + secondWord, gender: gender };
+}
+
+// ─── REGRESSION TESTS (STATIC, OPT-IN VIA CONSOLE) ─────────────────────────
+// Run in browser console: runTranslatorRegressionTests()
+function runTranslatorRegressionTests() {
+  const cases = [
+    {
+      name: 'unknown word fallback brackets',
+      input: 'the raven xyzzy flies',
+      assert: out => /\[xyzzy\]/.test(out.oldNorse)
+    },
+    {
+      name: 'relative clause + preposition pronoun case',
+      input: 'the man who stood before me',
+      assert: out => /stóð/.test(out.oldNorse) && /\bmér\b/.test(out.oldNorse)
+    },
+    {
+      name: 'counterfactual conditional parsing',
+      input: 'if i had known the man, i would have spoken',
+      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\bmundi\b/.test(out.oldNorse)
+    },
+    {
+      name: 'reflexive possession survives object context',
+      input: 'the man betrayed his own kin',
+      assert: out => /\bsinn\b|\bsína\b|\bsitt\b/.test(out.oldNorse)
+    }
+  ];
+
+  return cases.map(test => {
+    const out = translateWithPhraseParser(test.input);
+    const pass = !!test.assert(out);
+    return { name: test.name, pass, output: out.oldNorse, unknowns: out.unknowns };
+  });
 }
 
 // ─── REFERENCE GRID ──────────────────────────────────────────────────────────
