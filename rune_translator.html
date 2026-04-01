@@ -1579,7 +1579,7 @@ const EN_TO_ON = {
   'carve':'rista', 'carved':'risti', 'mark':'merkja', 'marked':'merkti',
   'await':'bíða', 'awaited':'beið',
   'remembered':'mundi', 'forgot':'gleymdi', 'forget':'gleyma',
-  'feared':'ottaðist', 'hoped':'vonaðist',
+  'feared':'óttaðist', 'hoped':'vonaðist',
   'hated':'hataði', 'betrayed':'svék', 'betray':'svíkja',
   // ── Nouns: People ──
   'man':'maðr', 'men':'menn', 'woman':'kona', 'women':'konur',
@@ -2388,7 +2388,7 @@ const EN_TO_ON = {
   'remembered lexicon':'mundi',
   'forgot lexicon':'gleymdi',
   'forget lexicon':'gleyma',
-  'feared lexicon':'ottaðist',
+  'feared lexicon':'óttaðist',
   'hoped lexicon':'vonaðist',
   'hated lexicon':'hataði',
   'betrayed lexicon':'svék',
@@ -4133,7 +4133,7 @@ const EN_TO_ON = {
   'remembered register':'mundi',
   'forgot register':'gleymdi',
   'forget register':'gleyma',
-  'feared register':'ottaðist',
+  'feared register':'óttaðist',
   'hoped register':'vonaðist',
   'hated register':'hataði',
   'betrayed register':'svék',
@@ -6998,6 +6998,27 @@ function getVerbLemmaAndTense(token) {
   return { lemma, tense: isPast ? 'past' : 'present' };
 }
 
+function getLocalConjugationIndex(tokens, verbIndex) {
+  let subjectOn = null;
+  let subjectPlural = false;
+  for (let i = verbIndex - 1; i >= 0; i--) {
+    const tok = tokens[i];
+    if (!tok || tok.type === 'space') continue;
+    if (tok.type === 'punct') break;
+    if (tok.type === 'pronoun' && tok.pron) {
+      subjectOn = tok.on || tok.pron.nom;
+      break;
+    }
+    if (tok.type === 'noun') {
+      const nounText = (tok.en || '').toLowerCase();
+      subjectPlural = nounText.endsWith('s') || ['men','children','people','eyes','feet','teeth','oxen'].includes(nounText);
+      break;
+    }
+  }
+  if (subjectOn && PRON_TO_IDX[subjectOn] !== undefined) return PRON_TO_IDX[subjectOn];
+  return subjectPlural ? 5 : 2;
+}
+
 function normalizeModifierPhrases(text) {
   if (!text) return { text, modifiers: [] };
   const modifiers = [];
@@ -7030,12 +7051,16 @@ function parseSimpleClause(text, clauseType) {
     const headNP = parseHeadNounPhrase(relMatch[1].trim());
     const relTail = relMatch[3].trim();
     const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
+    const reflexiveRelativeClause = markRelativeReflexivePossession(
+      predBoundary ? predBoundary[1].trim() : relTail,
+      headNP.surface
+    );
     clause.text = predBoundary ? `${headNP.surface}${predBoundary[2]}`.trim() : headNP.surface;
     clause.subjectNP = headNP;
     clause.relative = {
       marker: 'er',
       attachmentTarget: headNP.surface,
-      clause: predBoundary ? predBoundary[1].trim() : relTail,
+      clause: reflexiveRelativeClause,
       attachment: {
         type: 'head-noun-phrase',
         headNoun: headNP.headNoun,
@@ -7118,6 +7143,15 @@ function parseSimpleClause(text, clauseType) {
   }
 
   return clause;
+}
+
+function markRelativeReflexivePossession(relativeClauseText, headText) {
+  const clause = (relativeClauseText || '').trim();
+  if (!clause) return clause;
+  const expectedPossessor = resolveHeadPossessorPronoun(headText || '');
+  if (!expectedPossessor) return clause;
+  const possRegex = new RegExp(`\\b(${expectedPossessor})\\b\\s+([a-z'-]+)`, 'gi');
+  return clause.replace(possRegex, (_, poss, noun) => `${poss.toLowerCase()}-reflexive ${noun}`);
 }
 
 function parseEmbeddedClauseRoles(text) {
@@ -7486,6 +7520,15 @@ function enforceNoRawSourceLeakage(text, unknowns = []) {
 function reorderPossessiveNounPhrases(text) {
   if (!text) return text;
   return text.replace(/\b(minn|min|mitt|mín|þinn|þín|þitt|hans|hennar|þeirra|vár|várt|vor|sinn|sín|sitt)\s+([a-záðéíóúýþæöøǫ'-]+)\b/gi, '$2 $1');
+}
+
+function collapseDoSupportPredicates(text) {
+  if (!text) return text;
+  return text
+    .replace(/\beigi(?=[a-záðéíóúýþæöøǫ\[])/gi, 'eigi ')
+    .replace(/\beigi\s+([a-záðéíóúýþæöøǫ'\[\]-]+(?:\s+aptr)?)/gi, '$1 eigi')
+    .replace(/\b(?:geri|gerir|gerði|gerum|gerið|gera)\s+eigi\s+([a-záðéíóúýþæöøǫ'\[\]-]+(?:\s+aptr)?)/gi, '$1 eigi')
+    .replace(/\b(?:geri|gerir|gerði|gerum|gerið|gera)\s+([a-záðéíóúýþæöøǫ'\[\]-]+(?:\s+aptr)?)/gi, '$1');
 }
 
 function translateWithPhraseParserFallback(line) {
@@ -8374,28 +8417,50 @@ function processSentence(sentence) {
   const reorderedTokens = [];
   for(let i = 0; i < withoutToPrep.length; i++) {
     const tok = withoutToPrep[i];
-    const next = withoutToPrep[i + 1];
-    const next2 = withoutToPrep[i + 2];
+    const auxSurface = (tok.en || '').toLowerCase();
+    const auxLemma = normalizeLexiconToken(tok.lemma || auxSurface || '');
+    const isDoSupportAux = (tok.type === 'verb' && auxLemma === 'do') ||
+                           (tok.type === 'word' && ['do','does','did'].includes(auxSurface));
 
-    // Pattern: "do" + (space) + "not" + (space) + verb
-    if(tok.type === 'word' && tok.en === 'do' &&
-       next && next.type === 'space' &&
-       next2 && next2.type === 'word' && next2.en === 'not') {
-      // Look for the verb after "not"
-      let verbIdx = i + 3;
-      while(verbIdx < withoutToPrep.length &&
-            (withoutToPrep[verbIdx].type === 'space' ||
-             withoutToPrep[verbIdx].type === 'punct')) {
-        verbIdx++;
+    // Pattern: auxiliary do-support + optional not + lexical verb
+    if(isDoSupportAux) {
+      let cursor = i + 1;
+      while(cursor < withoutToPrep.length && withoutToPrep[cursor].type === 'space') cursor++;
+
+      let hasNegation = false;
+      if(cursor < withoutToPrep.length &&
+         withoutToPrep[cursor].type === 'word' &&
+         withoutToPrep[cursor].en === 'not') {
+        hasNegation = true;
+        cursor++;
+        while(cursor < withoutToPrep.length && withoutToPrep[cursor].type === 'space') cursor++;
       }
-      if(verbIdx < withoutToPrep.length && withoutToPrep[verbIdx].type === 'verb') {
-        // Skip "do" and "not", output verb then "eigi"
-        i += 2; // skip to "not"
+
+      const mainVerb = withoutToPrep[cursor];
+      const mainLemma = normalizeLexiconToken((mainVerb && (mainVerb.lemma || LEMMAS[mainVerb.en] || mainVerb.en)) || '');
+      const mainActsLikeVerb = !!(mainVerb && (mainVerb.type === 'verb' || (mainVerb.type === 'word' && CONJ[mainLemma])));
+      const looksLikeDoSupport = mainActsLikeVerb && mainLemma !== 'do';
+      if(looksLikeDoSupport) {
+        const promotedVerb = { ...mainVerb, type: 'verb', lemma: mainLemma };
+        const auxIsPast = tok.tense === 'past' || auxSurface === 'did';
+        const conjIdx = getLocalConjugationIndex(withoutToPrep, i);
+        if(!auxIsPast && CONJ[mainLemma]) {
+          promotedVerb.on = CONJ[mainLemma][conjIdx] || CONJ[mainLemma][2];
+        }
+        if(auxIsPast) {
+          const promotedPast = PAST_CONJ[mainLemma];
+          if(promotedPast) {
+            promotedVerb.on = promotedPast[conjIdx] || promotedPast[2];
+          }
+        }
+        reorderedTokens.push(promotedVerb);
+        if(hasNegation) reorderedTokens.push({type:'space'}, {type:'word', en:'not', on:'eigi'});
+        i = cursor;
         continue;
       }
     }
 
-    // Pattern: "not" after a verb → output verb first, then eigi
+    // Pattern: "not" after a lexical verb → output eigi
     if(tok.type === 'word' && tok.en === 'not') {
       // Check if previous word was a verb
       let prevVerb = null;
@@ -8420,11 +8485,11 @@ function processSentence(sentence) {
   // Step 8: apply Old Norse word order patterns (before V2)
   // Transform English-like word order to more natural Old Norse patterns
   const oldNorseOrderTokens = [];
-  for(let i = 0; i < withoutToPrep.length; i++) {
-    const tok = withoutToPrep[i];
-    const next = withoutToPrep[i + 1];
-    const next2 = withoutToPrep[i + 2];
-    const next3 = withoutToPrep[i + 3];
+  for(let i = 0; i < reorderedTokens.length; i++) {
+    const tok = reorderedTokens[i];
+    const next = reorderedTokens[i + 1];
+    const next2 = reorderedTokens[i + 2];
+    const next3 = reorderedTokens[i + 3];
 
     // Pattern 1: Adjective + Noun → Noun + Adjective (for poetry/emphasis)
     // In some contexts, Old Norse places adjectives after nouns for emphasis
@@ -8440,12 +8505,12 @@ function processSentence(sentence) {
        next2 && next2.type === 'adjective' && next3 && next3.type === 'space') {
        
       const nounIdx = i + 4;
-      if(nounIdx < withoutToPrep.length && 
-         (withoutToPrep[nounIdx].type === 'noun' || withoutToPrep[nounIdx].type === 'word')) {
+      if(nounIdx < reorderedTokens.length && 
+         (reorderedTokens[nounIdx].type === 'noun' || reorderedTokens[nounIdx].type === 'word')) {
         
         // Reorder to: Noun + space + Possessive + space + Adjective
-        oldNorseOrderTokens.push(withoutToPrep[nounIdx]);     // noun
-        oldNorseOrderTokens.push(withoutToPrep[nounIdx - 1]); // space before noun
+        oldNorseOrderTokens.push(reorderedTokens[nounIdx]);     // noun
+        oldNorseOrderTokens.push(reorderedTokens[nounIdx - 1]); // space before noun
         oldNorseOrderTokens.push(tok);                        // possessive
         oldNorseOrderTokens.push(next);                       // space
         oldNorseOrderTokens.push(next2);                      // adjective
@@ -8733,6 +8798,7 @@ while(idx < reorderedTokens.length) {
     }
   }
   onStr = onStr.trim();
+  onStr = collapseDoSupportPredicates(onStr);
 
   return { onStr, unknowns };
 }
