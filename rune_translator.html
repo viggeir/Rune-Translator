@@ -342,9 +342,6 @@ function onToRunes(text) {
           // 'au' from historical 'au' → ᛅ (Óss/'a') + ᚢ (Úr/'u')
           result.push({rune:'ᛅ', name:'Óss'});
           result.push({rune:'ᚢ', name:'Úr'});
-        } else {
-          const entry = soundToRune[sound];
-          if(entry) result.push({rune:entry.r, name:entry.name});
         }
         // Special handling for 'r': use r_final if at end of word
         let finalSound = sound;
@@ -580,7 +577,8 @@ const REFLEXIVE_PRONOUNS = new Set(['myself','yourself','himself','herself','its
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
-const DATIVE_PREPS = new Set(['with','at','from','by','beside','between','against','within','after','before']);
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','within']);
+const ACCUSATIVE_PREPS = new Set(['after','before','between','against']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
 const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
@@ -996,7 +994,7 @@ const POSSESSIVES = {
   },
   'his': {
     masc_sg: 'hans',  fem_sg: 'hans',  neut_sg: 'hans', // non-reflexive
-    reflexive: { masc_sg: 'sínn', fem_sg: 'sín', neut_sg: 'sitt' }
+    reflexive: { masc_sg: 'sinn', fem_sg: 'sín', neut_sg: 'sitt' }
   },
   'hers': {
     masc_sg: 'hennar', fem_sg: 'hennar', neut_sg: 'hennar', // non-reflexive
@@ -1023,7 +1021,7 @@ const DEMONSTRATIVES = {
   'this': {
     protoGermanic: 'þasja',  // Proto-Germanic form with 'a' vowels
     masc_sg: 'þessi',  fem_sg: 'þessi',  neut_sg: 'þetta',
-    masc_acc: 'þennan', fem_acc: 'þessa', neut_acc: 'þetta',
+    masc_acc: 'þenna', fem_acc: 'þessa', neut_acc: 'þetta',
     masc_dat: 'þessum', fem_dat: 'þessari', neut_dat: 'þessum',
   },
   'that': {
@@ -1082,6 +1080,8 @@ const NOUN_DECLENSION = {
             nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
   'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðri',
                nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
+  'stone': { base: 'steinn', nom_sg: 'steinn', acc_sg: 'stein', dat_sg: 'steini',
+             nom_pl: 'steinar', acc_pl: 'steina', dat_pl: 'steinum' },
   'father': { protoGermanic: 'faderaz', base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
               nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
   'fire': { protoGermanic: 'aldiz', base: 'eldr', nom_sg: 'eldr', acc_sg: 'eld', dat_sg: 'eldi',
@@ -2527,7 +2527,11 @@ function detectPhrase(tokens, startIndex) {
         
         if (length === 2) {
           // Simple 2-word compound
-          compound = trySmartCompound(phraseTokens[0]?.value, phraseTokens[1]?.value);
+          const word1 = phraseTokens[0]?.value;
+          const word2 = phraseTokens[1]?.value;
+          if (!ADJECTIVES[word1] && word1 !== 'very') {
+            compound = trySmartCompound(word1, word2);
+          }
         } else if (length === 3) {
           // Try 3-word patterns: possessive + compound, adjective + noun + noun, etc.
           const word1 = phraseTokens[0]?.value;
@@ -2616,63 +2620,6 @@ function detectPhrase(tokens, startIndex) {
           break;
         }
         
-        // Fallback: Check for simple possessive + noun pattern (e.g., "my shield")
-        if (length === 2 && POSSESSIVES[phraseTokens[0]?.value]) {
-          const possessive = phraseTokens[0]?.value;
-          const noun = phraseTokens[1]?.value;
-          const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
-
-          if (nounTranslation) {
-            const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
-            const possForm = POSSESSIVES[possessive];
-            const form = gender === 'f' ? possForm.fem_sg
-                       : gender === 'n' ? possForm.neut_sg
-                       : possForm.masc_sg;
-
-            bestPhrase = {
-              type: 'possessive-phrase',
-              value: phraseString,
-              translation: `${form} ${nounTranslation}`,
-              tokens: phraseTokens,
-              length: phraseTokens.length + (phraseTokens.length - 1),
-              confidence: 0.9,
-              gender: gender,
-              possessive: possessive,
-              noun: noun
-            };
-            break;
-          }
-        }
-
-        // Fallback: Check for demonstrative + noun pattern (e.g., "this stone")
-        // Demonstratives must agree in gender and case with the head noun
-        if (length === 2 && DEMONSTRATIVES[phraseTokens[0]?.value]) {
-          const demonstrative = phraseTokens[0]?.value;
-          const noun = phraseTokens[1]?.value;
-          const nounTranslation = EN_TO_ON[noun] || EN_TO_ON[LEMMAS[noun]];
-
-          if (nounTranslation) {
-            const gender = NOUN_GENDER[noun] || NOUN_GENDER[LEMMAS[noun]] || 'm';
-            const demonstForm = DEMONSTRATIVES[demonstrative];
-            // Use nominative singular form (most common default)
-            const form = gender === 'f' ? demonstForm.fem_sg
-                       : gender === 'n' ? demonstForm.neut_sg
-                       : demonstForm.masc_sg;
-
-            bestPhrase = {
-              type: 'demonstrative-phrase',
-              value: phraseString,
-              translation: `${form} ${nounTranslation}`,
-              tokens: phraseTokens,
-              length: phraseTokens.length + (phraseTokens.length - 1),
-              confidence: 0.85,
-              gender: gender,
-              demonstrative: demonstrative,
-              noun: noun
-            };
-            break;
-          }
-        }
       }
     }
   }
@@ -2718,14 +2665,23 @@ class GrammarEngine {
     const analysis = { ...phrase };
     
     // Determine word type and grammatical properties
-    if (PRONOUNS[value]) {
+    if (['a', 'an', 'the'].includes(value)) {
+      analysis.wordType = 'article';
+      analysis.translation = '';
+    } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
       analysis.case = this.determinePronounCase(index, context);
+    } else if (DEMONSTRATIVES[value]) {
+      analysis.wordType = 'demonstrative';
+      analysis.demonstrativeData = DEMONSTRATIVES[value];
     } else if (CONJ[value]) {
       analysis.wordType = 'verb';
       analysis.verbData = CONJ[value];
       analysis.conjugation = 'base';
+    } else if ((/ed$/.test(value) || ['was', 'were'].includes(value)) && EN_TO_ON[value]) {
+      analysis.wordType = 'verb';
+      analysis.translation = EN_TO_ON[value];
     } else if (ADJECTIVES[value]) {
       analysis.wordType = 'adjective';
       analysis.adjectiveData = ADJECTIVES[value];
@@ -2819,6 +2775,7 @@ class GrammarEngine {
     let currentGender = 'm';
     let currentNumber = 'singular';
     let currentCase = 'nom';
+    let lastVerbIndex = -1;
     
     for (let i = 0; i < analysis.length; i++) {
       const item = analysis[i];
@@ -2829,6 +2786,10 @@ class GrammarEngine {
       }
       
       switch (item.wordType) {
+        case 'article':
+          // Old Norse generally does not use standalone indefinite/definite articles
+          break;
+
         case 'pronoun':
           const pronounForm = item.pronounData[item.case] || item.pronounData.nom;
           inflected.push({
@@ -2841,8 +2802,31 @@ class GrammarEngine {
             currentNumber = ['vér', 'þeir', 'þær', 'þau'].includes(pronounForm) ? 'plural' : 'singular';
           }
           break;
+
+        case 'demonstrative':
+          let demoGender = currentGender;
+          for (let j = i + 1; j < analysis.length; j++) {
+            const nextItem = analysis[j];
+            if (nextItem.type === 'space' || nextItem.type === 'punctuation') continue;
+            if (nextItem.wordType === 'noun') {
+              demoGender = nextItem.gender || 'm';
+            }
+            break;
+          }
+          currentCase = this.determineCaseForPosition(i, analysis, lastVerbIndex);
+          const demoForm = currentCase === 'acc'
+            ? (demoGender === 'f' ? item.demonstrativeData.fem_acc : demoGender === 'n' ? item.demonstrativeData.neut_acc : item.demonstrativeData.masc_acc)
+            : currentCase === 'dat'
+              ? (demoGender === 'f' ? item.demonstrativeData.fem_dat : demoGender === 'n' ? item.demonstrativeData.neut_dat : item.demonstrativeData.masc_dat)
+              : (demoGender === 'f' ? item.demonstrativeData.fem_sg : demoGender === 'n' ? item.demonstrativeData.neut_sg : item.demonstrativeData.masc_sg);
+          inflected.push({
+            ...item,
+            inflected: demoForm
+          });
+          break;
           
         case 'verb':
+          lastVerbIndex = i;
           if (currentSubject && item.verbData) {
             const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
             inflected.push({
@@ -2859,6 +2843,7 @@ class GrammarEngine {
           break;
           
         case 'adjective':
+          currentCase = this.determineCaseForPosition(i, analysis, lastVerbIndex);
           const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, currentGender, currentCase, currentNumber);
           inflected.push({
             ...item,
@@ -2915,6 +2900,7 @@ class GrammarEngine {
           break;
           
         case 'noun':
+          currentCase = this.determineCaseForPosition(i, analysis, lastVerbIndex);
           const nounForm = this.getNounForm(item, currentCase, currentNumber);
           inflected.push({
             ...item,
@@ -3039,7 +3025,10 @@ class GrammarEngine {
     }
 
     // If the target noun comes after the verb, it's in object position, so reflexive
-    return targetNounIndex > verbIndex;
+    if (targetNounIndex > verbIndex) return true;
+
+    // Conservative fallback: possessives after any non-linking verb are often reflexive in object context
+    return index > verbIndex;
   }
 
   // Get appropriate noun form
@@ -3057,6 +3046,27 @@ class GrammarEngine {
     }
     
     return noun.translation || noun.value;
+  }
+
+  determineCaseForPosition(index, analysis, lastVerbIndex) {
+    // Check immediately preceding lexical token for preposition-governed case
+    let prevWord = null;
+    for (let i = index - 1; i >= 0; i--) {
+      if (analysis[i].type === 'space') continue;
+      if (analysis[i].type === 'punctuation') break;
+      if (analysis[i].type === 'word') {
+        prevWord = analysis[i].value;
+      }
+      break;
+    }
+
+    if (prevWord && DATIVE_PREPS.has(prevWord)) return 'dat';
+    if (prevWord && ACCUSATIVE_PREPS.has(prevWord)) return 'acc';
+
+    // Simple direct-object heuristic: nouns/adjectives after a verb tend accusative
+    if (lastVerbIndex !== -1 && index > lastVerbIndex) return 'acc';
+
+    return 'nom';
   }
 }
 
