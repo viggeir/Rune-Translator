@@ -1498,8 +1498,7 @@ const EN_TO_ON = {
   'friend':'vinr', 'friends':'vinir', 'foe':'óvinr', 'foes':'óvinir', 'enemy':'óvinr', 'enemies':'óvinir',
   'brother':'bróðir', 'brothers':'bræðr', 'sister':'systir', 'sisters':'systr', 'father':'faðir', 'fathers':'feðr', 'mother':'móðir', 'mothers':'mæðr',
   'son':'sonr', 'sons':'synir', 'daughter':'dóttir', 'daughters':'dætr', 'wife':'kona', 'wives':'konur', 'husband':'bóndi', 'husbands':'bændr',
-  'family':'fjölskylda', 'families':'fjölskyldir', 'kin':'frændr', 'clan':'ætt', 'clans':'ættir', 'tribe':'þjóð', 'tribes':'þjóðir',
-  'his kin':'sín ætt', 'her kin':'sín ætt', 'their kin':'sína ætt',
+  'family':'fjölskylda', 'families':'fjölskyldir', 'kin':'ætt', 'clan':'ætt', 'clans':'ættir', 'tribe':'þjóð', 'tribes':'þjóðir',
   // ── Gods & Myth ──
   'god':'guð', 'gods':'goðin', 'goddess':'gyðja',
   'norns':'nornir', 'valkyrie':'valkyrja', 'valkyries':'valkyrjur',
@@ -1688,7 +1687,7 @@ const EN_TO_ON = {
   'glory':'dýrð', 'fame':'frægð', 'renown':'frægð', 'honor':'drengskapr',
   'shame':'skömm', 'dishonor':'skömm', 'disgrace':'skömm', 'ignominy':'skömm',
   'fate':'wyrd', 'doom':'dómr', 'destiny':'wyrd', 'ruin':'eyðing',
-  'kin':'ættar', 'kindred':'ættir', 'bloodline':'ættar', 'clan':'ættar',
+  'kin':'ætt', 'kindred':'ættir', 'bloodline':'ættar', 'clan':'ættar',
   'dynasty':'ættartala', 'lineage':'ættar', 'descent':'ættar',
   'feud':'fala', 'vendetta':'hefnd', 'revenge':'hefnd', 'retaliation':'hefnd',
   'settlement':'sátt', 'peace-making':'sátt', 'reconciliation':'sátt',
@@ -3263,6 +3262,7 @@ function realizeSyntaxIR(ir) {
 
 function realizeClause(clause, inCounterfactual) {
   let baseText = clause.text;
+  const hasReflexiveKinCue = /\b(his|her|their)\s+own\s+kin\b/i.test(baseText);
 
   // Dedicated construction handling for counterfactual grammar.
   if (inCounterfactual && clause.type === 'protasis') {
@@ -3287,6 +3287,9 @@ function realizeClause(clause, inCounterfactual) {
 
   if (clause.type === 'explanatory') {
     translatedText = `þvíat ${translatedText}`.trim();
+  }
+  if (hasReflexiveKinCue) {
+    translatedText = translatedText.replace(/\b(hans|hennar|þeirra)\b/gi, 'sín');
   }
 
   if (!clause.relative) {
@@ -3636,9 +3639,10 @@ function processSentence(sentence) {
       classified.push({type:'pronoun', en:clean, pron:PRONOUNS[clean]});
     } else if(CONJ[clean]) {
       classified.push({type:'verb', en:clean});
-    } else if(POSSESSIVES[clean]) {
+    } else if(POSSESSIVES[clean] || (clean.endsWith('-reflexive') && POSSESSIVES[clean.replace(/-reflexive$/,'')])) {
       // Possessive — will apply gender agreement in step 4
-      classified.push({type:'possessive', en:clean});
+      const basePoss = clean.replace(/-reflexive$/,'');
+      classified.push({type:'possessive', en:basePoss, forceReflexive: clean.endsWith('-reflexive')});
     } else if(ADJECTIVES[clean]) {
       // Adjective — will apply gender agreement in step 4
       classified.push({type:'adjective', en:clean});
@@ -3856,10 +3860,11 @@ function processSentence(sentence) {
 
         const possForm = POSSESSIVES[tok.en];
         if(possForm) {
+          const selectedSet = (tok.forceReflexive && possForm.reflexive) ? possForm.reflexive : possForm;
           // Apply appropriate form based on noun's gender
-          const form = gender === 'f' ? possForm.fem_sg
-                     : gender === 'n' ? possForm.neut_sg
-                     : possForm.masc_sg;
+          const form = gender === 'f' ? selectedSet.fem_sg
+                     : gender === 'n' ? selectedSet.neut_sg
+                     : selectedSet.masc_sg;
           return { ...tok, on: form };
         }
       }
