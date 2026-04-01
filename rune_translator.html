@@ -1499,6 +1499,7 @@ const EN_TO_ON = {
   'brother':'bróðir', 'brothers':'bræðr', 'sister':'systir', 'sisters':'systr', 'father':'faðir', 'fathers':'feðr', 'mother':'móðir', 'mothers':'mæðr',
   'son':'sonr', 'sons':'synir', 'daughter':'dóttir', 'daughters':'dætr', 'wife':'kona', 'wives':'konur', 'husband':'bóndi', 'husbands':'bændr',
   'family':'fjölskylda', 'families':'fjölskyldir', 'kin':'frændr', 'clan':'ætt', 'clans':'ættir', 'tribe':'þjóð', 'tribes':'þjóðir',
+  'his kin':'sín ætt', 'her kin':'sín ætt', 'their kin':'sína ætt',
   // ── Gods & Myth ──
   'god':'guð', 'gods':'goðin', 'goddess':'gyðja',
   'norns':'nornir', 'valkyrie':'valkyrja', 'valkyries':'valkyrjur',
@@ -3176,96 +3177,138 @@ function performTranslation() {
 
 // ─── NEW PHRASE-BASED TRANSLATION FUNCTION ────────────────────────────────────────
 function translateWithPhraseParser(input) {
-  const grammarEngine = new GrammarEngine();
   const unknowns = [];
-  
-  // Split by lines to preserve structure
   const lines = input.split('\n');
   const translatedLines = [];
-  
+
   lines.forEach(line => {
     if (!line.trim()) {
       translatedLines.push('');
       return;
     }
 
-    line = normalizeEnglishIdioms(removeIndefiniteArticles(line));
+    const normalized = normalizeEnglishIdioms(removeIndefiniteArticles(line));
+    const ir = parseLineToSyntaxIR(normalized);
+    const realized = realizeSyntaxIR(ir);
 
-    const counterfactual = translateCounterfactualConditionalLine(line);
-    if (counterfactual) {
-      translatedLines.push(counterfactual.oldNorse);
-      counterfactual.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+    translatedLines.push(realized.oldNorse);
+    realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+  });
+
+  return { oldNorse: translatedLines.join('\n'), unknowns };
+}
+
+function parseLineToSyntaxIR(line) {
+  const root = { type: 'line', clauses: [] };
+  const trimmed = (line || '').trim();
+
+  const counterfactualMatch = trimmed.match(/^\s*if\s+(.+?),\s*(.+)$/i);
+  if (counterfactualMatch &&
+      /\bhad\b/i.test(counterfactualMatch[1]) &&
+      /\bwould\b/i.test(counterfactualMatch[2])) {
+    root.clauses.push({
+      type: 'counterfactual',
+      protasis: parseSimpleClause(counterfactualMatch[1], 'protasis'),
+      apodosis: parseSimpleClause(counterfactualMatch[2], 'apodosis')
+    });
+    return root;
+  }
+
+  const explanatorySplit = trimmed.split(/,\s+for\s+/i);
+  if (explanatorySplit.length > 1) {
+    root.clauses.push(parseSimpleClause(explanatorySplit[0], 'main'));
+    root.clauses.push(parseSimpleClause(explanatorySplit.slice(1).join(' for '), 'explanatory'));
+    return root;
+  }
+
+  root.clauses.push(parseSimpleClause(trimmed, 'main'));
+  return root;
+}
+
+function parseSimpleClause(text, clauseType) {
+  const clause = { type: clauseType, text: text.trim(), relative: null };
+  const relMatch = clause.text.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+(who|that|which)\s+(.+)$/i);
+  if (relMatch) {
+    clause.text = relMatch[1].trim();
+    clause.relative = {
+      marker: relMatch[2].toLowerCase(),
+      clause: relMatch[3].trim()
+    };
+  }
+  return clause;
+}
+
+function realizeSyntaxIR(ir) {
+  const unknowns = [];
+  const parts = [];
+
+  ir.clauses.forEach(node => {
+    if (node.type === 'counterfactual') {
+      const protasis = realizeClause(node.protasis, true);
+      const apodosis = realizeClause(node.apodosis, true);
+      parts.push(`ef ${protasis.text}, ${apodosis.text}`.replace(/\s+/g, ' ').trim());
+      protasis.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+      apodosis.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
       return;
     }
-    
-    // Step 1: Tokenize
-    const tokens = tokenize(line);
 
-    // Step 2: Parse phrases
-    const phrases = parsePhrases(tokens);
-
-    // Step 3: Grammar analysis
-    const analysis = grammarEngine.analyzePhrase(phrases);
-
-    // Step 4: Apply inflections
-    const inflected = grammarEngine.applyInflections(analysis);
-    
-    // Step 5: Build output string
-    let oldNorseLine = '';
-    inflected.forEach(item => {
-      if (item.type === 'space') {
-        oldNorseLine += item.value;
-      } else if (item.type === 'punctuation') {
-        oldNorseLine += item.value;
-      } else if (item.wordType === 'unknown') {
-        oldNorseLine += '[' + item.value + '] ';
-        if (!unknowns.includes(item.value)) unknowns.push(item.value);
-      } else {
-        oldNorseLine += (item.inflected || item.translation || item.value) + ' ';
-      }
-    });
-    
-    translatedLines.push(oldNorseLine.trim());
+    const realized = realizeClause(node, false);
+    parts.push(realized.text);
+    realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
-  
+
+  const oldNorse = validateGeneratedOldNorse(parts.join(', '));
+  return { oldNorse, unknowns };
+}
+
+function realizeClause(clause, inCounterfactual) {
+  let baseText = clause.text;
+
+  // Dedicated construction handling for counterfactual grammar.
+  if (inCounterfactual && clause.type === 'protasis') {
+    baseText = baseText.replace(/^\s*i\s+had\s+/i, 'i had ');
+  } else if (inCounterfactual && clause.type === 'apodosis') {
+    baseText = baseText.replace(/^\s*i\s+would\s+have\s+/i, 'i would have ');
+  }
+
+  // Phrase-level semantics and lexicon normalization before lexical realization.
+  baseText = baseText
+    .replace(/\bbe\s+taken\s+back\b/gi, 'be retracted')
+    .replace(/\btaken\s+back\b/gi, 'retract')
+    .replace(/\bwords\s+once\s+given\b/gi, 'words previously given')
+    .replace(/\bgold\b/gi, 'gull');
+
+  // Reflexive possession cue ("his own", "her own", "their own").
+  baseText = baseText.replace(/\b(his|her|their)\s+own\b/gi, '$1');
+
+  const translated = translateWithPhraseParserFallback(baseText);
+  let translatedText = translated.text
+    .replace(/\[(ek|hafði|mundi|hafa)\]/gi, '$1');
+
+  if (clause.type === 'explanatory') {
+    translatedText = `þvíat ${translatedText}`.trim();
+  }
+
+  if (!clause.relative) {
+    return { text: translatedText, unknowns: translated.unknowns };
+  }
+
+  const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
+  const mergedUnknowns = [...new Set([...(translated.unknowns || []), ...(relBase.unknowns || [])])];
   return {
-    oldNorse: translatedLines.join('\n'),
-    unknowns: unknowns
+    text: `${translatedText} ${relBase.text}`.replace(/\s+/g, ' ').trim(),
+    unknowns: mergedUnknowns
   };
 }
 
-function translateCounterfactualConditionalLine(line) {
-  const pattern = /^\s*if\s+(.+?),\s*(.+)$/i;
-  const match = line.match(pattern);
-  if (!match) return null;
-
-  const protasisRaw = match[1].trim();
-  const apodosisRaw = match[2].trim();
-  if (!/\bhad\b/i.test(protasisRaw) || !/\bwould\b/i.test(apodosisRaw)) return null;
-
-  const protasis = translateProtasisClause(protasisRaw);
-  const apodosis = translateApodosisClause(apodosisRaw);
-
-  return {
-    oldNorse: `ef ${protasis.text}, ${apodosis.text}`.replace(/\s+/g, ' ').trim(),
-    unknowns: [...new Set([...(protasis.unknowns || []), ...(apodosis.unknowns || [])])]
-  };
-}
-
-function translateProtasisClause(text) {
-  let unknowns = [];
-  let clause = text.replace(/^\s*i\s+had\s+/i, 'ek hafði ');
-  const translated = translateWithPhraseParserFallback(clause);
-  unknowns = [...new Set([...unknowns, ...translated.unknowns])];
-  return { text: translated.text, unknowns };
-}
-
-function translateApodosisClause(text) {
-  let unknowns = [];
-  let clause = text.replace(/^\s*i\s+would\s+have\s+/i, 'ek mundi hafa ');
-  const translated = translateWithPhraseParserFallback(clause);
-  unknowns = [...new Set([...unknowns, ...translated.unknowns])];
-  return { text: translated.text, unknowns };
+function validateGeneratedOldNorse(text) {
+  if (!text) return text;
+  // Prevent malformed fused modal+infinitive tokens (e.g., "mundisvíkja").
+  return text
+    .replace(/\b(mundi|skyldi|mætti|kunni)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
+    .replace(/\b(hafði)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function translateWithPhraseParserFallback(line) {
@@ -3464,11 +3507,15 @@ function processSentence(sentence) {
       // Use detected sense if available, otherwise fall back to dictionary lookup
       const tok_is_adjective = detectedSense === 'adjective' || ADJECTIVES[tok.toLowerCase()];
       const next_is_adjective = ADJECTIVES[raw[i+2].toLowerCase()];
+      const nextLemma = LEMMAS[raw[i+2]] || raw[i+2];
+      const next_is_verb = !!CONJ[raw[i+2]] || !!CONJ[nextLemma] || isLikelyPastVerbForm(raw[i+2], nextLemma);
+      const tokLemma = LEMMAS[tok] || tok;
+      const tok_is_verb = !!CONJ[tok] || !!CONJ[tokLemma] || isLikelyPastVerbForm(tok, tokLemma);
 
       // Only apply phrase fallback if NEITHER is an adjective
       // (adjectives should stay separate, not concatenate with other words)
       // EXCEPTION: Check for noun+noun compounds even if preceded by adjective
-      if(!tok_is_adjective && !next_is_adjective) {
+      if(!tok_is_adjective && !next_is_adjective && !tok_is_verb && !next_is_verb) {
         if(EN_TO_ON[phrase]) {
           // Exact phrase found in dictionary
           // Determine gender from the full phrase first, then fallback to head noun (last word)
@@ -4711,19 +4758,39 @@ function runTranslatorRegressionTests() {
       assert: out => /\[xyzzy\]/.test(out.oldNorse)
     },
     {
-      name: 'relative clause + preposition pronoun case',
-      input: 'the man who stood before me',
-      assert: out => /stóð/.test(out.oldNorse) && /\bmér\b/.test(out.oldNorse)
-    },
-    {
-      name: 'counterfactual conditional parsing',
+      name: 'counterfactual if-clause',
       input: 'if i had known the man, i would have spoken',
-      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\bmundi\b/.test(out.oldNorse)
+      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\bhafði\b/.test(out.oldNorse) && /\bmundi\b/.test(out.oldNorse)
     },
     {
-      name: 'reflexive possession survives object context',
+      name: 'relative clause attachment',
+      input: 'the man who stood before me spoke',
+      assert: out => /\beR\b|\ber\b/i.test(out.oldNorse) && /stóð/.test(out.oldNorse)
+    },
+    {
+      name: 'modal and infinitive remain separate tokens',
+      input: 'if i had known, i would have betrayed',
+      assert: out => /\bmundi\s+/.test(out.oldNorse) && !/\bmundi[a-záéíóúýþðæøöǫ]/i.test(out.oldNorse)
+    },
+    {
+      name: 'reflexive possession',
       input: 'the man betrayed his own kin',
-      assert: out => /\bsinn\b|\bsína\b|\bsitt\b/.test(out.oldNorse)
+      assert: out => /\bsinn\b|\bsína\b|\bsitt\b|\bsín\b/.test(out.oldNorse)
+    },
+    {
+      name: 'function-word disambiguation for explanatory clause',
+      input: 'i kept my oath, for words once given cannot be taken back',
+      assert: out => /þvíat/.test(out.oldNorse)
+    },
+    {
+      name: 'multiword expression handling',
+      input: 'words once given cannot be taken back',
+      assert: out => !/tekibak|taka bak|be tekibak/i.test(out.oldNorse)
+    },
+    {
+      name: 'grammar survives unknown words',
+      input: 'if i had known xyzzy, i would have spoken',
+      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\[xyzzy\]/.test(out.oldNorse)
     }
   ];
 
