@@ -661,6 +661,7 @@ const PAST_CONJ = {
   'break': ['braut', 'brauzt', 'braut', 'brutum', 'brutuð', 'brutu'],
   'turn':  ['breytta', 'breyttir', 'breytti', 'breyttum', 'breyttuð', 'breyttu'],
   'return':['snera', 'snerir', 'sneri', 'snerum', 'sneruð', 'sneru'],
+  'fear':  ['óttaðisk', 'óttaðisk', 'óttaðisk', 'óttaðumsk', 'óttaðuzk', 'óttuðusk'],
 };
 
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
@@ -730,6 +731,8 @@ const CONJ = {
   'lose':   ['tapa', 'tapir', 'tapir', 'tapum', 'tapuð', 'tapa'],
   // breyta — to turn/change (strong class 6)
   'turn':   ['breyti', 'breytir', 'breytir', 'breytum', 'breytið', 'breyta'],
+  // snúa aptr — to return (treated as lexical return verb for finite negation handling)
+  'return': ['sný', 'snýr', 'snýr', 'snúum', 'snúið', 'snúa'],
   // brjóta — to break (strong class 6)
   'break':  ['bryt', 'brytr', 'brytr', 'brjötum', 'brjótið', 'brjóta'],
   // vinna — to win (strong class 3)
@@ -6129,9 +6132,12 @@ class GrammarEngine {
     } else if (value === 'er') {
       analysis.wordType = 'grammar-marker';
       analysis.translation = 'er';
-    } else if (POSSESSIVES[value]) {
+    } else if (POSSESSIVES[value] || (/-reflexive$/.test(value) && POSSESSIVES[value.replace(/-reflexive$/, '')])) {
+      const basePossessive = value.replace(/-reflexive$/, '');
       analysis.wordType = 'possessive';
-      analysis.possessiveData = POSSESSIVES[value];
+      analysis.possessiveData = POSSESSIVES[basePossessive];
+      analysis.value = basePossessive;
+      analysis.forceReflexive = /-reflexive$/.test(value);
     } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
@@ -6539,7 +6545,7 @@ class GrammarEngine {
 
           const npFeatures = nounPhraseFeatures.get(i);
           targetGender = npFeatures?.gender || targetGender;
-          const isReflexive = this.isReflexivePossessive(i, analysis);
+          const isReflexive = !!item.forceReflexive || this.isReflexivePossessive(i, analysis);
           const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender, isReflexive);
           inflected.push({
             ...item,
@@ -6961,7 +6967,7 @@ function normalizeLexiconToken(token) {
 function formatUnresolvedToken(token) {
   const raw = (token || '').toString().trim();
   if (!raw) return '[unknown]';
-  const normalized = raw.replace(/^\[+|\]+$/g, '').trim();
+  const normalized = raw.replace(/^\[+|\]+$/g, '').replace(/-reflexive$/i, '').trim();
   return `[${normalized || 'unknown'}]`;
 }
 
@@ -7273,7 +7279,10 @@ function realizeSyntaxIR(ir) {
     realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
-  const oldNorse = enforceNoRawSourceLeakage(validateGeneratedOldNorse(parts.join(' ')), unknowns);
+  const oldNorse = enforceNoRawSourceLeakage(
+    collapseDoSupportPredicates(validateGeneratedOldNorse(parts.join(' '))),
+    unknowns
+  );
   return { oldNorse, unknowns };
 }
 
@@ -7514,7 +7523,11 @@ function enforceNoRawSourceLeakage(text, unknowns = []) {
     const barePattern = new RegExp(`(^|[^\\[]\\b)(${escaped})(\\b)(?!\\])`, 'gi');
     output = output.replace(barePattern, (match, pre, word, post) => `${pre || ''}${formatUnresolvedToken(word)}${post || ''}`);
   });
-  return output.replace(/\s{2,}/g, ' ').trim();
+  return output
+    .replace(/\b([a-z'-]+)-reflexive\b/gi, '$1')
+    .replace(/\[([a-z'-]+)-reflexive\]/gi, '[$1]')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function reorderPossessiveNounPhrases(text) {
@@ -7549,7 +7562,8 @@ function translateWithPhraseParserFallback(line) {
       text += `${realizeLexicalItem(item)} `;
     }
   });
-  return { text: enforceNoRawSourceLeakage(reorderPossessiveNounPhrases(text.trim()), unknowns), unknowns };
+  const normalized = collapseDoSupportPredicates(reorderPossessiveNounPhrases(text.trim()));
+  return { text: enforceNoRawSourceLeakage(normalized, unknowns), unknowns };
 }
 
 function normalizeEnglishIdioms(text) {
