@@ -6078,6 +6078,9 @@ class GrammarEngine {
     } else if (value === 'er') {
       analysis.wordType = 'grammar-marker';
       analysis.translation = 'er';
+    } else if (POSSESSIVES[value]) {
+      analysis.wordType = 'possessive';
+      analysis.possessiveData = POSSESSIVES[value];
     } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
@@ -6105,13 +6108,11 @@ class GrammarEngine {
     } else if (ADJECTIVES[value]) {
       analysis.wordType = 'adjective';
       analysis.adjectiveData = ADJECTIVES[value];
-    } else if (POSSESSIVES[value]) {
-      analysis.wordType = 'possessive';
-      analysis.possessiveData = POSSESSIVES[value];
     } else if (NOUN_GENDER[value]) {
       analysis.wordType = 'noun';
       analysis.gender = NOUN_GENDER[value];
       analysis.nounData = { gender: NOUN_GENDER[value] };
+      analysis.translation = EN_TO_ON[value] || null;
     } else if (phrase.translation) {
       // Pre-translated phrase or compound
       if (phrase.type === 'possessive-phrase') {
@@ -6621,6 +6622,10 @@ class GrammarEngine {
 
   // Determine if a possessive is reflexive (referring back to the subject)
   isReflexivePossessive(index, analysis) {
+    const possessiveToken = (analysis[index]?.value || '').toLowerCase();
+    if (['my', 'your', 'his', 'her', 'our', 'their'].includes(possessiveToken)) {
+      return false;
+    }
     // Find the noun that follows this possessive
     let targetNounIndex = -1;
     for (let j = index + 1; j < analysis.length; j++) {
@@ -6816,8 +6821,10 @@ function translateWithPhraseParser(input) {
     const ir = parseLineToSyntaxIR(normalized);
     const realized = realizeSyntaxIR(ir);
 
-    translatedLines.push(realized.oldNorse);
-    realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+    const leakSafeOutput = enforceNoRawSourceLeakage(realized.oldNorse, realized.unknowns || []);
+
+    translatedLines.push(leakSafeOutput);
+    (realized.unknowns || []).forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
   return { oldNorse: translatedLines.join('\n'), unknowns };
@@ -6885,6 +6892,30 @@ function normalizeLexiconToken(token) {
     er: 'er',
   };
   return normalizationMap[lower] || lower;
+}
+
+function formatUnresolvedToken(token) {
+  const raw = (token || '').toString().trim();
+  if (!raw) return '[unknown]';
+  const normalized = raw.replace(/^\[+|\]+$/g, '').trim();
+  return `[${normalized || 'unknown'}]`;
+}
+
+function realizeLexicalItem(item) {
+  if (!item || item.type === 'space' || item.type === 'punctuation') return '';
+  const grammarWordTypes = new Set(['grammar-marker', 'preposition', 'pronoun', 'verb', 'demonstrative', 'possessive', 'article']);
+  const sourceToken = (item.value || item.en || '').toLowerCase();
+  const resolved = (item.inflected || item.translation || item.on || item.value || item.en || '').toString().trim();
+  if (!resolved) return '';
+  if (/^\[[^\]]+\]$/.test(resolved)) return resolved;
+  if (grammarWordTypes.has(item.wordType)) return resolved;
+  if (!sourceToken) return resolved;
+  const mapped = EN_TO_ON[sourceToken];
+  const hasMeaningfulTranslation = !!mapped && mapped.toLowerCase() !== sourceToken;
+  if (!hasMeaningfulTranslation && resolved.toLowerCase() === sourceToken && /[a-z]/i.test(sourceToken)) {
+    return formatUnresolvedToken(sourceToken);
+  }
+  return resolved;
 }
 
 function resolveVerbInfinitive(lemma) {
@@ -7132,7 +7163,7 @@ function realizeSyntaxIR(ir) {
     realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
-  const oldNorse = validateGeneratedOldNorse(parts.join(' '));
+  const oldNorse = enforceNoRawSourceLeakage(validateGeneratedOldNorse(parts.join(' ')), unknowns);
   return { oldNorse, unknowns };
 }
 
@@ -7291,14 +7322,14 @@ function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '',
   const onSubject = realizeClauseSubject(subjectPronoun);
   const modal = modalBySubject[onSubject] || 'mundi';
   const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || `[${predicateLemma}]`;
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
   const adverbText = realizeAdverbials(adverbials);
   return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
   const onSubject = realizeClauseSubject(subjectPronoun) || 'ek';
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || predicateLemma;
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
   return `${onSubject} hafði ${participle} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
@@ -7321,8 +7352,8 @@ function realizeAdverbials(adverbials = []) {
   if (!Array.isArray(adverbials) || !adverbials.length) return '';
   const realized = adverbials.map(mod => {
     if (!mod || mod.type !== 'adverbial') return '';
-    const degree = mod.degree ? (EN_TO_ON[mod.degree] || mod.degree) : '';
-    const value = mod.value ? (EN_TO_ON[mod.value] || mod.value) : '';
+    const degree = mod.degree ? (EN_TO_ON[mod.degree] || formatUnresolvedToken(mod.degree)) : '';
+    const value = mod.value ? (EN_TO_ON[mod.value] || formatUnresolvedToken(mod.value)) : '';
     return `${degree} ${value}`.replace(/\s+/g, ' ').trim();
   }).filter(Boolean);
   return realized.join(' ');
@@ -7351,6 +7382,23 @@ function validateGeneratedOldNorse(text) {
     .trim();
 }
 
+function enforceNoRawSourceLeakage(text, unknowns = []) {
+  if (!text) return text;
+  let output = text;
+  const deduped = [...new Set((unknowns || []).filter(Boolean).map(u => u.toLowerCase()))];
+  deduped.forEach(token => {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const barePattern = new RegExp(`(^|[^\\[]\\b)(${escaped})(\\b)(?!\\])`, 'gi');
+    output = output.replace(barePattern, (match, pre, word, post) => `${pre || ''}${formatUnresolvedToken(word)}${post || ''}`);
+  });
+  return output.replace(/\s{2,}/g, ' ').trim();
+}
+
+function reorderPossessiveNounPhrases(text) {
+  if (!text) return text;
+  return text.replace(/\b(minn|min|mitt|mín|þinn|þín|þitt|hans|hennar|þeirra|vár|várt|vor|sinn|sín|sitt)\s+([a-záðéíóúýþæöøǫ'-]+)\b/gi, '$2 $1');
+}
+
 function translateWithPhraseParserFallback(line) {
   const grammarEngine = new GrammarEngine();
   const tokens = tokenize(line);
@@ -7363,13 +7411,13 @@ function translateWithPhraseParserFallback(line) {
     if (item.type === 'space') text += item.value;
     else if (item.type === 'punctuation') text += item.value;
     else if (item.wordType === 'unknown') {
-      text += `[${item.value}] `;
+      text += `${formatUnresolvedToken(item.value)} `;
       if (!unknowns.includes(item.value)) unknowns.push(item.value);
     } else {
-      text += (item.inflected || item.translation || item.value) + ' ';
+      text += `${realizeLexicalItem(item)} `;
     }
   });
-  return { text: text.trim(), unknowns };
+  return { text: enforceNoRawSourceLeakage(reorderPossessiveNounPhrases(text.trim()), unknowns), unknowns };
 }
 
 function normalizeEnglishIdioms(text) {
