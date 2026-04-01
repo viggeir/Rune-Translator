@@ -151,6 +151,9 @@ const REGEX_SPACE_ONLY = /^\s+$/;
 const REGEX_HAS_LETTER = /[a-záéíóúýæøöǫþðä]/;
 const REGEX_NEWLINE = /\n/;
 const REGEX_BRACKET_TEXT = /\[([^\]]*)\]/;
+const REGEX_INDEFINITE_ARTICLE = /\b(a|an)\b/gi;
+const REGEX_MULTI_SPACE = / {2,}/g;
+const REGEX_SPACE_BEFORE_PUNCT = /\s+([.,!?;:])/g;
 
 // ─── PROTO-GERMANIC ETYMOLOGICAL PATTERNS ────────────────────────────────────
 // Auto-detection patterns for 'e' that came from Proto-Germanic 'a'
@@ -3137,6 +3140,8 @@ function translateWithPhraseParser(input) {
       translatedLines.push('');
       return;
     }
+
+    line = removeIndefiniteArticles(line);
     
     // Step 1: Tokenize
     const tokens = tokenize(line);
@@ -3172,6 +3177,16 @@ function translateWithPhraseParser(input) {
     oldNorse: translatedLines.join('\n'),
     unknowns: unknowns
   };
+}
+
+function removeIndefiniteArticles(text) {
+  if(!text || typeof text !== 'string') return text;
+
+  return text
+    .replace(REGEX_INDEFINITE_ARTICLE, '')
+    .replace(REGEX_MULTI_SPACE, ' ')
+    .replace(REGEX_SPACE_BEFORE_PUNCT, '$1')
+    .trim();
 }
 
 // ─── RENDER RUNES WITH TOOLTIPS ──────────────────────────────────────────────
@@ -3293,6 +3308,7 @@ function processSentence(sentence) {
   // Input validation
   if(!sentence || typeof sentence !== 'string') return { translations: [] };
   if(sentence.length > 10000) sentence = sentence.substring(0, 10000);
+  sentence = removeIndefiniteArticles(sentence);
 
   // Step 1: raw tokenise (using pre-compiled regex)
   const raw = sentence.toLowerCase().match(REGEX_WORD_SPLIT) || [];
