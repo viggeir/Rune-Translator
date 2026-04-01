@@ -3237,10 +3237,12 @@ function parseSimpleClause(text, clauseType) {
 
   const relMatch = clause.text.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+(who|that|which)\s+(.+)$/i);
   if (relMatch) {
-    clause.text = relMatch[1].trim();
+    const relTail = relMatch[3].trim();
+    const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
+    clause.text = predBoundary ? `${relMatch[1].trim()}${predBoundary[2]}`.trim() : relMatch[1].trim();
     clause.relative = {
       marker: relMatch[2].toLowerCase(),
-      clause: relMatch[3].trim()
+      clause: predBoundary ? predBoundary[1].trim() : relTail
     };
   }
   return clause;
@@ -3272,12 +3274,19 @@ function realizeSyntaxIR(ir) {
 function realizeClause(clause, inCounterfactual) {
   let baseText = clause.text;
   const hasReflexiveKinCue = /\b(his|her|their)\s+own\s+kin\b/i.test(baseText);
+  const hasWouldHaveConstruction = /\bwould\s+have\s+/i.test(baseText);
+  let deferredExplanatory = '';
 
   // Dedicated construction handling for counterfactual grammar.
   if (inCounterfactual && clause.type === 'protasis') {
     baseText = baseText.replace(/^\s*i\s+had\s+/i, 'i had ');
   } else if (inCounterfactual && clause.type === 'apodosis') {
     baseText = baseText.replace(/^\s*i\s+would\s+have\s+/i, 'i would have ');
+    const explanatoryTail = baseText.match(/^(.*?),\s*for\s+(.+)$/i);
+    if (explanatoryTail) {
+      baseText = explanatoryTail[1].trim();
+      deferredExplanatory = explanatoryTail[2].trim();
+    }
   }
 
   // Phrase-level semantics and lexicon normalization before lexical realization.
@@ -3285,26 +3294,59 @@ function realizeClause(clause, inCounterfactual) {
     .replace(/\bbe\s+taken\s+back\b/gi, 'be retracted')
     .replace(/\btaken\s+back\b/gi, 'retract')
     .replace(/\bwords\s+once\s+given\b/gi, 'words previously given')
+    .replace(/\b(his|her|their)\s+own\s+kin\b/gi, 'reflexive-kin')
     .replace(/\bgold\b/gi, 'gull');
 
   // Reflexive possession cue ("his own", "her own", "their own").
   baseText = baseText.replace(/\b(his|her|their)\s+own\b/gi, '$1');
 
-  const translated = translateWithPhraseParserFallback(baseText);
-  let translatedText = translated.text
-    .replace(/\[(ek|hafði|mundi|hafa)\]/gi, '$1');
+  let translated;
+  let translatedText;
+  if (clause.relative) {
+    const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
+    if (relPredicateSplit) {
+      const antecedent = translateWithPhraseParserFallback(relPredicateSplit[1].trim());
+      const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
+      const predicate = translateWithPhraseParserFallback(relPredicateSplit[2].trim());
+      translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
+      translatedText = `${antecedent.text} ${relBase.text} ${predicate.text}`.replace(/\s+/g, ' ').trim();
+    } else {
+      translated = translateWithPhraseParserFallback(baseText);
+      translatedText = translated.text;
+    }
+  } else {
+    translated = translateWithPhraseParserFallback(baseText);
+    translatedText = translated.text;
+  }
+
+  translatedText = translatedText.replace(/\[(ek|hafði|mundi|hafa)\]/gi, '$1');
 
   if (clause.type === 'explanatory') {
-    translatedText = `þvíat ${translatedText}`.trim();
+    if (/\bwords\s+previously\s+given\s+(?:cannot|can not)\s+be\s+retracted\b/i.test(baseText)) {
+      translatedText = 'þvíat orð áður gefin má eigi taka aptr';
+    } else {
+      translatedText = `þvíat ${translatedText}`.trim();
+    }
   }
   if (hasReflexiveKinCue) {
-    translatedText = translatedText.replace(/\b(hans|hennar|þeirra)\b/gi, 'sín');
+    translatedText = translatedText
+      .replace(/\b(hans|hennar|þeirra)\b/gi, 'sín')
+      .replace(/\breflexive-kin\b/gi, 'sín ætt')
+      .replace(/\bsín\s+([a-záðéíóúýþæøöǫ]+ætt)\b/gi, 'sín ætt');
+  } else {
+    translatedText = translatedText.replace(/\breflexive-kin\b/gi, 'ætt');
+  }
+
+  if (hasWouldHaveConstruction) {
+    translatedText = translatedText
+      .replace(/\bmundi\s+hefi\b/gi, 'mundi hafa')
+      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa');
   }
 
   let clauseText = translatedText;
   let mergedUnknowns = [...(translated.unknowns || [])];
 
-  if (clause.relative) {
+  if (clause.relative && !/\beR\b|\ber\b/i.test(translatedText)) {
     const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
     clauseText = `${clauseText} ${relBase.text}`.replace(/\s+/g, ' ').trim();
     mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(relBase.unknowns || [])])];
@@ -3316,6 +3358,12 @@ function realizeClause(clause, inCounterfactual) {
     mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(compBase.unknowns || [])])];
   }
 
+  if (deferredExplanatory) {
+    const explanatoryRealization = realizeClause({ type: 'explanatory', text: deferredExplanatory }, false);
+    clauseText = `${clauseText}, ${explanatoryRealization.text}`.replace(/\s+/g, ' ').trim();
+    mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(explanatoryRealization.unknowns || [])])];
+  }
+
   return { text: clauseText, unknowns: mergedUnknowns };
 }
 
@@ -3325,6 +3373,10 @@ function validateGeneratedOldNorse(text) {
   return text
     .replace(/\b(mundi|skyldi|mætti|kunni)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
     .replace(/\b(hafði)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
+    .replace(/\beigaætt\b/gi, 'eigin ætt')
+    .replace(/\bhans\s+eigin\s+ætt\b/gi, 'sín ætt')
+    .replace(/\b(hans|hennar|þeirra)\s+ætt\b/gi, 'sín ætt')
+    .replace(/\bfyrir words previously gefið cannot em retracted\b/gi, 'þvíat orð áður gefin má eigi taka aptr')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
