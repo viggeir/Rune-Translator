@@ -634,6 +634,8 @@ const PAST_PARTICIPLES = {
   go: 'farið',
   see: 'sét',
   hear: 'heyrt',
+  kill: 'drepit',
+  curse: 'bölvat',
 };
 
 // Motion verbs that take accusative object without preposition
@@ -6911,6 +6913,7 @@ function parseSimpleClause(text, clauseType) {
   const modifierNormalized = normalizeModifierPhrases(text.trim());
   const clause = { type: clauseType, text: modifierNormalized.text, relative: null, complement: null, modifiers: modifierNormalized.modifiers };
   clause.constructions = [];
+  clause.subjectNP = parseHeadNounPhrase(clause.text);
 
   // Complement clause detection: "know/known that X", "say that X", etc.
   // We realize this as "at X" in Old Norse.
@@ -6922,13 +6925,20 @@ function parseSimpleClause(text, clauseType) {
 
   const relMatch = clause.text.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+(who|that|which)\s+(.+)$/i);
   if (relMatch) {
+    const headNP = parseHeadNounPhrase(relMatch[1].trim());
     const relTail = relMatch[3].trim();
     const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
-    clause.text = predBoundary ? `${relMatch[1].trim()}${predBoundary[2]}`.trim() : relMatch[1].trim();
+    clause.text = predBoundary ? `${headNP.surface}${predBoundary[2]}`.trim() : headNP.surface;
+    clause.subjectNP = headNP;
     clause.relative = {
       marker: 'er',
-      attachmentTarget: relMatch[1].trim(),
-      clause: predBoundary ? predBoundary[1].trim() : relTail
+      attachmentTarget: headNP.surface,
+      clause: predBoundary ? predBoundary[1].trim() : relTail,
+      attachment: {
+        type: 'head-noun-phrase',
+        headNoun: headNP.headNoun,
+        headNP
+      }
     };
   }
 
@@ -6936,7 +6946,8 @@ function parseSimpleClause(text, clauseType) {
   if (possessiveRelMatch) {
     const relTail = possessiveRelMatch[3].trim();
     const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
-    const head = possessiveRelMatch[1].trim();
+    const headNP = parseHeadNounPhrase(possessiveRelMatch[1].trim());
+    const head = headNP.surface;
     const embeddedText = predBoundary ? predBoundary[1].trim() : relTail;
     const embedded = parseEmbeddedClauseRoles(embeddedText);
     const possessorPronoun = resolveHeadPossessorPronoun(head);
@@ -6947,6 +6958,7 @@ function parseSimpleClause(text, clauseType) {
       possessor: {
         type: 'head-reference',
         head,
+        headNP,
         pronoun: possessorPronoun
       }
     };
@@ -6956,11 +6968,17 @@ function parseSimpleClause(text, clauseType) {
       type: 'possessive',
       head,
       attachmentTarget: head,
+      attachment: {
+        type: 'head-noun-phrase',
+        headNoun: headNP.headNoun,
+        headNP
+      },
       possessedNoun,
       possessor: embedded.objectPhrase.possessor,
       embedded,
       clause: embeddedText
     };
+    clause.subjectNP = headNP;
   }
 
   const pastPerfectCondition = clause.text.match(/^\s*(.*?)\bhad\s+([a-z'-]+(?:ed|en|wn|ne|t|n))\b(.*)$/i);
@@ -7056,6 +7074,38 @@ function buildRoleBasedClauseFromEnglish(text, options = {}) {
   return [subject, verb, object].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
+function parseHeadNounPhrase(text) {
+  const raw = (text || '').trim();
+  if (!raw) return { surface: '', determiner: '', modifiers: [], headNoun: '', coreText: '' };
+  const match = raw.match(/^(?:(the)\s+)?((?:[a-z'-]+\s+){0,4})?(man|woman|king|queen|lord|lady|warrior|person)\b/i);
+  if (!match) return { surface: raw, determiner: '', modifiers: [], headNoun: '', coreText: raw };
+  const determiner = (match[1] || '').toLowerCase();
+  const modifiers = (match[2] || '').trim().split(/\s+/).filter(Boolean);
+  const headNoun = (match[3] || '').toLowerCase();
+  const coreText = [...modifiers, headNoun].join(' ').trim();
+  return {
+    surface: raw,
+    determiner,
+    modifiers,
+    headNoun,
+    coreText: coreText || raw
+  };
+}
+
+function realizeHeadNounPhrase(np, fallbackText = '') {
+  const base = np && np.coreText ? np.coreText : (fallbackText || '');
+  const translated = translateWithPhraseParserFallback(base);
+  if (!np || np.determiner !== 'the') return translated;
+
+  const lexicalHead = LEMMAS[np.headNoun] || np.headNoun;
+  const gender = NOUN_GENDER_EN[lexicalHead] || 'm';
+  const demonstrative = gender === 'f' ? 'sú' : (gender === 'n' ? 'þat' : 'sá');
+  return {
+    text: `${demonstrative} ${translated.text}`.replace(/\s+/g, ' ').trim(),
+    unknowns: translated.unknowns || []
+  };
+}
+
 function resolveHeadPossessorPronoun(headText) {
   const head = ((headText || '').match(/\b([a-z'-]+)\b(?=[^a-z'-]*$)/i) || [null, ''])[1].toLowerCase();
   if (['man', 'king', 'lord', 'warrior'].includes(head)) return 'his';
@@ -7141,8 +7191,12 @@ function realizeClause(clause, inCounterfactual) {
     translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
   } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
+    const attachedHeadNP = clause.relative.attachment?.headNP || clause.subjectNP || null;
     if (clause.relative.type === 'possessive') {
-      const antecedent = translateWithPhraseParserFallback(clause.relative.attachmentTarget || clause.relative.head || relPredicateSplit?.[1] || clause.text);
+      const antecedent = realizeHeadNounPhrase(
+        attachedHeadNP,
+        clause.relative.attachmentTarget || clause.relative.head || relPredicateSplit?.[1] || clause.text
+      );
       const embedded = clause.relative.embedded || parseEmbeddedClauseRoles(clause.relative.clause || '');
       const relSubject = embedded.subject || 'i';
       const relVerb = embedded.verb || '';
@@ -7158,7 +7212,10 @@ function realizeClause(clause, inCounterfactual) {
       translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
       translatedText = `${antecedent.text} ${relBase.text} ${predicate.text}`.replace(/\s+/g, ' ').trim();
     } else if (relPredicateSplit) {
-      const antecedent = translateWithPhraseParserFallback((clause.relative.attachmentTarget || relPredicateSplit[1]).trim());
+      const antecedent = realizeHeadNounPhrase(
+        attachedHeadNP,
+        (clause.relative.attachmentTarget || relPredicateSplit[1]).trim()
+      );
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
       const predicate = translateWithPhraseParserFallback(relPredicateSplit[2].trim());
       translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
@@ -7234,9 +7291,9 @@ function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '',
   const onSubject = realizeClauseSubject(subjectPronoun);
   const modal = modalBySubject[onSubject] || 'mundi';
   const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
-  const infinitive = resolveVerbInfinitive(predicateLemma) || `[${predicateLemma}]`;
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || `[${predicateLemma}]`;
   const adverbText = realizeAdverbials(adverbials);
-  return `${onSubject || 'ek'} ${modal} ${infinitive} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+  return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
@@ -7283,8 +7340,6 @@ function validateGeneratedOldNorse(text) {
   return text
     .replace(/\b(mundi|skyldi|mætti|kunni)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
     .replace(/\b(hafði)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
-    // Keep counterfactual-result as a single abstract modal + lexical predicate construction.
-    .replace(/\bmundi\s+hafa\s+([a-záéíóúýþðæøöǫ]+)\b/gi, 'mundi $1')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+ek\b/gi, '$1 mér')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+þú\b/gi, '$1 þér')
     .replace(/\b(frá|með|til|fyrir|hjá)\s+hann\b/gi, '$1 honum')
