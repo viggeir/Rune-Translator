@@ -6816,11 +6816,22 @@ function translateWithPhraseParser(input) {
     const ir = parseLineToSyntaxIR(normalized);
     const realized = realizeSyntaxIR(ir);
 
-    translatedLines.push(realized.oldNorse);
-    realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
+    const sourceLexemes = extractPotentialSourceLexemes(normalized);
+    const leaked = sourceLexemes.filter(tok => new RegExp(`(^|\\s)${tok}(\\s|$)`, 'i').test(realized.oldNorse));
+    const leakSafeOutput = enforceNoRawSourceLeakage(realized.oldNorse, [...(realized.unknowns || []), ...leaked]);
+
+    translatedLines.push(leakSafeOutput);
+    [...(realized.unknowns || []), ...leaked].forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
   return { oldNorse: translatedLines.join('\n'), unknowns };
+}
+
+function extractPotentialSourceLexemes(line) {
+  if (!line) return [];
+  const stopwords = new Set(['the','a','an','and','or','but','if','for','to','of','in','on','at','by','with','from','as','is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','can','could','should','may','might','must','that','this','these','those','who','which','what']);
+  const tokens = (line.toLowerCase().match(/[a-z][a-z'-]*/g) || []).filter(tok => !stopwords.has(tok));
+  return [...new Set(tokens)];
 }
 
 function parseLineToSyntaxIR(line) {
@@ -6885,6 +6896,28 @@ function normalizeLexiconToken(token) {
     er: 'er',
   };
   return normalizationMap[lower] || lower;
+}
+
+function formatUnresolvedToken(token) {
+  const raw = (token || '').toString().trim();
+  if (!raw) return '[unknown]';
+  const normalized = raw.replace(/^\[+|\]+$/g, '').trim();
+  return `[${normalized || 'unknown'}]`;
+}
+
+function realizeLexicalItem(item) {
+  if (!item || item.type === 'space' || item.type === 'punctuation') return '';
+  const sourceToken = (item.value || item.en || '').toLowerCase();
+  const resolved = (item.inflected || item.translation || item.on || item.value || item.en || '').toString().trim();
+  if (!resolved) return '';
+  if (/^\[[^\]]+\]$/.test(resolved)) return resolved;
+  if (!sourceToken) return resolved;
+  const mapped = EN_TO_ON[sourceToken];
+  const hasMeaningfulTranslation = !!mapped && mapped.toLowerCase() !== sourceToken;
+  if (!hasMeaningfulTranslation && resolved.toLowerCase() === sourceToken && /[a-z]/i.test(sourceToken)) {
+    return formatUnresolvedToken(sourceToken);
+  }
+  return resolved;
 }
 
 function resolveVerbInfinitive(lemma) {
@@ -7132,7 +7165,7 @@ function realizeSyntaxIR(ir) {
     realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
-  const oldNorse = validateGeneratedOldNorse(parts.join(' '));
+  const oldNorse = enforceNoRawSourceLeakage(validateGeneratedOldNorse(parts.join(' ')), unknowns);
   return { oldNorse, unknowns };
 }
 
@@ -7291,14 +7324,14 @@ function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '',
   const onSubject = realizeClauseSubject(subjectPronoun);
   const modal = modalBySubject[onSubject] || 'mundi';
   const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || `[${predicateLemma}]`;
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
   const adverbText = realizeAdverbials(adverbials);
   return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
   const onSubject = realizeClauseSubject(subjectPronoun) || 'ek';
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || predicateLemma;
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
   return `${onSubject} hafði ${participle} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
@@ -7321,8 +7354,8 @@ function realizeAdverbials(adverbials = []) {
   if (!Array.isArray(adverbials) || !adverbials.length) return '';
   const realized = adverbials.map(mod => {
     if (!mod || mod.type !== 'adverbial') return '';
-    const degree = mod.degree ? (EN_TO_ON[mod.degree] || mod.degree) : '';
-    const value = mod.value ? (EN_TO_ON[mod.value] || mod.value) : '';
+    const degree = mod.degree ? (EN_TO_ON[mod.degree] || formatUnresolvedToken(mod.degree)) : '';
+    const value = mod.value ? (EN_TO_ON[mod.value] || formatUnresolvedToken(mod.value)) : '';
     return `${degree} ${value}`.replace(/\s+/g, ' ').trim();
   }).filter(Boolean);
   return realized.join(' ');
@@ -7351,6 +7384,18 @@ function validateGeneratedOldNorse(text) {
     .trim();
 }
 
+function enforceNoRawSourceLeakage(text, unknowns = []) {
+  if (!text) return text;
+  let output = text;
+  const deduped = [...new Set((unknowns || []).filter(Boolean).map(u => u.toLowerCase()))];
+  deduped.forEach(token => {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const barePattern = new RegExp(`(^|[^\\[]\\b)(${escaped})(\\b)(?!\\])`, 'gi');
+    output = output.replace(barePattern, (match, pre, word, post) => `${pre || ''}${formatUnresolvedToken(word)}${post || ''}`);
+  });
+  return output.replace(/\s{2,}/g, ' ').trim();
+}
+
 function translateWithPhraseParserFallback(line) {
   const grammarEngine = new GrammarEngine();
   const tokens = tokenize(line);
@@ -7363,13 +7408,13 @@ function translateWithPhraseParserFallback(line) {
     if (item.type === 'space') text += item.value;
     else if (item.type === 'punctuation') text += item.value;
     else if (item.wordType === 'unknown') {
-      text += `[${item.value}] `;
+      text += `${formatUnresolvedToken(item.value)} `;
       if (!unknowns.includes(item.value)) unknowns.push(item.value);
     } else {
-      text += (item.inflected || item.translation || item.value) + ' ';
+      text += `${realizeLexicalItem(item)} `;
     }
   });
-  return { text: text.trim(), unknowns };
+  return { text: enforceNoRawSourceLeakage(text.trim(), unknowns), unknowns };
 }
 
 function normalizeEnglishIdioms(text) {
