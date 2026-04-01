@@ -5382,6 +5382,125 @@ const EN_TO_ON = {
 
 };
 
+// ─── CORE USABILITY EXPANSION PACK (manual additions) ──────────────────────
+// Focus: frequent everyday verbs/nouns, function words, and practical phrases.
+// Applied post-definition so it is easy to maintain without editing the giant base table.
+const CORE_USABILITY_EXPANSION = {
+  // Function words & connectors
+  'although':'þótt', 'though':'þó', 'unless':'nema', 'until':'unz', 'because':'því at',
+  'therefore':'því', 'however':'þó', 'instead':'í stað', 'rather':'heldr',
+  'meanwhile':'meðan', 'except':'nema', 'despite':'þrátt fyrir', 'according to':'samkvæmt',
+  'whether':'hvárt', 'either':'annat hvárt', 'neither':'hvárki', 'both':'báðir',
+  'each':'hverr', 'every':'hverr', 'several':'nokkir', 'various':'ýmsir',
+  'almost':'næstum', 'already':'þegar', 'again':'aptr', 'soon':'brátt',
+  'later':'síðar', 'earlier':'áðr', 'perhaps':'kannski', 'maybe':'ef til vill',
+  'certainly':'víst', 'indeed':'sannliga', 'especially':'sérliga', 'mostly':'mest',
+
+  // Everyday verbs
+  'get':'fá', 'gets':'fær', 'got':'fékk', 'getting':'fáandi',
+  'keep':'halda', 'keeps':'heldr', 'keeping':'haldandi',
+  'begin':'hefja', 'begins':'hefr', 'began':'hóf', 'begun':'hafit',
+  'start':'byrja', 'starts':'byrjar', 'started':'byrjaði', 'starting':'byrjandi',
+  'finish':'ljúka', 'finishes':'lýkr', 'finished':'lauk', 'finishing':'ljúkandi',
+  'seem':'virðast', 'seems':'virðist', 'seemed':'virtist',
+  'become':'verða', 'becomes':'verðr', 'becoming':'verðandi',
+  'use':'nýta', 'uses':'nýtir', 'used':'nýtti', 'using':'nýtandi',
+  'try':'reyna', 'tries':'reynir', 'trying':'reynandi',
+  'explain':'skýra', 'explains':'skýrir', 'explained':'skýrði',
+  'move':'hreyfa', 'moves':'hreyfir', 'moved':'hreyfði',
+  'stay':'dvelja', 'stays':'dvelr', 'stayed':'dvalði',
+  'wait':'bíða', 'waits':'bíðr', 'waiting':'bíða',
+  'meet':'hitta', 'meets':'hittir', 'met':'hitti', 'meeting':'hittandi',
+  'send':'senda', 'sends':'sendir', 'sending':'sendandi',
+  'receive':'taka við', 'receives':'tekr við', 'received':'tók við',
+  'pay':'gjalda', 'pays':'geldr', 'paid':'goldit',
+  'buy':'kaupa', 'buys':'kaupir', 'bought':'keypti',
+  'sell':'selja', 'sells':'selr', 'sold':'seldi',
+  'choose':'kjósa', 'chooses':'kýss', 'chose':'kaus', 'chosen':'kosinn',
+  'follow':'fylgja', 'follows':'fylgir', 'following':'fylgjandi',
+  'lead':'leiða', 'leads':'leiðir', 'leading':'leiðandi',
+  'return':'snúa aptr', 'returns':'snýr aptr', 'returning':'snúandi aptr',
+
+  // Everyday nouns
+  'person':'maðr', 'people':'fólk', 'neighbor':'nábúi', 'neighbors':'nábúar',
+  'stranger':'úkunnr maðr', 'guest':'gestr', 'guests':'gestir',
+  'room':'herbergi', 'rooms':'herbergi', 'street':'stræti', 'streets':'stræti',
+  'town':'bær', 'towns':'bæir', 'city':'borg', 'cities':'borgir',
+  'village':'þorp', 'villages':'þorp', 'shop':'búð', 'shops':'búðir',
+  'work':'verk', 'job':'starf', 'jobs':'störf', 'task':'verk', 'tasks':'verk',
+  'money':'fé', 'payment':'gjald', 'debt':'skuld', 'debts':'skuldir',
+  'letter':'bréf', 'letters':'bréf', 'paper':'pappír', 'reason':'ástæða',
+  'question':'spurning', 'questions':'spurningar', 'answer':'svar', 'answers':'svör',
+  'problem':'vandi', 'problems':'vandamál', 'solution':'lausn', 'solutions':'lausnir',
+  'choice':'kostr', 'choices':'kostir', 'chance':'færi', 'opportunity':'tækifæri',
+  'meeting':'fundr', 'meetings':'fundir', 'plan':'áætlun', 'plans':'áætlanir',
+  'news':'tíðindi', 'event':'atburðr', 'events':'atburðir',
+  'morning meal':'morgunverðr', 'midday meal':'miðdegisverðr', 'evening meal':'kvöldverðr',
+
+  // Time, number, direction extensions
+  'zero':'núll', 'thirteen':'þrettán', 'fourteen':'fjórtán', 'fifteen':'fimmtán',
+  'sixteen':'sextán', 'seventeen':'sautján', 'eighteen':'átján', 'nineteen':'nítján',
+  'sixty':'sextíu', 'seventy':'sjautíu', 'eighty':'áttatíu', 'ninety':'níutíu',
+  'today':'í dag', 'tomorrow':'á morgin', 'yesterday':'í gær',
+  'minute':'mínúta', 'minutes':'mínútur', 'second':'sekúnda', 'seconds':'sekúndur',
+  'left':'vinstri', 'right':'hægri', 'near':'nær', 'far':'fjarri',
+  'inside':'innan', 'outside':'útan', 'toward':'til', 'away':'burt',
+
+  // Practical conversation phrases
+  'how are you':'hvat segir þú gott', 'i am well':'ek em heill',
+  'i am not well':'ek em eigi heill', 'thank you':'þökk fyrir',
+  'thanks':'þökk', 'you are welcome':'ver velkominn', 'please':'vinsamligast',
+  'excuse me':'fyrirgef mér', 'forgive me':'fyrirgef mér',
+  'i am sorry':'ek em hryggr', 'i do not understand':'ek skil eigi',
+  'do you understand':'skilr þú', 'can you help me':'mátt þú hjálpa mér',
+  'help me':'hjálpa mér', 'where are you from':'hvaðan ert þú',
+  'what is your name':'hvat er nafn þitt', 'my name is':'nafn mitt er',
+  'where is the harbor':'hvar er höfnin', 'where is the market':'hvar er torgit',
+  'how much does it cost':'hvat kostar þat', 'it is too expensive':'þat er of dýrt',
+  'i need food':'ek þarf mat', 'i need water':'ek þarf vatn',
+  'i need shelter':'ek þarf skýli', 'we should go now':'vér skyldum fara nú',
+  'wait here':'bíð hér', 'come with me':'kom með mér',
+  'follow me':'fylg mér', 'stop':'stǫðva', 'be careful':'ver varr',
+  'danger ahead':'hætta framundan', 'all is well':'allt er gott',
+
+  // Travel and navigation
+  'route':'leið', 'routes':'leiðir', 'distance':'fjarlægð', 'map':'kort',
+  'north':'norðr', 'south':'suðr', 'east':'austr', 'west':'vestr',
+  'northward':'norðr', 'southward':'suðr', 'eastward':'austr', 'westward':'vestr',
+  'arrival':'koma', 'departure':'brottför', 'destination':'áfangastaðr',
+  'guide':'leiðsögumaðr', 'guides':'leiðsögumenn',
+
+  // Administration & law essentials
+  'record':'skrá', 'records':'skrár', 'document':'skjal', 'documents':'skjöl',
+  'rule':'regla', 'rules':'reglur', 'policy':'skipan', 'permission':'leyfi',
+  'forbidden':'bannaðr', 'allowed':'leyfðr', 'required':'nauðsynligr',
+  'proof':'sönnun', 'claim':'krafa', 'claims':'kröfur',
+
+  // Craft/trade essentials
+  'tool':'verkfæri', 'tools':'verkfæri', 'material':'efni', 'materials':'efni',
+  'supply':'birgð', 'supplies':'birgðir', 'storage':'geymsla',
+  'repair':'gera við', 'repairs':'viðgerð', 'fixed':'lagaðr',
+  'broken':'brotinn', 'available':'tiltækr', 'unavailable':'ótækr',
+
+  // Home and daily life
+  'kitchen':'eldhús', 'bedroom':'svefnherbergi', 'bath':'bað', 'firewood':'eldiviðr',
+  'lamp':'lampi', 'candle':'kerti', 'soap':'sápa', 'towel':'þurrka',
+  'clothes':'klæði', 'shoe':'skór', 'shoes':'skór', 'coat':'kápa',
+  'gloves':'hanskar', 'hat':'hattr', 'belt':'belti',
+
+  // Health and safety
+  'doctor':'læknir', 'healer':'læknir', 'medicine':'lyf', 'pain':'verkr',
+  'fever':'sótt', 'cold illness':'kvef', 'injury':'áverki',
+  'safe':'öruggr', 'unsafe':'óöruggr', 'warning':'viðvörun',
+
+  // Learning and writing
+  'learn':'læra', 'lesson':'kennsla', 'teacher':'kennari', 'student':'nemi',
+  'write':'rita', 'read':'lesa', 'word list':'orðaskrá',
+  'dictionary':'orðabók', 'translation':'þýðing', 'meaning':'merking',
+};
+
+Object.assign(EN_TO_ON, CORE_USABILITY_EXPANSION);
+
 // ─── MASSIVE LEMMATIZATION EXPANSION (200+ new forms) ─────────────────────────
 // Add to LEMMAS table to handle all new plurals and verb forms
 // This section will be added to the LEMMAS table
