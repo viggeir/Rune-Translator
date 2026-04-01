@@ -623,6 +623,18 @@ const ADVERBIAL_LEXICON = {
   more: { role: 'degree' },
   most: { role: 'degree' },
 };
+const DEGREE_ADVERB_SET = new Set(['more', 'most', 'very']);
+const PAST_PARTICIPLES = {
+  know: 'vitað',
+  speak: 'mælt',
+  say: 'sagt',
+  give: 'gefit',
+  take: 'tekit',
+  come: 'komit',
+  go: 'farið',
+  see: 'sét',
+  hear: 'heyrt',
+};
 
 // Motion verbs that take accusative object without preposition
 // For these, "to" means motion → remove preposition, use accusative
@@ -1459,6 +1471,7 @@ const EN_TO_ON = {
   'not':'eigi', 'no':'nei', 'yes':'já', 'very':'mjǫk', 'too':'of', 'also':'ok',
   'now':'nú', 'here':'hér', 'there':'þar', 'still':'enn',
   'ever':'jafnan', 'never':'aldri', 'always':'jafnan', 'often':'opt',
+  'carefully':'varliga',
   'much':'mjök', 'many':'margr', 'more':'meir', 'most':'mest',
   'few':'fár', 'less':'minna', 'all':'allr', 'some':'nokkurr', 'any':'hverr',
   'own':'eiginn', 'same':'sami', 'other':'annarr', 'another':'annarr',
@@ -6546,8 +6559,8 @@ class GrammarEngine {
             case: currentCase
           });
           currentGender = item.gender;
-          if (item.case === 'nom') {
-            currentSubject = item.inflected || item.translation || item.value;
+          if (currentCase === 'nom') {
+            currentSubject = nounForm || item.translation || item.value;
             currentNumber = inferNominalNumber(item.value);
           }
           break;
@@ -6574,8 +6587,48 @@ class GrammarEngine {
           });
       }
     }
-    
-    return inflected;
+    return this.enforceGrammarRules(inflected);
+  }
+
+  enforceGrammarRules(inflected) {
+    const corrected = [...inflected];
+    let subjectFeatures = null;
+    for (let i = 0; i < corrected.length; i++) {
+      const item = corrected[i];
+      if (!item || item.type === 'space' || item.type === 'punctuation') continue;
+      if (item.wordType === 'pronoun' && item.case === 'nom') {
+        subjectFeatures = {
+          subject: item.inflected,
+          number: ['vér', 'þeir', 'þær', 'þau'].includes(item.inflected) ? 'plural' : 'singular'
+        };
+      } else if (item.wordType === 'noun' && item.case === 'nom') {
+        subjectFeatures = {
+          subject: item.inflected,
+          number: inferNominalNumber(item.value)
+        };
+      } else if (item.wordType === 'preposition') {
+        const governed = PREPOSITION_GOVERNED_CASE[item.value];
+        if (!governed) continue;
+        for (let j = i + 1; j < corrected.length; j++) {
+          const next = corrected[j];
+          if (!next || next.type === 'space') continue;
+          if (next.type === 'punctuation') break;
+          if (next.wordType === 'pronoun') {
+            const form = next.pronounData[governed] || next.inflected;
+            corrected[j] = { ...next, case: governed, inflected: form, caseLocked: true };
+          }
+          break;
+        }
+      } else if (item.wordType === 'verb' && item.verbData && subjectFeatures) {
+        const conjugationIndex = this.getConjugationIndex(subjectFeatures.subject, subjectFeatures.number);
+        corrected[i] = {
+          ...item,
+          inflected: item.verbData[conjugationIndex] || item.verbData[2],
+          conjugation: conjugationIndex
+        };
+      }
+    }
+    return corrected;
   }
   
   // Get conjugation index for pronouns
@@ -6898,6 +6951,7 @@ function normalizeModifierPhrases(text) {
 function parseSimpleClause(text, clauseType) {
   const modifierNormalized = normalizeModifierPhrases(text.trim());
   const clause = { type: clauseType, text: modifierNormalized.text, relative: null, complement: null, modifiers: modifierNormalized.modifiers };
+  clause.constructions = [];
 
   // Complement clause detection: "know/known that X", "say that X", etc.
   // We realize this as "at X" in Old Norse.
@@ -6933,21 +6987,58 @@ function parseSimpleClause(text, clauseType) {
     };
   }
 
+  const pastPerfectCondition = clause.text.match(/^\s*(.*?)\bhad\s+([a-z'-]+(?:ed|en|wn|ne|t|n))\b(.*)$/i);
+  if (pastPerfectCondition && clauseType === 'protasis') {
+    const subject = extractClauseSubject(pastPerfectCondition[1]);
+    const args = parseVerbArguments(pastPerfectCondition[3] || '');
+    clause.constructions.push({
+      type: 'past-perfect-condition',
+      tense: 'past-perfect',
+      subject,
+      predicate: pastPerfectCondition[2].toLowerCase(),
+      object: args.object,
+      trailing: args.trailing,
+    });
+  }
+
   const counterfactualHead = clause.text.match(/^\s*(.*?)\bwould\s+have\s+([a-z'-]+)\b(.*)$/i);
   if (counterfactualHead) {
     const subject = extractClauseSubject(counterfactualHead[1]);
     const args = parseVerbArguments(counterfactualHead[3] || '');
+    const adverbials = parseAdverbials(args.object);
     clause.counterfactual = {
       construction: 'counterfactual-result',
       mood: 'counterfactual-result',
       predicate: counterfactualHead[2].toLowerCase(),
       subject,
-      object: args.object,
+      object: adverbials.baseObject,
+      adverbials: adverbials.modifiers,
       trailing: args.trailing,
     };
   }
 
   return clause;
+}
+
+function parseAdverbials(text) {
+  const input = (text || '').trim();
+  if (!input) return { baseObject: '', modifiers: [] };
+  const modifiers = [];
+  let base = input;
+  const degreeManner = input.match(/\b([a-z'-]+)\s+([a-z'-]+ly)\b/i);
+  if (degreeManner) {
+    const degreeWord = degreeManner[1].toLowerCase();
+    if (DEGREE_ADVERB_SET.has(degreeWord)) {
+      modifiers.push({
+        type: 'adverbial',
+        role: 'manner',
+        degree: degreeWord,
+        value: degreeManner[2].toLowerCase(),
+      });
+      base = base.replace(degreeManner[0], '').replace(/\s{2,}/g, ' ').trim();
+    }
+  }
+  return { baseObject: base, modifiers };
 }
 
 function parseVerbArguments(tailText) {
@@ -7010,6 +7101,9 @@ function realizeClause(clause, inCounterfactual) {
   const hasWouldHaveConstruction = /\bwould\s+have\s+/i.test(baseText);
   const placeholderTokens = new Set();
   let deferredExplanatory = '';
+  const pastPerfectCondition = clause.constructions
+    ? clause.constructions.find(c => c.type === 'past-perfect-condition')
+    : null;
 
   // Dedicated construction handling for counterfactual grammar.
   if (inCounterfactual && clause.type === 'protasis') {
@@ -7041,12 +7135,29 @@ function realizeClause(clause, inCounterfactual) {
   let translatedText;
   if (inCounterfactual && clause.counterfactual && clause.counterfactual.construction === 'counterfactual-result') {
     const lemma = normalizeLexiconToken(LEMMAS[clause.counterfactual.predicate] || clause.counterfactual.predicate);
-    const predicate = EN_TO_ON[clause.counterfactual.predicate] || EN_TO_ON[lemma] || clause.counterfactual.predicate;
     const objectRealization = clause.counterfactual.object ? translateWithPhraseParserFallback(clause.counterfactual.object) : { text: '', unknowns: [] };
     const trailingRealization = clause.counterfactual.trailing ? translateWithPhraseParserFallback(clause.counterfactual.trailing) : { text: '', unknowns: [] };
-    const counterfactualVerb = getCounterfactualResultVerb(clause.counterfactual.subject, predicate, objectRealization.text, trailingRealization.text);
+    const counterfactualVerb = getCounterfactualResultVerb(
+      clause.counterfactual.subject,
+      lemma,
+      objectRealization.text,
+      trailingRealization.text,
+      clause.counterfactual.adverbials || []
+    );
     translatedText = counterfactualVerb.replace(/\s+/g, ' ').trim();
     translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[clause.counterfactual.predicate] ? [] : [clause.counterfactual.predicate] };
+    translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
+  } else if (inCounterfactual && clause.type === 'protasis' && pastPerfectCondition) {
+    const lemma = normalizeLexiconToken(LEMMAS[pastPerfectCondition.predicate] || pastPerfectCondition.predicate);
+    const objectRealization = pastPerfectCondition.object ? translateWithPhraseParserFallback(pastPerfectCondition.object) : { text: '', unknowns: [] };
+    const trailingRealization = pastPerfectCondition.trailing ? translateWithPhraseParserFallback(pastPerfectCondition.trailing) : { text: '', unknowns: [] };
+    translatedText = getPastPerfectConditionVerb(
+      pastPerfectCondition.subject,
+      lemma,
+      objectRealization.text,
+      trailingRealization.text
+    );
+    translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[pastPerfectCondition.predicate] ? [] : [pastPerfectCondition.predicate] };
     translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
   } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
@@ -7107,8 +7218,7 @@ function realizeClause(clause, inCounterfactual) {
   if (hasWouldHaveConstruction) {
     translatedText = translatedText
       .replace(/\bmundi\s+hefi\b/gi, 'mundi hafa')
-      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa')
-      .replace(/\bmundi\s+hafa\s+/gi, 'mundi ');
+      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa');
   }
 
   let clauseText = translatedText;
@@ -7135,7 +7245,7 @@ function realizeClause(clause, inCounterfactual) {
   return { text: clauseText, unknowns: mergedUnknowns };
 }
 
-function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '', trailingText = '') {
+function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '', trailingText = '', adverbials = []) {
   const modalBySubject = {
     ek: 'munda',
     þú: 'mundir',
@@ -7147,7 +7257,27 @@ function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '',
   };
   const onSubject = subjectPronoun && PRONOUNS[subjectPronoun] ? PRONOUNS[subjectPronoun].nom : null;
   const modal = modalBySubject[onSubject] || 'mundi';
-  return `${onSubject || 'ek'} ${modal} ${predicate} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+  const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || predicate;
+  const adverbText = realizeAdverbials(adverbials);
+  return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+}
+
+function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
+  const onSubject = subjectPronoun && PRONOUNS[subjectPronoun] ? PRONOUNS[subjectPronoun].nom : 'ek';
+  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || predicateLemma;
+  return `${onSubject} hafði ${participle} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+}
+
+function realizeAdverbials(adverbials = []) {
+  if (!Array.isArray(adverbials) || !adverbials.length) return '';
+  const realized = adverbials.map(mod => {
+    if (!mod || mod.type !== 'adverbial') return '';
+    const degree = mod.degree ? (EN_TO_ON[mod.degree] || mod.degree) : '';
+    const value = mod.value ? (EN_TO_ON[mod.value] || mod.value) : '';
+    return `${degree} ${value}`.replace(/\s+/g, ' ').trim();
+  }).filter(Boolean);
+  return realized.join(' ');
 }
 
 function inferNominalNumber(noun) {
@@ -7162,6 +7292,11 @@ function validateGeneratedOldNorse(text) {
   return text
     .replace(/\b(mundi|skyldi|mætti|kunni)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
     .replace(/\b(hafði)([a-záéíóúýþðæøöǫ]{3,})\b/gi, '$1 $2')
+    .replace(/\bmundi\s+([a-záéíóúýþðæøöǫ]+)\b/gi, (m, v) => PAST_PARTICIPLES[normalizeLexiconToken(v)] ? `mundi hafa ${PAST_PARTICIPLES[normalizeLexiconToken(v)]}` : m)
+    .replace(/\b(frá|með|til|fyrir|hjá)\s+ek\b/gi, '$1 mér')
+    .replace(/\b(frá|með|til|fyrir|hjá)\s+þú\b/gi, '$1 þér')
+    .replace(/\b(frá|með|til|fyrir|hjá)\s+hann\b/gi, '$1 honum')
+    .replace(/\b(frá|með|til|fyrir|hjá)\s+hon\b/gi, '$1 henni')
     .replace(/\beigaætt\b/gi, 'eigin ætt')
     .replace(/\bhans\s+eigin\s+ætt\b/gi, 'sín ætt')
     .replace(/\b(hans|hennar|þeirra)\s+ætt\b/gi, 'sín ætt')
