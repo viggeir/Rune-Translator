@@ -590,6 +590,20 @@ const ACCUSATIVE_PREPS = new Set(['after','before','between','against']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
 const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
+const PREPOSITION_GOVERNED_CASE = {
+  with: 'dat',
+  at: 'dat',
+  from: 'dat',
+  by: 'dat',
+  beside: 'dat',
+  within: 'dat',
+  to: 'dat',
+  for: 'dat',
+  after: 'acc',
+  before: 'dat',
+  between: 'acc',
+  against: 'acc',
+};
 
 // V2 (Verb-Second) adverbs that trigger reordering
 // Only these specific adverbs consistently trigger V2 in Old Norse
@@ -6038,6 +6052,7 @@ class GrammarEngine {
       const wordAnalysis = this.analyzeWord(phrase, i, phrases);
       analysis.push(wordAnalysis);
     }
+    this.assignClauseBoundaries(analysis);
     this.assignSyntacticRoles(analysis);
     return analysis;
   }
@@ -6051,6 +6066,9 @@ class GrammarEngine {
     if (['a', 'an', 'the'].includes(value)) {
       analysis.wordType = 'article';
       analysis.translation = '';
+    } else if (value === 'er') {
+      analysis.wordType = 'grammar-marker';
+      analysis.translation = 'er';
     } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
@@ -6124,11 +6142,22 @@ class GrammarEngine {
     return analysis;
   }
 
+  assignClauseBoundaries(analysis) {
+    for (let i = 0; i < analysis.length; i++) {
+      const item = analysis[i];
+      if (item.type === 'punctuation' && /[,.!?;]/.test(item.value)) {
+        item.boundaryRole = 'clause-boundary';
+      } else if (item.type === 'word' && ['and', 'but', 'or', 'for'].includes(item.value)) {
+        item.boundaryRole = 'coordinator-boundary';
+      }
+    }
+  }
+
   assignSyntacticRoles(analysis) {
     let clauseStart = 0;
     for (let i = 0; i <= analysis.length; i++) {
       const boundary = i === analysis.length ||
-        (analysis[i] && analysis[i].type === 'punctuation' && /[,.!?;]/.test(analysis[i].value));
+        (analysis[i] && (analysis[i].boundaryRole === 'clause-boundary' || analysis[i].boundaryRole === 'coordinator-boundary'));
       if (!boundary) continue;
 
       const slice = analysis.slice(clauseStart, i);
@@ -6177,7 +6206,8 @@ class GrammarEngine {
         if (previousLexical && previousLexical.wordType === 'preposition') {
           const prep = previousLexical.value;
           item.syntaxRole = 'prep-object';
-          item.case = DATIVE_PREPS_WITH_TO.has(prep) ? 'dat' : 'acc';
+          item.case = PREPOSITION_GOVERNED_CASE[prep] || 'acc';
+          item.caseLocked = true;
         } else if (!finiteVerbSeen) {
           item.syntaxRole = 'subject';
           item.case = 'nom';
@@ -6201,8 +6231,8 @@ class GrammarEngine {
     // Look for preceding prepositions
     for (let i = index - 1; i >= 0; i--) {
       const item = context[i];
-      if (item.type === 'word' && DATIVE_PREPS.has(item.value)) {
-        return 'dat';
+      if (item.type === 'word' && PREPOSITION_GOVERNED_CASE[item.value]) {
+        return PREPOSITION_GOVERNED_CASE[item.value];
       }
       if (item.type === 'word' && ['and', 'but', 'or'].includes(item.value)) {
         break; // New clause
@@ -6257,9 +6287,10 @@ class GrammarEngine {
           break;
 
         case 'pronoun':
-          const resolvedPronounCase = item.case && item.case !== 'undetermined'
+          const governedCase = this.getGovernedCaseFromPreviousToken(i, analysis);
+          const resolvedPronounCase = governedCase || (item.case && item.case !== 'undetermined'
             ? item.case
-            : this.determinePronounCase(i, analysis);
+            : this.determinePronounCase(i, analysis));
           const pronounForm = item.pronounData[resolvedPronounCase] || item.pronounData.nom;
           inflected.push({
             ...item,
@@ -6396,6 +6427,16 @@ class GrammarEngine {
             case: currentCase
           });
           currentGender = item.gender;
+          if (item.case === 'nom') {
+            currentSubject = item.inflected || item.translation || item.value;
+            currentNumber = inferNominalNumber(item.value);
+          }
+          break;
+        case 'grammar-marker':
+          inflected.push({
+            ...item,
+            inflected: item.translation || item.value
+          });
           break;
           
         case 'translated':
@@ -6536,6 +6577,7 @@ class GrammarEngine {
   }
 
   determineCaseForPosition(index, analysis, lastVerbIndex) {
+    if (analysis[index]?.caseLocked) return analysis[index].case;
     if (analysis[index]?.case && analysis[index].case !== 'undetermined') {
       return analysis[index].case;
     }
@@ -6557,6 +6599,18 @@ class GrammarEngine {
     if (lastVerbIndex !== -1 && index > lastVerbIndex) return 'acc';
 
     return 'nom';
+  }
+
+  getGovernedCaseFromPreviousToken(index, analysis) {
+    for (let i = index - 1; i >= 0; i--) {
+      if (analysis[i].type === 'space') continue;
+      if (analysis[i].type === 'punctuation') break;
+      if (analysis[i].wordType === 'preposition') {
+        return PREPOSITION_GOVERNED_CASE[analysis[i].value] || null;
+      }
+      break;
+    }
+    return null;
   }
 }
 
@@ -6657,23 +6711,46 @@ function parseLineToSyntaxIR(line) {
   if (counterfactualMatch &&
       /\bhad\b/i.test(counterfactualMatch[1]) &&
       /\bwould\b/i.test(counterfactualMatch[2])) {
+    const protasis = parseSimpleClause(counterfactualMatch[1], 'protasis');
+    const apodosis = parseSimpleClause(counterfactualMatch[2], 'apodosis');
+    const carriedSubject = extractClauseSubject(protasis.text);
+    if (carriedSubject) {
+      apodosis.text = ensureExplicitClauseSubject(apodosis.text, carriedSubject);
+      if (apodosis.counterfactual) apodosis.counterfactual.subject = carriedSubject;
+    }
     root.clauses.push({
       type: 'counterfactual',
-      protasis: parseSimpleClause(counterfactualMatch[1], 'protasis'),
-      apodosis: parseSimpleClause(counterfactualMatch[2], 'apodosis')
+      protasis,
+      apodosis,
+      boundary: 'counterfactual'
     });
     return root;
   }
 
   const explanatorySplit = trimmed.split(/,\s+for\s+/i);
   if (explanatorySplit.length > 1) {
-    root.clauses.push(parseSimpleClause(explanatorySplit[0], 'main'));
-    root.clauses.push(parseSimpleClause(explanatorySplit.slice(1).join(' for '), 'explanatory'));
+    root.clauses.push({ ...parseSimpleClause(explanatorySplit[0], 'main'), boundary: 'comma' });
+    root.clauses.push({ ...parseSimpleClause(explanatorySplit.slice(1).join(' for '), 'explanatory'), boundary: 'none' });
     return root;
   }
 
-  root.clauses.push(parseSimpleClause(trimmed, 'main'));
+  root.clauses.push({ ...parseSimpleClause(trimmed, 'main'), boundary: 'none' });
   return root;
+}
+
+function extractClauseSubject(text) {
+  const m = (text || '').trim().match(/^(i|you|he|she|it|we|they)\b/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function ensureExplicitClauseSubject(text, subject) {
+  const t = (text || '').trim();
+  if (!t || !subject) return t;
+  if (/^(i|you|he|she|it|we|they)\b/i.test(t)) return t;
+  if (/^(would|will|can|could|should|might|must|did|does|do|has|have|had)\b/i.test(t)) {
+    return `${subject} ${t}`.replace(/\s+/g, ' ').trim();
+  }
+  return t;
 }
 
 function normalizeLexiconToken(token) {
@@ -6724,9 +6801,12 @@ function parseSimpleClause(text, clauseType) {
 
   const counterfactualHead = clause.text.match(/^\s*(.*?)\bwould\s+have\s+([a-z'-]+)\b(.*)$/i);
   if (counterfactualHead) {
+    const subject = extractClauseSubject(counterfactualHead[1]);
     clause.counterfactual = {
+      construction: 'counterfactual-result',
       mood: 'counterfactual-result',
       predicate: counterfactualHead[2].toLowerCase(),
+      subject,
     };
   }
 
@@ -6752,7 +6832,7 @@ function realizeSyntaxIR(ir) {
     realized.unknowns.forEach(u => { if (!unknowns.includes(u)) unknowns.push(u); });
   });
 
-  const oldNorse = validateGeneratedOldNorse(parts.join(', '));
+  const oldNorse = validateGeneratedOldNorse(parts.join(' '));
   return { oldNorse, unknowns };
 }
 
@@ -6787,10 +6867,11 @@ function realizeClause(clause, inCounterfactual) {
 
   let translated;
   let translatedText;
-  if (inCounterfactual && clause.counterfactual && clause.counterfactual.mood === 'counterfactual-result') {
+  if (inCounterfactual && clause.counterfactual && clause.counterfactual.construction === 'counterfactual-result') {
     const lemma = normalizeLexiconToken(LEMMAS[clause.counterfactual.predicate] || clause.counterfactual.predicate);
-    const participle = EN_TO_ON[clause.counterfactual.predicate] || EN_TO_ON[lemma] || clause.counterfactual.predicate;
-    translatedText = `mundi hafa ${participle}`.replace(/\s+/g, ' ').trim();
+    const predicate = EN_TO_ON[clause.counterfactual.predicate] || EN_TO_ON[lemma] || clause.counterfactual.predicate;
+    const counterfactualVerb = getCounterfactualResultVerb(clause.counterfactual.subject, predicate);
+    translatedText = counterfactualVerb.replace(/\s+/g, ' ').trim();
     translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[clause.counterfactual.predicate] ? [] : [clause.counterfactual.predicate] };
   } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
@@ -6830,7 +6911,8 @@ function realizeClause(clause, inCounterfactual) {
   if (hasWouldHaveConstruction) {
     translatedText = translatedText
       .replace(/\bmundi\s+hefi\b/gi, 'mundi hafa')
-      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa');
+      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa')
+      .replace(/\bmundi\s+hafa\s+/gi, 'mundi ');
   }
 
   let clauseText = translatedText;
@@ -6855,6 +6937,27 @@ function realizeClause(clause, inCounterfactual) {
   }
 
   return { text: clauseText, unknowns: mergedUnknowns };
+}
+
+function getCounterfactualResultVerb(subjectPronoun, predicate) {
+  const modalBySubject = {
+    ek: 'munda',
+    þú: 'mundir',
+    hann: 'mundi',
+    hon: 'mundi',
+    þat: 'mundi',
+    vér: 'mundum',
+    þeir: 'mundu',
+  };
+  const onSubject = subjectPronoun && PRONOUNS[subjectPronoun] ? PRONOUNS[subjectPronoun].nom : null;
+  const modal = modalBySubject[onSubject] || 'mundi';
+  return `${onSubject || 'ek'} ${modal} ${predicate}`;
+}
+
+function inferNominalNumber(noun) {
+  if (!noun) return 'singular';
+  if (IRREGULAR_PLURALS[noun]) return 'plural';
+  return /s$/.test(noun) ? 'plural' : 'singular';
 }
 
 function validateGeneratedOldNorse(text) {
@@ -8322,7 +8425,12 @@ function runTranslatorRegressionTests() {
     {
       name: 'counterfactual if-clause',
       input: 'if i had known the man, i would have spoken',
-      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\bhafði\b/.test(out.oldNorse) && /\bmundi\b/.test(out.oldNorse)
+      assert: out => /^\s*ef\b/i.test(out.oldNorse) && /\bhafði\b/.test(out.oldNorse) && /\bmund[a-z]*\s+/.test(out.oldNorse) && !/\bhafa\b/.test(out.oldNorse)
+    },
+    {
+      name: 'counterfactual apodosis injects subject',
+      input: 'if i had known the man, would have spoken',
+      assert: out => /,\s*ek\s+mund[a-z]*/i.test(out.oldNorse)
     },
     {
       name: 'relative clause attachment',
@@ -8332,7 +8440,7 @@ function runTranslatorRegressionTests() {
     {
       name: 'modal and infinitive remain separate tokens',
       input: 'if i had known, i would have betrayed',
-      assert: out => /\bmundi\s+/.test(out.oldNorse) && !/\bmundi[a-záéíóúýþðæøöǫ]/i.test(out.oldNorse)
+      assert: out => /\bmund[a-z]*\s+/.test(out.oldNorse) && !/\bmund[a-z]*[a-záéíóúýþðæøöǫ]{3,}/i.test(out.oldNorse)
     },
     {
       name: 'reflexive possession',
