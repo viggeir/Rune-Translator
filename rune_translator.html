@@ -3225,7 +3225,16 @@ function parseLineToSyntaxIR(line) {
 }
 
 function parseSimpleClause(text, clauseType) {
-  const clause = { type: clauseType, text: text.trim(), relative: null };
+  const clause = { type: clauseType, text: text.trim(), relative: null, complement: null };
+
+  // Complement clause detection: "know/known that X", "say that X", etc.
+  // We realize this as "at X" in Old Norse.
+  const compMatch = clause.text.match(/^(.*?\b(?:know|knew|known|remember|remembered|say|said|think|thought|hear|heard|see|saw|believe|believed)\b)\s+that\s+(.+)$/i);
+  if (compMatch) {
+    clause.text = compMatch[1].trim();
+    clause.complement = parseSimpleClause(compMatch[2].trim(), 'complement');
+  }
+
   const relMatch = clause.text.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+(who|that|which)\s+(.+)$/i);
   if (relMatch) {
     clause.text = relMatch[1].trim();
@@ -3292,16 +3301,22 @@ function realizeClause(clause, inCounterfactual) {
     translatedText = translatedText.replace(/\b(hans|hennar|þeirra)\b/gi, 'sín');
   }
 
-  if (!clause.relative) {
-    return { text: translatedText, unknowns: translated.unknowns };
+  let clauseText = translatedText;
+  let mergedUnknowns = [...(translated.unknowns || [])];
+
+  if (clause.relative) {
+    const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
+    clauseText = `${clauseText} ${relBase.text}`.replace(/\s+/g, ' ').trim();
+    mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(relBase.unknowns || [])])];
   }
 
-  const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
-  const mergedUnknowns = [...new Set([...(translated.unknowns || []), ...(relBase.unknowns || [])])];
-  return {
-    text: `${translatedText} ${relBase.text}`.replace(/\s+/g, ' ').trim(),
-    unknowns: mergedUnknowns
-  };
+  if (clause.complement) {
+    const compBase = realizeClause(clause.complement, false);
+    clauseText = `${clauseText} at ${compBase.text}`.replace(/\s+/g, ' ').trim();
+    mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(compBase.unknowns || [])])];
+  }
+
+  return { text: clauseText, unknowns: mergedUnknowns };
 }
 
 function validateGeneratedOldNorse(text) {
