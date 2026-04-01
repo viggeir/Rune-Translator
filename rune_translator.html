@@ -6918,18 +6918,67 @@ function parseSimpleClause(text, clauseType) {
     };
   }
 
+  const possessiveRelMatch = clause.text.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+whose\s+([a-z'-]+)\s+(.+)$/i);
+  if (possessiveRelMatch) {
+    const relTail = possessiveRelMatch[3].trim();
+    const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
+    clause.text = predBoundary ? `${possessiveRelMatch[1].trim()}${predBoundary[2]}`.trim() : possessiveRelMatch[1].trim();
+    clause.relative = {
+      marker: 'er',
+      type: 'possessive',
+      head: possessiveRelMatch[1].trim(),
+      possessedNoun: possessiveRelMatch[2].toLowerCase(),
+      possessor: 'head',
+      clause: predBoundary ? predBoundary[1].trim() : relTail
+    };
+  }
+
   const counterfactualHead = clause.text.match(/^\s*(.*?)\bwould\s+have\s+([a-z'-]+)\b(.*)$/i);
   if (counterfactualHead) {
     const subject = extractClauseSubject(counterfactualHead[1]);
+    const args = parseVerbArguments(counterfactualHead[3] || '');
     clause.counterfactual = {
       construction: 'counterfactual-result',
       mood: 'counterfactual-result',
       predicate: counterfactualHead[2].toLowerCase(),
       subject,
+      object: args.object,
+      trailing: args.trailing,
     };
   }
 
   return clause;
+}
+
+function parseVerbArguments(tailText) {
+  const tail = (tailText || '').trim();
+  if (!tail) return { object: '', trailing: '' };
+  const prepositionBoundary = tail.match(/^(.*?)(\s+(?:before|after|with|without|for|from|to|in|on|under|over|into|upon|through|across|among|around|behind|beside|between|during|against|within|beyond)\b.*)$/i);
+  if (prepositionBoundary) {
+    return {
+      object: (prepositionBoundary[1] || '').trim(),
+      trailing: (prepositionBoundary[2] || '').trim(),
+    };
+  }
+  return { object: tail, trailing: '' };
+}
+
+function buildRoleBasedClauseFromEnglish(text, options = {}) {
+  const clauseText = (text || '').trim();
+  const clauseMatch = clauseText ? clauseText.match(/^(?:(i|you|he|she|it|we|they)\s+)?([a-z'-]+)(?:\s+(.+))?$/i) : null;
+
+  const subject = (options.subject || clauseMatch?.[1] || '').trim();
+  const verb = (options.verb || clauseMatch?.[2] || '').trim();
+  const object = (options.object !== undefined ? options.object : (clauseMatch?.[3] || '')).trim();
+
+  return [subject, verb, object].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function inferPossessivePronounFromHead(headText) {
+  const head = ((headText || '').match(/\b([a-z'-]+)\b(?=[^a-z'-]*$)/i) || [null, ''])[1].toLowerCase();
+  if (['man', 'king', 'lord', 'warrior'].includes(head)) return 'his';
+  if (['men', 'women', 'people', 'warriors', 'lords', 'kings'].includes(head)) return 'their';
+  return 'her';
 }
 
 function realizeSyntaxIR(ir) {
@@ -6993,12 +7042,29 @@ function realizeClause(clause, inCounterfactual) {
   if (inCounterfactual && clause.counterfactual && clause.counterfactual.construction === 'counterfactual-result') {
     const lemma = normalizeLexiconToken(LEMMAS[clause.counterfactual.predicate] || clause.counterfactual.predicate);
     const predicate = EN_TO_ON[clause.counterfactual.predicate] || EN_TO_ON[lemma] || clause.counterfactual.predicate;
-    const counterfactualVerb = getCounterfactualResultVerb(clause.counterfactual.subject, predicate);
+    const objectRealization = clause.counterfactual.object ? translateWithPhraseParserFallback(clause.counterfactual.object) : { text: '', unknowns: [] };
+    const trailingRealization = clause.counterfactual.trailing ? translateWithPhraseParserFallback(clause.counterfactual.trailing) : { text: '', unknowns: [] };
+    const counterfactualVerb = getCounterfactualResultVerb(clause.counterfactual.subject, predicate, objectRealization.text, trailingRealization.text);
     translatedText = counterfactualVerb.replace(/\s+/g, ' ').trim();
     translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[clause.counterfactual.predicate] ? [] : [clause.counterfactual.predicate] };
+    translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
   } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
-    if (relPredicateSplit) {
+    if (clause.relative.type === 'possessive') {
+      const antecedent = translateWithPhraseParserFallback(clause.relative.head || relPredicateSplit?.[1] || clause.text);
+      const relRoleMatch = (clause.relative.clause || '').match(/^(?:(i|you|he|she|it|we|they)\s+)?([a-z'-]+)(?:\s+(.+))?$/i);
+      const relSubject = relRoleMatch && relRoleMatch[1] ? relRoleMatch[1] : 'i';
+      const relVerb = relRoleMatch && relRoleMatch[2] ? relRoleMatch[2] : '';
+      const relObjectTail = relRoleMatch && relRoleMatch[3] ? relRoleMatch[3] : '';
+      const inheritedPossessor = inferPossessivePronounFromHead(clause.relative.head);
+      const possessedPhrase = relObjectTail ? `${inheritedPossessor} ${clause.relative.possessedNoun} ${relObjectTail}` : `${inheritedPossessor} ${clause.relative.possessedNoun}`;
+      const roleClause = buildRoleBasedClauseFromEnglish('', { subject: relSubject, verb: relVerb, object: possessedPhrase.trim() });
+      const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${roleClause}`);
+      const predicateSource = relPredicateSplit ? relPredicateSplit[2].trim() : '';
+      const predicate = predicateSource ? translateWithPhraseParserFallback(predicateSource) : { text: '', unknowns: [] };
+      translated = { unknowns: [...(antecedent.unknowns || []), ...(relBase.unknowns || []), ...(predicate.unknowns || [])] };
+      translatedText = `${antecedent.text} ${relBase.text} ${predicate.text}`.replace(/\s+/g, ' ').trim();
+    } else if (relPredicateSplit) {
       const antecedent = translateWithPhraseParserFallback(relPredicateSplit[1].trim());
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
       const predicate = translateWithPhraseParserFallback(relPredicateSplit[2].trim());
@@ -7069,7 +7135,7 @@ function realizeClause(clause, inCounterfactual) {
   return { text: clauseText, unknowns: mergedUnknowns };
 }
 
-function getCounterfactualResultVerb(subjectPronoun, predicate) {
+function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '', trailingText = '') {
   const modalBySubject = {
     ek: 'munda',
     þú: 'mundir',
@@ -7081,7 +7147,7 @@ function getCounterfactualResultVerb(subjectPronoun, predicate) {
   };
   const onSubject = subjectPronoun && PRONOUNS[subjectPronoun] ? PRONOUNS[subjectPronoun].nom : null;
   const modal = modalBySubject[onSubject] || 'mundi';
-  return `${onSubject || 'ek'} ${modal} ${predicate}`;
+  return `${onSubject || 'ek'} ${modal} ${predicate} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function inferNominalNumber(noun) {
