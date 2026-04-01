@@ -594,6 +594,21 @@ const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
 // V2 (Verb-Second) adverbs that trigger reordering
 // Only these specific adverbs consistently trigger V2 in Old Norse
 const V2_ADVERBS = new Set(['then','now','so']);
+const PREPOSITION_WORDS = new Set(['in','on','at','to','of','from','with','by','for','about','as','into','over','under','before','after','between','against','without','within','above','below','beside']);
+const ADVERBIAL_LEXICON = {
+  carefully: { role: 'manner' },
+  quickly: { role: 'manner' },
+  slowly: { role: 'manner' },
+  softly: { role: 'manner' },
+  loudly: { role: 'manner' },
+  once: { role: 'temporal' },
+  previously: { role: 'temporal' },
+  now: { role: 'temporal' },
+  then: { role: 'temporal' },
+  very: { role: 'degree' },
+  more: { role: 'degree' },
+  most: { role: 'degree' },
+};
 
 // Motion verbs that take accusative object without preposition
 // For these, "to" means motion → remove preposition, use accusative
@@ -1419,7 +1434,7 @@ const EN_TO_ON = {
   'myself':'sjálfr mér', 'yourself':'sjálfr þér', 'himself':'sjálfr honum',
   'herself':'sjálfr henni', 'itself':'sjálft þat', 'ourselves':'sjálfir oss',
   'this':'þessi', 'that':'þat', 'these':'þessi', 'those':'þeir',
-  'who':'eR', 'whom':'eR', 'which':'hvert', 'what':'hvat',
+  'who':'er', 'whom':'er', 'which':'hvert', 'what':'hvat',
   'where':'hvar', 'when':'hvenær', 'why':'hví', 'how':'hvernig',
   'someone':'nokkverr', 'something':'nokkut', 'anyone':'hverr sem',
   'anything':'hvat sem', 'everyone':'allir', 'everything':'allt', 'nothing':'ekkert',
@@ -1532,7 +1547,7 @@ const EN_TO_ON = {
   'hall':'höll', 'halls':'hollar', 'house':'hús', 'houses':'hús', 'home':'heimr', 'homes':'heimur', 'gate':'hlið', 'gates':'hliðir',
   'road':'vegr', 'roads':'vegir', 'path':'stígr', 'paths':'stigir', 'bridge':'brú', 'bridges':'brúr',
   // ── Materials ──
-  'gold':'gull', 'silvers':'silvrar', 'silver':'silfr', 'iron':'járn', 'irons':'járnir', 'steel':'stál', 'steels':'stálir',
+  'gold':'gull', 'gull':'gull', 'silvers':'silvrar', 'silver':'silfr', 'iron':'járn', 'irons':'járnir', 'steel':'stál', 'steels':'stálir',
   'wood':'viðr', 'woods':'viðir', 'stone':'steinn', 'stones':'steinar', 'blood':'blóð', 'bloods':'blóðir', 'bone':'bein', 'bones':'bein',
   // ── Abstract ──
   'heart':'hjarta', 'hearts':'hjörtun', 'soul':'sál', 'souls':'sálir', 'spirit':'andi', 'spirits':'andar', 'mind':'hugr', 'minds':'hugir',
@@ -2117,8 +2132,8 @@ const EN_TO_ON = {
   'that lexicon':'þat',
   'these lexicon':'þessi',
   'those lexicon':'þeir',
-  'who lexicon':'eR',
-  'whom lexicon':'eR',
+  'who lexicon':'er',
+  'whom lexicon':'er',
   'which lexicon':'hvert',
   'what lexicon':'hvat',
   'where lexicon':'hvar',
@@ -3862,8 +3877,8 @@ const EN_TO_ON = {
   'that register':'þat',
   'these register':'þessi',
   'those register':'þeir',
-  'who register':'eR',
-  'whom register':'eR',
+  'who register':'er',
+  'whom register':'er',
   'which register':'hvert',
   'what register':'hvat',
   'where register':'hvar',
@@ -6023,7 +6038,7 @@ class GrammarEngine {
       const wordAnalysis = this.analyzeWord(phrase, i, phrases);
       analysis.push(wordAnalysis);
     }
-    
+    this.assignSyntacticRoles(analysis);
     return analysis;
   }
   
@@ -6039,7 +6054,10 @@ class GrammarEngine {
     } else if (PRONOUNS[value]) {
       analysis.wordType = 'pronoun';
       analysis.pronounData = PRONOUNS[value];
-      analysis.case = this.determinePronounCase(index, context);
+      analysis.case = 'undetermined';
+    } else if (PREPOSITION_WORDS.has(value)) {
+      analysis.wordType = 'preposition';
+      analysis.translation = EN_TO_ON[value] || value;
     } else if (DEMONSTRATIVES[value]) {
       analysis.wordType = 'demonstrative';
       analysis.demonstrativeData = DEMONSTRATIVES[value];
@@ -6092,7 +6110,8 @@ class GrammarEngine {
       }
     } else {
       // Try lemmatization and dictionary lookup
-      const lemma = LEMMAS[value] || value;
+      const normalizedValue = normalizeLexiconToken(value);
+      const lemma = normalizeLexiconToken(LEMMAS[normalizedValue] || normalizedValue);
       if (EN_TO_ON[lemma]) {
         analysis.wordType = 'dictionary';
         analysis.translation = EN_TO_ON[lemma];
@@ -6103,6 +6122,73 @@ class GrammarEngine {
     }
     
     return analysis;
+  }
+
+  assignSyntacticRoles(analysis) {
+    let clauseStart = 0;
+    for (let i = 0; i <= analysis.length; i++) {
+      const boundary = i === analysis.length ||
+        (analysis[i] && analysis[i].type === 'punctuation' && /[,.!?;]/.test(analysis[i].value));
+      if (!boundary) continue;
+
+      const slice = analysis.slice(clauseStart, i);
+      let finiteVerbSeen = false;
+      for (let local = 0; local < slice.length; local++) {
+        const item = slice[local];
+        if (!item || item.type === 'space' || item.type === 'punctuation') continue;
+
+        if (item.wordType === 'verb') {
+          finiteVerbSeen = true;
+          continue;
+        }
+
+        if (item.wordType === 'adjective' && ADVERBIAL_LEXICON[item.value]) {
+          item.wordType = 'adverb';
+          item.adverbRole = ADVERBIAL_LEXICON[item.value].role;
+        } else if (item.wordType === 'dictionary' && ADVERBIAL_LEXICON[item.value]) {
+          item.wordType = 'adverb';
+          item.adverbRole = ADVERBIAL_LEXICON[item.value].role;
+        }
+
+        if (item.wordType === 'adverb') {
+          let nearestVerb = -1;
+          for (let scan = local + 1; scan < slice.length; scan++) {
+            if (slice[scan].wordType === 'verb') { nearestVerb = scan; break; }
+          }
+          if (nearestVerb === -1) {
+            for (let scan = local - 1; scan >= 0; scan--) {
+              if (slice[scan].wordType === 'verb') { nearestVerb = scan; break; }
+            }
+          }
+          item.syntaxRole = 'adverbial';
+          item.modifiesVerbIndex = nearestVerb === -1 ? null : (clauseStart + nearestVerb);
+          continue;
+        }
+
+        if (item.wordType !== 'noun' && item.wordType !== 'pronoun' && item.wordType !== 'dictionary') continue;
+
+        let previousLexical = null;
+        for (let back = local - 1; back >= 0; back--) {
+          if (slice[back].type === 'space') continue;
+          previousLexical = slice[back];
+          break;
+        }
+
+        if (previousLexical && previousLexical.wordType === 'preposition') {
+          const prep = previousLexical.value;
+          item.syntaxRole = 'prep-object';
+          item.case = DATIVE_PREPS_WITH_TO.has(prep) ? 'dat' : 'acc';
+        } else if (!finiteVerbSeen) {
+          item.syntaxRole = 'subject';
+          item.case = 'nom';
+        } else {
+          item.syntaxRole = 'object';
+          item.case = 'acc';
+        }
+      }
+
+      clauseStart = i + 1;
+    }
   }
   
   // Determine pronoun case based on context
@@ -6171,13 +6257,16 @@ class GrammarEngine {
           break;
 
         case 'pronoun':
-          const pronounForm = item.pronounData[item.case] || item.pronounData.nom;
+          const resolvedPronounCase = item.case && item.case !== 'undetermined'
+            ? item.case
+            : this.determinePronounCase(i, analysis);
+          const pronounForm = item.pronounData[resolvedPronounCase] || item.pronounData.nom;
           inflected.push({
             ...item,
             inflected: pronounForm,
-            case: item.case
+            case: resolvedPronounCase
           });
-          if (item.case === 'nom') {
+          if (resolvedPronounCase === 'nom') {
             currentSubject = pronounForm;
             currentNumber = ['vér', 'þeir', 'þær', 'þau'].includes(pronounForm) ? 'plural' : 'singular';
           }
@@ -6230,11 +6319,20 @@ class GrammarEngine {
           break;
           
         case 'adjective':
-          currentCase = this.determineCaseForPosition(i, analysis, lastVerbIndex);
+          currentCase = item.case && item.case !== 'undetermined'
+            ? item.case
+            : this.determineCaseForPosition(i, analysis, lastVerbIndex);
           const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, currentGender, currentCase, currentNumber);
           inflected.push({
             ...item,
             inflected: adjectiveForm
+          });
+          break;
+        
+        case 'adverb':
+          inflected.push({
+            ...item,
+            inflected: EN_TO_ON[item.value] || item.translation || item.value
           });
           break;
           
@@ -6287,7 +6385,9 @@ class GrammarEngine {
           break;
           
         case 'noun':
-          currentCase = this.determineCaseForPosition(i, analysis, lastVerbIndex);
+          currentCase = item.case && item.case !== 'undetermined'
+            ? item.case
+            : this.determineCaseForPosition(i, analysis, lastVerbIndex);
           const nounForm = this.getNounForm(item, currentCase, currentNumber);
           inflected.push({
             ...item,
@@ -6436,6 +6536,9 @@ class GrammarEngine {
   }
 
   determineCaseForPosition(index, analysis, lastVerbIndex) {
+    if (analysis[index]?.case && analysis[index].case !== 'undetermined') {
+      return analysis[index].case;
+    }
     // Check immediately preceding lexical token for preposition-governed case
     let prevWord = null;
     for (let i = index - 1; i >= 0; i--) {
@@ -6573,8 +6676,32 @@ function parseLineToSyntaxIR(line) {
   return root;
 }
 
+function normalizeLexiconToken(token) {
+  if (!token) return token;
+  const lower = token.toLowerCase();
+  const normalizationMap = {
+    gull: 'gold',
+    er: 'er',
+  };
+  return normalizationMap[lower] || lower;
+}
+
+function normalizeModifierPhrases(text) {
+  if (!text) return { text, modifiers: [] };
+  const modifiers = [];
+  let normalized = text;
+
+  normalized = normalized.replace(/\b([a-z'-]+)\s+once\s+([a-z'-]+(?:ed|en|wn|ne|t))\b/gi, (_, head, part) => {
+    modifiers.push({ type: 'temporal-participial', head: head.toLowerCase(), participle: part.toLowerCase() });
+    return `${head} previously ${part}`;
+  });
+
+  return { text: normalized, modifiers };
+}
+
 function parseSimpleClause(text, clauseType) {
-  const clause = { type: clauseType, text: text.trim(), relative: null, complement: null };
+  const modifierNormalized = normalizeModifierPhrases(text.trim());
+  const clause = { type: clauseType, text: modifierNormalized.text, relative: null, complement: null, modifiers: modifierNormalized.modifiers };
 
   // Complement clause detection: "know/known that X", "say that X", etc.
   // We realize this as "at X" in Old Norse.
@@ -6590,10 +6717,19 @@ function parseSimpleClause(text, clauseType) {
     const predBoundary = relTail.match(/^(.*?)(\s+(?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.*)$/i);
     clause.text = predBoundary ? `${relMatch[1].trim()}${predBoundary[2]}`.trim() : relMatch[1].trim();
     clause.relative = {
-      marker: relMatch[2].toLowerCase(),
+      marker: 'er',
       clause: predBoundary ? predBoundary[1].trim() : relTail
     };
   }
+
+  const counterfactualHead = clause.text.match(/^\s*(.*?)\bwould\s+have\s+([a-z'-]+)\b(.*)$/i);
+  if (counterfactualHead) {
+    clause.counterfactual = {
+      mood: 'counterfactual-result',
+      predicate: counterfactualHead[2].toLowerCase(),
+    };
+  }
+
   return clause;
 }
 
@@ -6651,7 +6787,12 @@ function realizeClause(clause, inCounterfactual) {
 
   let translated;
   let translatedText;
-  if (clause.relative) {
+  if (inCounterfactual && clause.counterfactual && clause.counterfactual.mood === 'counterfactual-result') {
+    const lemma = normalizeLexiconToken(LEMMAS[clause.counterfactual.predicate] || clause.counterfactual.predicate);
+    const participle = EN_TO_ON[clause.counterfactual.predicate] || EN_TO_ON[lemma] || clause.counterfactual.predicate;
+    translatedText = `mundi hafa ${participle}`.replace(/\s+/g, ' ').trim();
+    translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[clause.counterfactual.predicate] ? [] : [clause.counterfactual.predicate] };
+  } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
     if (relPredicateSplit) {
       const antecedent = translateWithPhraseParserFallback(relPredicateSplit[1].trim());
@@ -6695,7 +6836,7 @@ function realizeClause(clause, inCounterfactual) {
   let clauseText = translatedText;
   let mergedUnknowns = [...(translated.unknowns || [])];
 
-  if (clause.relative && !/\beR\b|\ber\b/i.test(translatedText)) {
+  if (clause.relative && !/\ber\b/i.test(translatedText)) {
     const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${clause.relative.clause}`);
     clauseText = `${clauseText} ${relBase.text}`.replace(/\s+/g, ' ').trim();
     mergedUnknowns = [...new Set([...(mergedUnknowns || []), ...(relBase.unknowns || [])])];
@@ -8186,7 +8327,7 @@ function runTranslatorRegressionTests() {
     {
       name: 'relative clause attachment',
       input: 'the man who stood before me spoke',
-      assert: out => /\beR\b|\ber\b/i.test(out.oldNorse) && /stóð/.test(out.oldNorse)
+      assert: out => /\ber\b/i.test(out.oldNorse) && /stóð/.test(out.oldNorse)
     },
     {
       name: 'modal and infinitive remain separate tokens',
