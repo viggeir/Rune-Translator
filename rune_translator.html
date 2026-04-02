@@ -644,6 +644,36 @@ const PREPOSITION_GOVERNED_CASE = {
   between: 'acc',
   against: 'acc',
 };
+const CASED_PREPOSITIONS = new Set(Object.keys(PREPOSITION_GOVERNED_CASE));
+
+function getNearestVerbBefore(tokens, startIdx) {
+  for (let i = startIdx - 1; i >= 0; i--) {
+    const tok = tokens[i];
+    if (!tok) continue;
+    if (tok.type === 'punct' || tok.type === 'punctuation') break;
+    if (tok.type === 'verb') return tok;
+  }
+  return null;
+}
+
+function resolveGovernedCase(prepWord, tokens = [], prepIdx = -1) {
+  if (!prepWord) return null;
+  const prep = prepWord.toLowerCase();
+  if (!CASED_PREPOSITIONS.has(prep)) return null;
+
+  // Context-sensitive governance for prepositions that can take multiple cases.
+  // Basic rule fallback:
+  // - static/abstract relation -> dative
+  // - directional motion -> accusative
+  if (prep === 'to' || prep === 'for') {
+    const priorVerb = getNearestVerbBefore(tokens, prepIdx);
+    const priorVerbLemma = normalizeLexiconToken((priorVerb && (priorVerb.lemma || LEMMAS[priorVerb.en] || priorVerb.en)) || '');
+    if (priorVerbLemma && MOTION_VERBS.has(priorVerbLemma)) return 'acc';
+    return 'dat';
+  }
+
+  return PREPOSITION_GOVERNED_CASE[prep] || null;
+}
 
 // V2 (Verb-Second) adverbs that trigger reordering
 // Only these specific adverbs consistently trigger V2 in Old Norse
@@ -6343,7 +6373,7 @@ class GrammarEngine {
         if (previousLexical && previousLexical.wordType === 'preposition') {
           const prep = previousLexical.value;
           item.syntaxRole = 'prep-object';
-          item.case = PREPOSITION_GOVERNED_CASE[prep] || 'acc';
+          item.case = resolveGovernedCase(prep, analysis, clauseStart + local - 1) || 'acc';
           item.caseLocked = true;
         } else if (!finiteVerbSeen) {
           item.syntaxRole = 'subject';
@@ -6406,8 +6436,8 @@ class GrammarEngine {
     // Look for preceding prepositions
     for (let i = index - 1; i >= 0; i--) {
       const item = context[i];
-      if (item.type === 'word' && PREPOSITION_GOVERNED_CASE[item.value]) {
-        return PREPOSITION_GOVERNED_CASE[item.value];
+      if (item.type === 'word' && CASED_PREPOSITIONS.has(item.value)) {
+        return resolveGovernedCase(item.value, context, i) || 'dat';
       }
       if (item.type === 'word' && ['and', 'but', 'or'].includes(item.value)) {
         break; // New clause
@@ -6684,7 +6714,7 @@ class GrammarEngine {
           number: inferNominalNumber(item.value)
         };
       } else if (item.wordType === 'preposition') {
-        const governed = PREPOSITION_GOVERNED_CASE[item.value];
+        const governed = resolveGovernedCase(item.value, corrected, i);
         if (!governed) continue;
         for (let j = i + 1; j < corrected.length; j++) {
           const next = corrected[j];
@@ -6845,8 +6875,9 @@ class GrammarEngine {
       break;
     }
 
-    if (prevWord && DATIVE_PREPS.has(prevWord)) return 'dat';
-    if (prevWord && ACCUSATIVE_PREPS.has(prevWord)) return 'acc';
+    if (prevWord && CASED_PREPOSITIONS.has(prevWord)) {
+      return resolveGovernedCase(prevWord, analysis, index - 1) || 'nom';
+    }
 
     // Simple direct-object heuristic: nouns/adjectives after a verb tend accusative
     if (lastVerbIndex !== -1 && index > lastVerbIndex) return 'acc';
@@ -6859,7 +6890,7 @@ class GrammarEngine {
       if (analysis[i].type === 'space') continue;
       if (analysis[i].type === 'punctuation') break;
       if (analysis[i].wordType === 'preposition') {
-        return PREPOSITION_GOVERNED_CASE[analysis[i].value] || null;
+        return resolveGovernedCase(analysis[i].value, analysis, i) || null;
       }
       break;
     }
@@ -8070,9 +8101,9 @@ function processSentence(sentence) {
 
     let caseForm = 'nom'; // default to nominative
 
-    // 1. If preceded by a dative preposition → dative (highest priority)
-    if(prev && prev.type === 'word' && DATIVE_PREPS.has(prev.en)) {
-      caseForm = 'dat';
+    // 1. If preceded by a governing preposition, use its governed case.
+    if(prev && prev.type === 'word' && CASED_PREPOSITIONS.has(prev.en)) {
+      caseForm = resolveGovernedCase(prev.en, wordToks, wordIdx - 1) || 'dat';
     }
     // 2. Check if we've seen a verb before this pronoun
     else {
@@ -8322,13 +8353,13 @@ function processSentence(sentence) {
         if (tok.appositiveHeadIdx !== undefined && computedCases.has(tok.appositiveHeadIdx)) {
           caseForm = computedCases.get(tok.appositiveHeadIdx);
         } else {
-          // Check for a dative/accusative preposition governing this adjective's NP
+          // Check for a governing preposition for this adjective's NP
           for(let j = idx - 1; j >= 0; j--) {
             const pt = conjugated[j];
             if(pt.type === 'space') continue;
             if(pt.type === 'word') {
-              if(DATIVE_PREPS.has(pt.en))       { caseForm = 'dat'; }
-              else if(ACCUSATIVE_PREPS.has(pt.en)) { caseForm = 'acc'; }
+              const governed = resolveGovernedCase(pt.en, conjugated, j);
+              if(governed) caseForm = governed;
               break;
             }
             if(pt.type === 'noun' || pt.type === 'verb' || pt.type === 'punct') break;
@@ -8391,31 +8422,11 @@ function processSentence(sentence) {
         }
       }
 
-      // 1. Check if preceded by dative preposition (highest priority)
+      // 1. Check if preceded by governing preposition (highest priority)
       if(prevWord && prevWord.type === 'word') {
-        if(DATIVE_PREPS.has(prevWord.en)) {
-          caseForm = 'dat';
-        }
-        // Special case: "to" is dative UNLESS preceded by motion verb
-        else if(prevWord.en === 'to') {
-          // Check if there's a motion verb before "to"
-          let hasMotionVerbBeforeTo = false;
-          for(let j = idx - 1; j >= 0; j--) {
-            if(conjugated[j].type === 'verb') {
-              if(MOTION_VERBS.has(conjugated[j].en)) {
-                hasMotionVerbBeforeTo = true;
-              }
-              break;
-            }
-            if(conjugated[j].type === 'punct') {
-              break;
-            }
-          }
-          // If no motion verb before "to", then "to" is dative
-          if(!hasMotionVerbBeforeTo) {
-            caseForm = 'dat';
-          }
-          // If motion verb before "to", stays nominative (will be accusative from verb detection)
+        const governed = resolveGovernedCase(prevWord.en, conjugated, idx - 1);
+        if(governed) {
+          caseForm = governed;
         }
       }
       // 2. Determine accusative vs nominative based on verb position
