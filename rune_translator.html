@@ -625,8 +625,8 @@ const REFLEXIVE_PRONOUNS = new Set(['myself','yourself','himself','herself','its
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
-const DATIVE_PREPS = new Set(['with','at','from','by','beside','within','for']);
-const ACCUSATIVE_PREPS = new Set(['after','before','between','against']);
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','within','for','before']);
+const ACCUSATIVE_PREPS = new Set(['after','between','against']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
 const DATIVE_PREPS_WITH_TO = new Set([...DATIVE_PREPS, 'to']);
@@ -1379,7 +1379,7 @@ const LEMMAS = {
   'broke':'break',
   'awaited':'await', 'remembered':'remember', 'forgot':'forget',
   'feared':'fear', 'hoped':'hope',
-  'faced':'face', 'cursed':'curse',
+  'faced':'face', 'cursed':'curse', 'seen':'see',
 
   // ── Gerund/participle forms ──
   'loving':'love', 'being':'be', 'having':'have',
@@ -6524,12 +6524,14 @@ class GrammarEngine {
           } else {
             inflected.push({
               ...item,
-              inflected: item.verbData ? (item.verbData[2] || item.value) : formatUnresolvedToken(item.value || verbLemma)
+              inflected: item.verbData
+                ? (item.verbData[2] || item.value)
+                : (item.translation || formatUnresolvedToken(item.value || verbLemma))
             });
           }
           break;
           }
-          
+
         case 'adjective':
           {
           const npFeatures = nounPhraseFeatures.get(i);
@@ -7408,15 +7410,38 @@ function realizeClause(clause, inCounterfactual) {
     // Determine object gender for Viking-age past participle agreement
     const ppObjLemma = LEMMAS[(pastPerfectCondition.object || '').toLowerCase()] || (pastPerfectCondition.object || '').toLowerCase();
     const ppObjectGender = NOUN_GENDER[ppObjLemma] || 'n';
-    translatedText = getPastPerfectConditionVerb(
-      pastPerfectCondition.subject,
-      lemma,
-      objectRealization.text,
-      trailingRealization.text,
-      ppObjectGender
-    );
-    translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[pastPerfectCondition.predicate] ? [] : [pastPerfectCondition.predicate] };
-    translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
+    // If the subject is a nominal NP (not pronoun) and clause.subjectNP is available,
+    // realize it with the gender-correct demonstrative (sú/sá/þat) via realizeHeadNounPhrase
+    const PRONOUN_WORDS_SET = new Set(['i','you','he','she','it','we','they']);
+    const isNominalSubject = pastPerfectCondition.subject &&
+      !PRONOUN_WORDS_SET.has(pastPerfectCondition.subject.toLowerCase());
+    if (isNominalSubject && clause.subjectNP) {
+      const subjectRealized = realizeHeadNounPhrase(
+        clause.subjectNP, pastPerfectCondition.subject, { forceStructured: true }
+      );
+      const subjHave   = getSubjHaveForm(null); // null → index 2 → 'hefði' (3rd-sg nominal)
+      const participle = getParticiple(lemma, ppObjectGender);
+      translatedText = `${subjectRealized.text} ${subjHave} ${participle} ${objectRealization.text} ${trailingRealization.text}`
+        .replace(/\s+/g, ' ').trim();
+      translated = {
+        unknowns: [...new Set([
+          ...(subjectRealized.unknowns || []),
+          ...(EN_TO_ON[lemma] || EN_TO_ON[pastPerfectCondition.predicate] ? [] : [pastPerfectCondition.predicate]),
+          ...(objectRealization.unknowns || []),
+          ...(trailingRealization.unknowns || [])
+        ])]
+      };
+    } else {
+      translatedText = getPastPerfectConditionVerb(
+        pastPerfectCondition.subject,
+        lemma,
+        objectRealization.text,
+        trailingRealization.text,
+        ppObjectGender
+      );
+      translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[pastPerfectCondition.predicate] ? [] : [pastPerfectCondition.predicate] };
+      translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
+    }
   } else if (clause.relative) {
     const relPredicateSplit = baseText.match(/^(.*?\b(?:man|woman|king|queen|lord|lady|warrior|person)\b)\s+((?:would|will|can|could|should|might|must|did|does|do|has|have|had)\b.+)$/i);
     const attachedHeadNP = clause.relative.attachment?.headNP || clause.subjectNP || null;
@@ -7432,8 +7457,16 @@ function realizeClause(clause, inCounterfactual) {
       const relObjectTail = embedded.object || '';
       const relTrailing = embedded.trailing || '';
       const possessorPronoun = clause.relative.possessor?.pronoun || 'her';
-      const reflexivePossessor = `${possessorPronoun}-reflexive`;
-      const basePossessed = `${reflexivePossessor} ${clause.relative.possessedNoun}`.trim();
+      // Use reflexive only when the embedded subject IS the possessor; otherwise non-reflexive.
+      // E.g. "whose brother I killed" → subject 'i' ≠ possessor 'her' → use 'her' (hennar).
+      const subjectMatchesPossessor =
+        (relSubject === 'she'  && possessorPronoun === 'her')   ||
+        (relSubject === 'he'   && possessorPronoun === 'his')   ||
+        (relSubject === 'they' && possessorPronoun === 'their') ||
+        (relSubject === 'i'    && possessorPronoun === 'my')    ||
+        (relSubject === 'we'   && possessorPronoun === 'our');
+      const possessiveBase = subjectMatchesPossessor ? `${possessorPronoun}-reflexive` : possessorPronoun;
+      const basePossessed = `${possessiveBase} ${clause.relative.possessedNoun}`.trim();
       const possessedPhrase = relObjectTail ? `${basePossessed} ${relObjectTail}` : basePossessed;
       const roleClause = buildRoleBasedClauseFromEnglish('', { subject: relSubject, verb: relVerb, object: `${possessedPhrase} ${relTrailing}`.trim() });
       const relBase = translateWithPhraseParserFallback(`${clause.relative.marker} ${roleClause}`);
