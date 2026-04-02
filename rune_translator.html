@@ -82,10 +82,10 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 // One rune covers multiple sounds — ambiguity is a feature, not a bug.
 const FUTHARK = [
   {r:'ᚠ', sounds:['f','v'],        name:'Fé'},
-  {r:'ᚢ', sounds:['u','w'],        name:'Úr'},
+  {r:'ᚢ', sounds:['u','w','o'],     name:'Úr'},
   {r:'ᚦ', sounds:['th','dh'],      name:'Þurs'},
   {r:'ᛅ', sounds:['a'],            name:'Ár'},
-  {r:'ᚬ', sounds:['o'],            name:'Óss'},
+  {r:'ᚬ', sounds:['nasal_vowel'],  name:'Óss'},
   {r:'ᚱ', sounds:['r'],            name:'Reið'},
   {r:'ᛦ', sounds:['r_final'],      name:'Ýr'},
   {r:'ᚴ', sounds:['k','g'],        name:'Kaun'},
@@ -131,7 +131,7 @@ const ON_RULES = [
   // ON special characters
   ['þ',  'th'], ['ð',  'th'],
   ['æ',  'a'],  ['œ',  'i'],
-  ['ø',  'o'],  ['ö',  'o'], ['ǫ', 'o'],
+  ['ø',  'o'],  ['ö',  'o'], ['ǫ', 'a'],
   ['á',  'a'],  ['é',  'i'], ['í', 'i'],
   ['ó',  'o'],  ['ú',  'u'], ['ý', 'i'],
   // Plain letters — YF collapses
@@ -233,6 +233,40 @@ function shouldUseAForE(onWord, position) {
 
   // Default: use modern spelling (e → ᛁ)
   return false;
+}
+
+/**
+ * Check if a vowel at a given position in an Old Norse word is a nasalized vowel
+ * that should use ᚬ (Óss). Nasalization occurs when a Proto-Germanic 'n' was dropped
+ * after the vowel (e.g. *ansiwiz → æsir: the 'a' before dropped 'n' → ᚬ).
+ * Only fires when a protoGermanic form is available in the dictionary.
+ * @param {string} onWord - The full Old Norse word
+ * @param {number} position - The position of the vowel in the word
+ * @returns {boolean} True if the vowel is nasalized → should use ᚬ
+ */
+function isNasalVowel(onWord, position) {
+  if(!onWord || position < 0 || position >= onWord.length) return false;
+  const lower = onWord.toLowerCase();
+  if(!'aeiouáéíóúýæøöǫ'.includes(lower[position])) return false;
+
+  const protoForm = getProtoGermanicForm(onWord);
+  if(!protoForm) return false;
+  const lowerProto = protoForm.toLowerCase();
+
+  // Collect vowel positions in each form
+  const onVowelPos = [];
+  const pgVowelPos = [];
+  for(let i = 0; i < lower.length; i++)
+    if('aeiouáéíóúýæøöǫ'.includes(lower[i])) onVowelPos.push(i);
+  for(let i = 0; i < lowerProto.length; i++)
+    if('aeiouáéíóú'.includes(lowerProto[i])) pgVowelPos.push(i);
+
+  const onVowelIdx = onVowelPos.indexOf(position);
+  if(onVowelIdx === -1 || onVowelIdx >= pgVowelPos.length) return false;
+  const pgPos = pgVowelPos[onVowelIdx];
+
+  // Proto-Germanic had 'n' right after this vowel, Old Norse does not → nasalized
+  return lowerProto[pgPos + 1] === 'n' && lower[position + 1] !== 'n';
 }
 
 /**
@@ -348,10 +382,16 @@ function onToRunes(text) {
         }
         // Special handling for 'r': use r_final if at end of word
         let finalSound = sound;
-        if(pat === 'e' && sound === 'i') {
+        if('aeiouæáéíóúýøöǫ'.includes(pat)) {
+          // Nasal vowel check (highest priority): vowels nasalized by dropped Proto-Germanic 'n' → ᚬ
           const { word, relativePos } = getCurrentWord(i);
-          if(shouldUseAForE(word, relativePos)) {
-            finalSound = 'a';
+          if(isNasalVowel(word, relativePos)) {
+            finalSound = 'nasal_vowel';
+          } else if(pat === 'e' && sound === 'i') {
+            // 'e' from Proto-Germanic 'a' → ᛅ (Ár) instead of ᛁ (Íss)
+            if(shouldUseAForE(word, relativePos)) {
+              finalSound = 'a';
+            }
           }
         }
         // Special handling for 'r': use r_final if at end of word
@@ -585,7 +625,7 @@ const REFLEXIVE_PRONOUNS = new Set(['myself','yourself','himself','herself','its
 
 // Prepositions that trigger dative in ON
 // Note: 'to' is genitive in Old Norse, not dative — removed for accuracy
-const DATIVE_PREPS = new Set(['with','at','from','by','beside','within']);
+const DATIVE_PREPS = new Set(['with','at','from','by','beside','within','for']);
 const ACCUSATIVE_PREPS = new Set(['after','before','between','against']);
 // "to" is dative EXCEPT after motion verbs (where it's accusative)
 // Motion verbs handle "to" separately in Step 5b
@@ -624,19 +664,32 @@ const ADVERBIAL_LEXICON = {
   most: { role: 'degree' },
 };
 const DEGREE_ADVERB_SET = new Set(['more', 'most', 'very']);
+// Viking-age past participles agree with their object in gender/case.
+// Each entry provides: base (neuter sg, default), masc_acc, fem_acc, neut.
 const PAST_PARTICIPLES = {
-  know: 'vitað',
-  speak: 'mælt',
-  say: 'sagt',
-  give: 'gefit',
-  take: 'tekit',
-  come: 'komit',
-  go: 'farið',
-  see: 'sét',
-  hear: 'heyrt',
-  kill: 'drepit',
-  curse: 'bölvat',
+  know:  { base:'vitað',  masc_acc:'vitaðan',  fem_acc:'vitaða',  neut:'vitað'  },
+  speak: { base:'mælt',   masc_acc:'mæltan',   fem_acc:'mælta',   neut:'mælt'   },
+  say:   { base:'sagt',   masc_acc:'sagðan',   fem_acc:'sagða',   neut:'sagt'   },
+  give:  { base:'gefit',  masc_acc:'gefinn',   fem_acc:'gefna',   neut:'gefit'  },
+  take:  { base:'tekit',  masc_acc:'tekinn',   fem_acc:'tekna',   neut:'tekit'  },
+  come:  { base:'komit',  masc_acc:'kominn',   fem_acc:'komna',   neut:'komit'  },
+  go:    { base:'farið',  masc_acc:'farinn',   fem_acc:'farna',   neut:'farið'  },
+  see:   { base:'sét',    masc_acc:'sénn',     fem_acc:'séna',    neut:'sét'    },
+  hear:  { base:'heyrt',  masc_acc:'heyrðan',  fem_acc:'heyrða',  neut:'heyrt'  },
+  kill:  { base:'drepit', masc_acc:'drepinn',  fem_acc:'drepna',  neut:'drepit' },
+  curse: { base:'bölvat', masc_acc:'bölvaðan', fem_acc:'bölvaða', neut:'bölvat' },
 };
+
+// Select the correct past participle form based on the object's gender.
+// Objects are in accusative case in "have + participle" constructions.
+function getParticiple(lemma, objectGender) {
+  const entry = PAST_PARTICIPLES[lemma];
+  if (!entry) return EN_TO_ON[`${lemma}d`] || EN_TO_ON[lemma] || formatUnresolvedToken(lemma);
+  if (typeof entry === 'string') return entry;
+  if (objectGender === 'f') return entry.fem_acc  || entry.base;
+  if (objectGender === 'm') return entry.masc_acc || entry.base;
+  return entry.neut || entry.base;
+}
 
 // Motion verbs that take accusative object without preposition
 // For these, "to" means motion → remove preposition, use accusative
@@ -663,6 +716,10 @@ const PAST_CONJ = {
   'return':['snera', 'snerir', 'sneri', 'snerum', 'sneruð', 'sneru'],
   'fear':  ['óttaðisk', 'óttaðisk', 'óttaðisk', 'óttaðumsk', 'óttaðuzk', 'óttuðusk'],
 };
+
+// Past subjunctive of hafa — used for both protasis and apodosis in Viking-age counterfactuals.
+// Structure: [ek, þú, hann/hon/þat, vér, þér, þeir]
+const PAST_SUBJ_HAVE = ['hefða', 'hefðir', 'hefði', 'hefðum', 'hefðuð', 'hefðu'];
 
 // ─── VERB CONJUGATION TABLE ──────────────────────────────────────────────────
 // Present tense, indicative. Keyed by English infinitive → forms by ON subject pronoun.
@@ -817,6 +874,12 @@ const PRON_TO_IDX = {
 };
 // Adjust to 0-based
 Object.keys(PRON_TO_IDX).forEach(k => PRON_TO_IDX[k]--);
+
+// Return the correct past-subjunctive form of hafa for the given ON subject pronoun
+function getSubjHaveForm(onSubject) {
+  const idx = PRON_TO_IDX[onSubject] ?? 2;
+  return PAST_SUBJ_HAVE[idx];
+}
 
 // ─── NOUN GENDER SYSTEM (Phase 2 Grammar Engine) ────────────────────────────
 // Each noun is marked with gender: m (masculine), f (feminine), n (neuter)
@@ -7291,12 +7354,16 @@ function realizeCounterfactualResultConstruction(construction, sourceText = '') 
   const safeObject = ensureRequiredObjectRetention(construction.predicate, construction.object, sourceText);
   const objectRealization = safeObject ? translateWithPhraseParserFallback(safeObject) : { text: '', unknowns: [] };
   const trailingRealization = construction.trailing ? translateWithPhraseParserFallback(construction.trailing) : { text: '', unknowns: [] };
+  // Determine object gender for Viking-age past participle agreement
+  const objEnLemma = LEMMAS[(construction.object || '').toLowerCase()] || (construction.object || '').toLowerCase();
+  const objectGender = NOUN_GENDER[objEnLemma] || 'n';
   const counterfactualVerb = getCounterfactualResultVerb(
     construction.subject,
     lemma,
     objectRealization.text,
     trailingRealization.text,
-    construction.adverbials || []
+    construction.adverbials || [],
+    objectGender
   );
   const unknowns = EN_TO_ON[lemma] || EN_TO_ON[construction.predicate] ? [] : [construction.predicate];
   return {
@@ -7338,11 +7405,15 @@ function realizeClause(clause, inCounterfactual) {
     const safeObject = ensureRequiredObjectRetention(pastPerfectCondition.predicate, pastPerfectCondition.object, clause.text);
     const objectRealization = safeObject ? translateWithPhraseParserFallback(safeObject) : { text: '', unknowns: [] };
     const trailingRealization = pastPerfectCondition.trailing ? translateWithPhraseParserFallback(pastPerfectCondition.trailing) : { text: '', unknowns: [] };
+    // Determine object gender for Viking-age past participle agreement
+    const ppObjLemma = LEMMAS[(pastPerfectCondition.object || '').toLowerCase()] || (pastPerfectCondition.object || '').toLowerCase();
+    const ppObjectGender = NOUN_GENDER[ppObjLemma] || 'n';
     translatedText = getPastPerfectConditionVerb(
       pastPerfectCondition.subject,
       lemma,
       objectRealization.text,
-      trailingRealization.text
+      trailingRealization.text,
+      ppObjectGender
     );
     translated = { unknowns: EN_TO_ON[lemma] || EN_TO_ON[pastPerfectCondition.predicate] ? [] : [pastPerfectCondition.predicate] };
     translated.unknowns = [...new Set([...(translated.unknowns || []), ...(objectRealization.unknowns || []), ...(trailingRealization.unknowns || [])])];
@@ -7397,12 +7468,6 @@ function realizeClause(clause, inCounterfactual) {
     translatedText = `þvíat ${translatedText}`.trim();
   }
 
-  if (hasWouldHaveConstruction) {
-    translatedText = translatedText
-      .replace(/\bmundi\s+hefi\b/gi, 'mundi hafa')
-      .replace(/\bmundi\s+hef\b/gi, 'mundi hafa');
-  }
-
   let clauseText = translatedText;
   let mergedUnknowns = [...(translated.unknowns || [])];
 
@@ -7441,28 +7506,20 @@ function realizeClause(clause, inCounterfactual) {
   return { text: clauseText, unknowns: mergedUnknowns };
 }
 
-function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '', trailingText = '', adverbials = []) {
-  const modalBySubject = {
-    ek: 'munda',
-    þú: 'mundir',
-    hann: 'mundi',
-    hon: 'mundi',
-    þat: 'mundi',
-    vér: 'mundum',
-    þeir: 'mundu',
-  };
+function getCounterfactualResultVerb(subjectPronoun, predicate, objectText = '', trailingText = '', adverbials = [], objectGender = 'n') {
   const onSubject = realizeClauseSubject(subjectPronoun);
-  const modal = modalBySubject[onSubject] || 'mundi';
+  const subjHave = getSubjHaveForm(onSubject);
   const predicateLemma = normalizeLexiconToken(LEMMAS[predicate] || predicate);
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}d`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
+  const participle = getParticiple(predicateLemma, objectGender);
   const adverbText = realizeAdverbials(adverbials);
-  return `${onSubject || 'ek'} ${modal} hafa ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+  return `${onSubject || 'ek'} ${subjHave} ${participle} ${adverbText} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
-function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '') {
+function getPastPerfectConditionVerb(subjectPronoun, predicateLemma, objectText = '', trailingText = '', objectGender = 'n') {
   const onSubject = realizeClauseSubject(subjectPronoun) || 'ek';
-  const participle = PAST_PARTICIPLES[predicateLemma] || EN_TO_ON[`${predicateLemma}n`] || EN_TO_ON[predicateLemma] || formatUnresolvedToken(predicateLemma);
-  return `${onSubject} hafði ${participle} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
+  const subjHave = getSubjHaveForm(onSubject);
+  const participle = getParticiple(predicateLemma, objectGender);
+  return `${onSubject} ${subjHave} ${participle} ${objectText} ${trailingText}`.replace(/\s+/g, ' ').trim();
 }
 
 function realizeClauseSubject(subjectText) {
@@ -8219,19 +8276,33 @@ function processSentence(sentence) {
                         ['men','children','people','eyes','feet','teeth','oxen'].includes(targetNoun.en);
 
         // Detect case: appositive phrases inherit case from their head noun;
-        // otherwise look back for a verb (verb before adjective → accusative).
+        // otherwise check for a governing preposition, then fall back to verb position.
         let caseForm = 'nom';
         if (tok.appositiveHeadIdx !== undefined && computedCases.has(tok.appositiveHeadIdx)) {
           caseForm = computedCases.get(tok.appositiveHeadIdx);
         } else {
+          // Check for a dative/accusative preposition governing this adjective's NP
           for(let j = idx - 1; j >= 0; j--) {
-            if(conjugated[j].type === 'verb') {
-              caseForm = 'acc';
+            const pt = conjugated[j];
+            if(pt.type === 'space') continue;
+            if(pt.type === 'word') {
+              if(DATIVE_PREPS.has(pt.en))       { caseForm = 'dat'; }
+              else if(ACCUSATIVE_PREPS.has(pt.en)) { caseForm = 'acc'; }
               break;
             }
-            // Stop if we hit another noun/pronoun (new phrase)
-            if(conjugated[j].type === 'noun' || (conjugated[j].type === 'pronoun' && conjugated[j].type !== 'space')) {
-              break;
+            if(pt.type === 'noun' || pt.type === 'verb' || pt.type === 'punct') break;
+          }
+          // If no governing preposition found, use verb-position heuristic
+          if(caseForm === 'nom') {
+            for(let j = idx - 1; j >= 0; j--) {
+              if(conjugated[j].type === 'verb') {
+                caseForm = 'acc';
+                break;
+              }
+              // Stop if we hit another noun/pronoun (new phrase)
+              if(conjugated[j].type === 'noun' || (conjugated[j].type === 'pronoun' && conjugated[j].type !== 'space')) {
+                break;
+              }
             }
           }
         }
