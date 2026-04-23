@@ -637,7 +637,7 @@ const PREPOSITION_GOVERNED_CASE = {
   by: 'dat',
   beside: 'dat',
   within: 'dat',
-  to: 'dat',
+  to: 'gen',
   for: 'dat',
   after: 'acc',
   before: 'dat',
@@ -896,6 +896,8 @@ const CONJ = {
   'endure': ['þoli',  'þolir', 'þolir', 'þolum',  'þolið',  'þola'],
   // reisa — to raise (weak class 2)
   'raise':  ['reisa', 'reisir','reisir','reissum','reisið', 'reisa'],
+  // drepa — to kill (strong class 5)
+  'kill':   ['drep',  'drepir','drepir','drepum', 'drepið', 'drepa'],
 };
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
@@ -7102,6 +7104,7 @@ function getVerbLemmaAndTense(token) {
 
 function getLocalConjugationIndex(tokens, verbIndex) {
   let subjectOn = null;
+  let subjectEn = null;
   let subjectPlural = false;
   for (let i = verbIndex - 1; i >= 0; i--) {
     const tok = tokens[i];
@@ -7111,6 +7114,16 @@ function getLocalConjugationIndex(tokens, verbIndex) {
       subjectOn = tok.on || tok.pron.nom;
       break;
     }
+    if (tok.type === 'word') {
+      subjectEn = (tok.en || '').toLowerCase();
+      if (['we','they','you'].includes(subjectEn)) {
+        subjectPlural = true;
+        break;
+      } else if (['i','he','she','it'].includes(subjectEn)) {
+        subjectPlural = false;
+        break;
+      }
+    }
     if (tok.type === 'noun') {
       const nounText = (tok.en || '').toLowerCase();
       subjectPlural = nounText.endsWith('s') || ['men','children','people','eyes','feet','teeth','oxen'].includes(nounText);
@@ -7118,6 +7131,11 @@ function getLocalConjugationIndex(tokens, verbIndex) {
     }
   }
   if (subjectOn && PRON_TO_IDX[subjectOn] !== undefined) return PRON_TO_IDX[subjectOn];
+  if (subjectEn === 'we') return 3;
+  if (subjectEn === 'they') return 5;
+  if (subjectEn === 'you') return 4;
+  if (subjectEn === 'i') return 0;
+  if (subjectEn === 'he' || subjectEn === 'she' || subjectEn === 'it') return 2;
   return subjectPlural ? 5 : 2;
 }
 
