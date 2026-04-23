@@ -1032,6 +1032,7 @@ const NOUN_GENDER = {
   // Animals
   'wolf':'m', 'wolves':'m', 'raven':'m', 'ravens':'m', 'bear':'m', 'bears':'m', 'horse':'m', 'horses':'m',
   'eagle':'f', 'eagles':'f', 'serpent':'m', 'serpents':'m', 'dragon':'m', 'dragons':'m', 'ox':'m', 'oxen':'m',
+  'cat':'m', 'cats':'m',
   // War & Weapons
   'sword':'n', 'swords':'n', 'axe':'f', 'axes':'f', 'spear':'m', 'spears':'m', 'shield':'m', 'shields':'m',
   'bow':'m', 'bows':'m', 'arrow':'f', 'arrows':'f', 'helm':'m', 'helms':'m', 'mail':'f',
@@ -1404,6 +1405,8 @@ const NOUN_DECLENSION = {
            gen_sg: 'hunds', nom_pl: 'hundar', acc_pl: 'hunda', dat_pl: 'hundum', gen_pl: 'hunda' },
   'fish': { base: 'fiskr', nom_sg: 'fiskr', acc_sg: 'fisk', dat_sg: 'fiski',
             gen_sg: 'fisks', nom_pl: 'fiskar', acc_pl: 'fiska', dat_pl: 'fiskum', gen_pl: 'fiska' },
+  'cat': { base: 'köttr', nom_sg: 'köttr', acc_sg: 'kött', dat_sg: 'ketti',
+           gen_sg: 'kattar', nom_pl: 'kettir', acc_pl: 'ketti', dat_pl: 'köttum', gen_pl: 'katta' },
   'raven': { base: 'hrafn', nom_sg: 'hrafn', acc_sg: 'hrafn', dat_sg: 'hrafni',
              gen_sg: 'hrafns', nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum', gen_pl: 'hrafna' },
   'viking': { base: 'víking', nom_sg: 'víking', acc_sg: 'víking', dat_sg: 'vítingi',
@@ -6459,17 +6462,10 @@ class GrammarEngine {
         analysis.verbLemma = lemma;
         if (isLikelyPastVerbForm(value, lemma)) analysis.tense = 'past';
       } else if (EN_TO_ON[lemma]) {
-        const nounGender = NOUN_GENDER[lemma];
-        if (nounGender || NOUN_DECLENSION[lemma]) {
-          analysis.wordType = 'noun';
-          analysis.gender = nounGender || 'm';
-          analysis.nounData = { gender: analysis.gender };
-          analysis.translation = EN_TO_ON[lemma] || null;
-        } else {
-          analysis.wordType = 'dictionary';
-          analysis.translation = EN_TO_ON[lemma];
-          analysis.gender = 'm';
-        }
+        analysis.wordType = 'noun';
+        analysis.gender = NOUN_GENDER[lemma] || 'm';
+        analysis.nounData = { gender: analysis.gender };
+        analysis.translation = EN_TO_ON[lemma] || null;
       } else {
         analysis.wordType = 'unknown';
       }
