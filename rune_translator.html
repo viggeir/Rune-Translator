@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rune Translator — Endrborninn</title>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Cinzel+Decorative:wght@400&family=IM+Fell+English:ital@0;1&family=EB+Garamond:ital,wght@0,400;1,400&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:#000;color:#d4c9a8;font-family:'Cinzel',serif;padding:2rem 1.5rem 3rem;min-height:100vh}
@@ -44,10 +44,59 @@ textarea::placeholder{color:#3d3525;font-style:italic}
 .rune-card .r{font-size:22px;color:#c9a84c;margin-bottom:3px;line-height:1}
 .rune-card .l{font-size:9px;color:#7a6e52;font-family:'Cinzel',serif;letter-spacing:1px;text-transform:uppercase}
 .rune-card .n{font-size:8px;color:#4a3e28;font-family:'IM Fell English',serif;font-style:italic;margin-top:2px}
+
+
+body.loader-active{overflow:hidden}
+.app-shell{position:relative;z-index:1}
+
+.loader-overlay{position:fixed;inset:0;z-index:9999;background:#050508;color:#d4d4d4;display:none;opacity:0;transition:opacity .45s ease;font-family:'EB Garamond',Georgia,serif}
+.loader-overlay.visible{display:block;opacity:1}
+.loader-overlay.fade-out{opacity:0}
+.loader-wrap{position:relative;width:100%;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:36px}
+#loader-stars{position:absolute;inset:0;z-index:0;pointer-events:none}
+.loader-eyebrow{position:relative;z-index:2;font-family:'Cinzel',serif;font-size:9px;letter-spacing:4px;color:#333;text-transform:uppercase;opacity:0;animation:loaderFadeIn 2.4s ease .2s forwards}
+.loader-eyebrow .dot{display:inline-block;width:3px;height:3px;background:#8a6520;margin:0 10px 2px;vertical-align:middle;animation:loaderPulse 3s ease-in-out infinite}
+.loader-rc{position:relative;z-index:2;width:min(320px,70vw);height:min(320px,70vw);display:flex;align-items:center;justify-content:center;animation:loaderFadeIn 1.6s ease forwards}
+.loader-rc-ring{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transform-origin:50% 50%}
+.loader-rc-runes{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.loader-rc-rays{position:absolute;inset:0;width:100%;height:100%}
+.loader-rc-rune{position:absolute;font-family:'Cinzel',serif;font-size:clamp(14px,4.5vw,20px);color:rgba(200,146,42,.2);transition:color .4s ease,text-shadow .4s ease;display:inline-block;will-change:transform,color}
+.loader-rc-rune.lit{color:#f0b84a;text-shadow:0 0 8px rgba(200,146,42,.7),0 0 24px rgba(200,146,42,.4)}
+.loader-rc-inner-ring{position:absolute;width:38%;height:38%;border:1px solid rgba(200,146,42,.25);border-radius:50%;box-shadow:inset 0 0 30px rgba(200,146,42,.05),0 0 40px rgba(200,146,42,.08)}
+.loader-rc-center{position:absolute;font-family:'Cinzel Decorative',serif;font-size:clamp(32px,9vw,44px);color:#c8922a;text-shadow:0 0 30px rgba(200,146,42,.5),0 0 60px rgba(200,146,42,.25);animation:loaderBreathe 4s ease-in-out infinite}
+.loader-progress{position:relative;z-index:2;display:flex;align-items:baseline;gap:14px;font-family:'Cinzel',serif;color:#333;font-size:9px;letter-spacing:4px;text-transform:uppercase;opacity:0;animation:loaderFadeIn 2.4s ease 1s forwards}
+.loader-progress .pct{font-family:'EB Garamond',serif;font-style:italic;font-size:13px;color:#8a6520;letter-spacing:0;min-width:44px}
+.loader-progress .track{position:relative;width:min(200px,40vw);height:1px;background:#1a1a25;overflow:hidden}
+.loader-progress .fill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,transparent,#c8922a 30%,#f0b84a 50%,#c8922a 70%,transparent);width:0%}
+
+@keyframes loaderFadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes loaderPulse{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:.9;transform:scale(1.4)}}
+@keyframes loaderBreathe{0%,100%{opacity:.5}50%{opacity:1}}
+
 </style>
 </head>
 <body>
+<div class="loader-overlay" id="loaderOverlay" aria-hidden="true">
+  <div class="loader-wrap">
+    <canvas id="loader-stars"></canvas>
+    <div class="loader-eyebrow">A DOOR <span class="dot"></span> OPENING</div>
+    <div class="loader-rc" id="loaderRc">
+      <div class="loader-rc-ring" id="loaderRcRing">
+        <svg class="loader-rc-rays" id="loaderRcRays" viewBox="-150 -150 300 300" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="loader-rc-runes" id="loaderRcRunes"></div>
+        <div class="loader-rc-inner-ring"></div>
+        <div class="loader-rc-center" id="loaderRcCenter">ᛟ</div>
+      </div>
+    </div>
+    <div class="loader-progress">
+      <span>Ferð</span>
+      <span class="track"><span class="fill" id="loaderFill"></span></span>
+      <span class="pct" id="loaderPct">0%</span>
+    </div>
+  </div>
+</div>
 
+<div class="app-shell" id="appShell">
 <div class="title-rune">ᚠᚢᚦᚬᚱᚴᚼᚾᛁᛋᛏᛒᛚᛘ</div>
 <h1>Rune Translator</h1>
 <p class="subtitle">English ↔ Old Norse ↔ Younger Futhark</p>
@@ -9528,6 +9577,141 @@ function toggleRef() {
     grid.appendChild(card);
   });
 })();
+
+const LOADER_RUNES=['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'];
+
+(function initOneTimeLoader(){
+  const overlay = document.getElementById('loaderOverlay');
+  if(!overlay) return;
+
+  document.body.classList.add('loader-active');
+  overlay.classList.add('visible');
+
+  (function(){
+    const c=document.getElementById('loader-stars');
+    const ctx=c.getContext('2d');
+    let W=0,H=0,dpr=window.devicePixelRatio||1,stars=[],lines=[];
+    const COLORS=[[212,212,212],[200,146,42],[154,122,184]];
+    function resize(){
+      W=c.clientWidth=window.innerWidth; H=c.clientHeight=window.innerHeight;
+      c.width=W*dpr; c.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+      const count=Math.min(140,Math.round(W*H/14000));
+      stars=Array.from({length:count},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.1+.2,a:Math.random()*.6+.1,c:COLORS[Math.random()<.75?0:(Math.random()<.6?1:2)],tw:Math.random()*.01+.002,ph:Math.random()*6.28}));
+      lines=Array.from({length:14},()=>({x:Math.random()*W,y:-Math.random()*H,len:80+Math.random()*160,sp:.15+Math.random()*.35,a:.04+Math.random()*.08}));
+    }
+    function frame(t){
+      if(!document.body.contains(overlay)) return;
+      ctx.clearRect(0,0,W,H);
+      for(const l of lines){
+        const g=ctx.createLinearGradient(l.x,l.y,l.x,l.y+l.len);
+        g.addColorStop(0,'rgba(200,146,42,0)'); g.addColorStop(.5,`rgba(200,146,42,${l.a})`); g.addColorStop(1,'rgba(200,146,42,0)');
+        ctx.strokeStyle=g; ctx.lineWidth=.6;
+        ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.lineTo(l.x,l.y+l.len); ctx.stroke();
+        l.y+=l.sp; if(l.y>H+100){l.y=-l.len-Math.random()*200; l.x=Math.random()*W;}
+      }
+      for(const s of stars){
+        const tw=.55+Math.sin(t*s.tw+s.ph)*.45;
+        ctx.fillStyle=`rgba(${s.c[0]},${s.c[1]},${s.c[2]},${s.a*tw})`;
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,6.28); ctx.fill();
+      }
+      requestAnimationFrame(frame);
+    }
+    window.addEventListener('resize',resize);
+    resize();
+    requestAnimationFrame(frame);
+  })();
+
+  (function(){
+    const ring = document.getElementById('loaderRcRing');
+    const runesEl = document.getElementById('loaderRcRunes');
+    const raysSvg = document.getElementById('loaderRcRays');
+    const centerEl = document.getElementById('loaderRcCenter');
+    const fill = document.getElementById('loaderFill');
+    const pctEl = document.getElementById('loaderPct');
+    const rc = document.getElementById('loaderRc');
+    if(!ring || !runesEl || !raysSvg || !centerEl || !fill || !pctEl || !rc) return;
+
+    const runeEls = [];
+    const raySpokes = [];
+    for(let i=0;i<24;i++){
+      const a=(i/24)*Math.PI*2 - Math.PI/2;
+      const s=document.createElement('span');
+      s.textContent = LOADER_RUNES[i];
+      s.className = 'loader-rc-rune';
+      runesEl.appendChild(s);
+      runeEls.push(s);
+
+      const x1=Math.cos(a)*60, y1=Math.sin(a)*60;
+      const x2=Math.cos(a)*110, y2=Math.sin(a)*110;
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+      line.setAttribute('x2',x2); line.setAttribute('y2',y2);
+      line.setAttribute('stroke','#c8922a');
+      line.setAttribute('stroke-width','0.5');
+      line.setAttribute('stroke-opacity','0.08');
+      raysSvg.appendChild(line);
+      raySpokes.push(line);
+    }
+
+    function layout(){
+      const rect = rc.getBoundingClientRect();
+      ring._R = Math.min(rect.width, rect.height) * 0.40;
+    }
+    layout();
+    window.addEventListener('resize', layout);
+
+    let t0 = performance.now();
+    let p = 0;
+    let last = t0;
+    const doneAt = 100;
+
+    function finish(){
+      overlay.classList.add('fade-out');
+      setTimeout(()=>{
+        overlay.remove();
+        document.body.classList.remove('loader-active');
+      }, 480);
+    }
+
+    function tick(t){
+      if(!document.body.contains(overlay)) return;
+      const e = (t - t0)*.001;
+      const rot = e * 6;
+      ring.style.transform = `rotate(${rot}deg)`;
+
+      const R = ring._R || 0;
+      runeEls.forEach((el,i)=>{
+        const a=(i/24)*Math.PI*2 - Math.PI/2;
+        const x=Math.cos(a)*R, y=Math.sin(a)*R;
+        el.style.transform = `translate(${x}px, ${y}px) rotate(${-rot}deg)`;
+      });
+
+      const dt = (t-last)*.001;
+      last = t;
+      p += 24*dt*(1 - p/120);
+      if(p >= doneAt){
+        p = doneAt;
+      }
+
+      const n = Math.floor((p/100)*runeEls.length);
+      runeEls.forEach((r,i)=>r.classList.toggle('lit', i<n));
+      raySpokes.forEach((r,i)=>r.setAttribute('stroke-opacity', i<n ? '0.55' : '0.08'));
+      centerEl.textContent = LOADER_RUNES[Math.min(23, Math.floor((p/100)*24))];
+      fill.style.width = p + '%';
+      pctEl.textContent = Math.round(p) + '%';
+
+      if(p >= doneAt){
+        setTimeout(finish, 400);
+        return;
+      }
+      requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  })();
+})();
+
 </script>
+</div>
 </body>
 </html>
