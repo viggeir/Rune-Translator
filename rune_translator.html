@@ -1204,11 +1204,13 @@ const POSSESSIVES = {
   },
   'our': {
     masc_sg: 'várr',  fem_sg: 'vár',   neut_sg: 'várt',
+    masc_pl: 'várir', fem_pl: 'várar', neut_pl: 'vár',
     // 1st person possessives are inherently reflexive
   },
   'their': {
     masc_sg: 'þeirra', fem_sg: 'þeirra', neut_sg: 'þeirra', // non-reflexive
-    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín' } // sín doesn't inflect in reflexive form
+    masc_pl: 'þeirra', fem_pl: 'þeirra', neut_pl: 'þeirra', // genitive pronoun doesn't inflect
+    reflexive: { masc_sg: 'sín', fem_sg: 'sín', neut_sg: 'sín', masc_pl: 'sín', fem_pl: 'sín', neut_pl: 'sín' } // sín doesn't inflect
   },
 };
 
@@ -1677,7 +1679,7 @@ const EN_TO_ON = {
   'swore':'sór', 'swear':'sverja', 'vow':'heitast',
   'protect':'verja', 'guard':'gæta', 'serve':'þjóna',
   'returned':'sneri aftr', 'rested':'hvíldist', 'slept':'svaf',
-  'ate':'át', 'drank':'drakk',
+  'drank':'drakk',
   'forge':'smíða', 'forged':'smíðaði',
   'carve':'rista', 'carved':'risti', 'mark':'merkja', 'marked':'merkti',
   'await':'bíða', 'awaited':'beið',
@@ -8282,11 +8284,14 @@ function processSentence(sentence) {
         const possForm = POSSESSIVES[tok.en];
         if(possForm) {
           const selectedSet = (tok.forceReflexive && possForm.reflexive) ? possForm.reflexive : possForm;
-          // Apply appropriate form based on noun's gender
-          const form = gender === 'f' ? selectedSet.fem_sg
-                     : gender === 'n' ? selectedSet.neut_sg
-                     : selectedSet.masc_sg;
-          return { ...tok, on: form };
+          // Check if the noun is plural
+          const nounIsPlural = nextTok.en && (nextTok.en.endsWith('s') || ['men','children','people','eyes','feet','teeth','oxen'].includes(nextTok.en.toLowerCase()));
+          const numberSuffix = nounIsPlural ? '_pl' : '_sg';
+          // Apply appropriate form based on noun's gender and number
+          const form = gender === 'f' ? selectedSet[`fem${numberSuffix}`]
+                     : gender === 'n' ? selectedSet[`neut${numberSuffix}`]
+                     : selectedSet[`masc${numberSuffix}`];
+          return { ...tok, on: form || selectedSet.masc_sg };
         }
       }
       // Fallback: use base dictionary form
