@@ -6986,11 +6986,19 @@ class GrammarEngine {
         }
       } else if (item.wordType === 'verb' && item.verbData && subjectFeatures) {
         const conjugationIndex = this.getConjugationIndex(subjectFeatures.subject, subjectFeatures.number);
-        corrected[i] = {
-          ...item,
-          inflected: item.verbData[conjugationIndex] || item.verbData[2],
-          conjugation: conjugationIndex
-        };
+        if (item.tense === 'past') {
+          const verbLemma = normalizeLexiconToken(item.verbLemma || LEMMAS[item.value] || item.value);
+          const pastForms = PAST_CONJ[verbLemma];
+          if (pastForms) {
+            corrected[i] = { ...item, inflected: pastForms[conjugationIndex] || pastForms[2], conjugation: conjugationIndex };
+          }
+        } else {
+          corrected[i] = {
+            ...item,
+            inflected: item.verbData[conjugationIndex] || item.verbData[2],
+            conjugation: conjugationIndex
+          };
+        }
       }
     }
     return corrected;
@@ -7956,7 +7964,8 @@ function enforceNoRawSourceLeakage(text, unknowns = []) {
 
 function reorderPossessiveNounPhrases(text) {
   if (!text) return text;
-  return text.replace(/\b(minn|min|mitt|mín|þinn|þín|þitt|hans|hennar|þeirra|vár|várt|vor|sinn|sín|sitt)\s+([a-záðéíóúýþæöøǫ'-]+)\b/gi, '$2 $1');
+  // Use (?<!\w) / (?!\w) instead of \b so non-ASCII forms like þeirra/þinn also match.
+  return text.replace(/(?<!\w)(minn|min|mitt|mín|þinn|þín|þitt|hans|hennar|þeirra|vár|várt|vor|sinn|sín|sitt)\s+([a-záðéíóúýþæöøǫ'-]+)(?!\w)/gi, '$2 $1');
 }
 
 function collapseDoSupportPredicates(text) {
