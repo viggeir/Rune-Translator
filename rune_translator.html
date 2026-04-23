@@ -933,54 +933,63 @@ const CONJ = {
   'kill':   ['drep',  'drepir','drepir','drepum', 'drepið', 'drepa'],
 };
 
-// Present subjunctive paradigms keyed by English infinitive
-// Structure: [ek, þú, hann/hon/þat, vér, þér, þeir]
-// Pattern for weak type 2: root + [-a,-ir,-i,-im,-ið,-i]
-// Pattern for strong: same as weak but with i-stem variation
-const VERB_PRES_SUBJ = {
-  'be':     ['sé',    'sér',   'sé',    'séum',   'séið',   'sé'],
-  'have':   ['hafa',  'hafir', 'hafi',  'hafim',  'hafið',  'hafi'],
-  'love':   ['elska', 'elskir','elski', 'elskim', 'elskið', 'elski'],
-  'see':    ['sjái',  'sjáir', 'sjái',  'sjáim',  'sjáið',  'sjái'],
-  'go':     ['fara',  'farir', 'fari',  'farim',  'farið',  'fari'],
-  'come':   ['koma',  'komir', 'komi',  'komim',  'komið',  'komi'],
-  'know':   ['vita',  'vitir', 'viti',  'vitim',  'vitið',  'viti'],
-  'give':   ['gefa',  'gefir', 'gefi',  'gefim',  'gefið',  'gefi'],
-  'take':   ['taka',  'takir', 'taki',  'takim',  'takið',  'taki'],
-  'say':    ['segja', 'segir', 'segi',  'segjum', 'segið',  'segi'],
-  'do':     ['gera',  'gerir', 'geri',  'gerim',  'gerið',  'geri'],
-  'make':   ['gera',  'gerir', 'geri',  'gerim',  'gerið',  'geri'],
-  'want':   ['vilja', 'vilir', 'vili',  'vilim',  'vilið',  'vili'],
-  'find':   ['finna', 'finnir','finni', 'finnim', 'finnið', 'finni'],
-  'walk':   ['ganga', 'gangir','gangi', 'gangim', 'gangið', 'gangi'],
-  'ride':   ['ríða',  'ríðir', 'ríði',  'ríðim',  'ríðið',  'ríði'],
-  'speak':  ['mæla',  'mælir', 'mæli',  'mælim',  'mælið',  'mæli'],
-  'hear':   ['heyra', 'heyrir','heyri', 'heyrim', 'heyrið', 'heyri'],
-  'kill':   ['drepa', 'drepir','drepi', 'drepim', 'drepið', 'drepi'],
-  'drink':  ['drekka','drekkir','drekki','drekkum','drekkið','drekki'],
-  'seek':   ['sœkja', 'sœkir', 'sœki',  'sœkjum','sœkið',  'sœki'],
-  'think':  ['hugsa', 'hugsir','hugsi', 'hugsim', 'hugsið', 'hugsi'],
-  'win':    ['vinna', 'vinnir','vinni', 'vinnim', 'vinnið', 'vinni'],
+// Derive the bare verb stem used for imperative and present subjunctive.
+// Uses the CONJ table: sg2 (forms[1]), inf/þeir (forms[5]), ek (forms[0]).
+function deriveVerbStem(verbLemma) {
+  const forms = CONJ[verbLemma];
+  if (!forms) return null;
+  const [ek, sg2, , , , inf] = forms;
+  if (inf.endsWith('ja')) return inf.replace(/ja$/, '');
+  if (inf.endsWith('va')) return inf.replace(/va$/, '');
+  if (sg2.endsWith('ar')) return inf.endsWith('a') ? inf.slice(0, -1) : sg2.slice(0, -2);
+  if (sg2.endsWith('ir')) {
+    if (ek.endsWith('i')) return ek.slice(0, -1);
+    if (ek.endsWith('a')) return inf.endsWith('a') ? inf.slice(0, -1) : ek;
+    return ek;
+  }
+  return inf.endsWith('a') ? inf.slice(0, -1) : ek;
+}
+
+// Genuinely irregular imperatives that cannot be derived from CONJ data.
+const VERB_IMP_EXCEPTIONS = {
+  'be':'ver',   'have':'haf',  'see':'sé',    'know':'vit',
+  'may':'má',   'can':'kann',  'must':'þarf', 'need':'þarf',
+  'fight':'berjsk', 'fear':'óttumk',
+  'walk':'gakk', 'think':'hugsa', 'open':'opna', 'call':'kalla',
 };
 
-// 2nd person singular imperative forms keyed by English infinitive
-const VERB_IMP = {
-  'be':'ver',     'have':'haf',    'love':'elska',  'see':'sé',      'go':'far',
-  'come':'kom',   'know':'vit',    'give':'gef',    'take':'tak',    'say':'seg',
-  'do':'ger',     'make':'ger',    'want':'vil',    'will':'mun',    'shall':'skal',
-  'may':'má',     'can':'kann',    'must':'þarf',   'need':'þarf',   'find':'finn',
-  'feel':'finn',  'hold':'halt',   'keep':'halt',   'stand':'stat',  'walk':'gakk',
-  'ride':'ríð',   'fight':'berjsk','hunt':'jaga',   'run':'renn',    'prepare':'bú',
-  'end':'enda',   'lose':'tap',    'turn':'breyt',  'return':'snú',  'break':'brjót',
-  'win':'vinn',   'adore':'elska', 'cherish':'elska','speak':'mæl',  'hear':'heyr',
-  'live':'lif',   'sleep':'sof',   'drink':'drekk', 'eat':'et',      'trust':'trú',
-  'believe':'trú','fear':'óttumk', 'seek':'sœk',    'learn':'lær',  'teach':'lær',
-  'help':'hjálp', 'bless':'bless', 'curse':'bölv',  'sing':'syng',   'play':'leik',
-  'build':'bygg', 'carve':'rist',  'mark':'rist',   'open':'opna',   'close':'lok',
-  'call':'kalla', 'answer':'svar', 'ask':'spyr',    'request':'bið', 'promise':'heit',
-  'remember':'man','think':'hugsa','understand':'skil','dance':'dans','conquer':'sigr',
-  'endure':'þol', 'raise':'reis',  'kill':'drep',
+// Return the 2nd-person singular imperative for the given English lemma.
+function deriveImperative(verbLemma) {
+  if (VERB_IMP_EXCEPTIONS[verbLemma]) return VERB_IMP_EXCEPTIONS[verbLemma];
+  const forms = CONJ[verbLemma];
+  if (!forms) return null;
+  const [ek, sg2, , , , inf] = forms;
+  if (inf.endsWith('ja')) return inf.replace(/ja$/, '');
+  if (inf.endsWith('va')) return inf.replace(/va$/, '');
+  if (sg2.endsWith('ar')) return inf;           // weak type 2: imp = infinitive
+  if (sg2.endsWith('ir')) {
+    if (ek.endsWith('i')) return ek.slice(0, -1);
+    if (ek.endsWith('a')) return inf.endsWith('a') ? inf.slice(0, -1) : ek;
+    return ek;
+  }
+  return inf.endsWith('a') ? inf.slice(0, -1) : ek;
+}
+
+// Irregular present subjunctive paradigms (only where derivation would be wrong).
+const VERB_SUBJ_EXCEPTIONS = {
+  'be':   ['sé',   'sér',   'sé',   'séum',  'séið',  'sé'],
+  'have': ['hafa', 'hafir', 'hafi', 'hafim', 'hafið', 'hafi'],
+  'see':  ['sé',   'sér',   'sé',   'séum',  'séið',  'sé'],
+  'know': ['vita', 'vitir', 'viti', 'vitim', 'vitið', 'viti'],
 };
+
+// Return the present-subjunctive paradigm [ek,þú,hann,vér,þér,þeir] for a lemma.
+function derivePresentSubjunctive(verbLemma) {
+  if (VERB_SUBJ_EXCEPTIONS[verbLemma]) return VERB_SUBJ_EXCEPTIONS[verbLemma];
+  const stem = deriveVerbStem(verbLemma);
+  if (!stem) return null;
+  return [stem+'a', stem+'ir', stem+'i', stem+'im', stem+'ið', stem+'i'];
+}
 
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
 const PRON_TO_IDX = {
@@ -1125,7 +1134,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'allir',    masc_acc_pl: 'alla',     masc_dat_pl: 'öllum',
     fem_nom_pl: 'allar',     fem_acc_pl: 'allar',     fem_dat_pl: 'öllum',
     neut_nom_pl: 'öll',      neut_acc_pl: 'öll',      neut_dat_pl: 'öllum',
-    weak: { nom_m_sg: 'alli', default_sg: 'alla', default_pl: 'allu', dat_pl: 'öllum' },
+    weakStem: 'all',
   },
   'great': {
     base: 'mikill',
@@ -1135,8 +1144,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'miklir',   masc_acc_pl: 'mikla',    masc_dat_pl: 'miklum',
     fem_nom_pl: 'miklar',    fem_acc_pl: 'miklar',    fem_dat_pl: 'miklum',
     neut_nom_pl: 'mikil',    neut_acc_pl: 'mikil',    neut_dat_pl: 'miklum',
-    weak: { nom_m_sg: 'mikli', default_sg: 'mikla', default_pl: 'miklu', dat_pl: 'miklum' },
-    comp: 'meiri', sup: 'mestr',
+    weakStem: 'mikl',
   },
   'old': {
     base: 'gamall',
@@ -1146,8 +1154,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'gamlir',   masc_acc_pl: 'gamla',    masc_dat_pl: 'gömlum',
     fem_nom_pl: 'gamlár',    fem_acc_pl: 'gamlár',    fem_dat_pl: 'gömlum',
     neut_nom_pl: 'gömul',    neut_acc_pl: 'gömul',    neut_dat_pl: 'gömlum',
-    weak: { nom_m_sg: 'gamli', default_sg: 'gamla', default_pl: 'gamlu', dat_pl: 'gömlum' },
-    comp: 'ellri', sup: 'elztr',
+    weakStem: 'gaml',
   },
   'young': {
     base: 'ungr',
@@ -1157,8 +1164,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'ungir',    masc_acc_pl: 'unga',     masc_dat_pl: 'ungum',
     fem_nom_pl: 'ungar',     fem_acc_pl: 'ungar',     fem_dat_pl: 'ungum',
     neut_nom_pl: 'ung',      neut_acc_pl: 'ung',      neut_dat_pl: 'ungum',
-    weak: { nom_m_sg: 'ungi', default_sg: 'unga', default_pl: 'ungu', dat_pl: 'ungum' },
-    comp: 'yngri', sup: 'yngstr',
   },
   'strong': {
     protoGermanic: 'starkaz',
@@ -1169,8 +1174,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'sterkir',  masc_acc_pl: 'sterka',   masc_dat_pl: 'sterkum',
     fem_nom_pl: 'sterkar',   fem_acc_pl: 'sterkar',   fem_dat_pl: 'sterkum',
     neut_nom_pl: 'sterk',    neut_acc_pl: 'sterk',    neut_dat_pl: 'sterkum',
-    weak: { nom_m_sg: 'sterki', default_sg: 'sterka', default_pl: 'sterku', dat_pl: 'sterkum' },
-    comp: 'sterkari', sup: 'sterkastr',
   },
   'brave': {
     base: 'hugaðr',
@@ -1180,8 +1183,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'hugaðir',  masc_acc_pl: 'huguda',   masc_dat_pl: 'hugdum',
     fem_nom_pl: 'hugaðar',   fem_acc_pl: 'hugaðar',   fem_dat_pl: 'hugdum',
     neut_nom_pl: 'hugud',    neut_acc_pl: 'hugud',    neut_dat_pl: 'hugdum',
-    weak: { nom_m_sg: 'hugaði', default_sg: 'hugaða', default_pl: 'hugaðu', dat_pl: 'hugaðum' },
-    comp: 'hugaðari', sup: 'hugaðastr',
+    weakStem: 'hugað',
   },
   'good': {
     base: 'góðr',
@@ -1191,8 +1193,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'góðir',    masc_acc_pl: 'góða',     masc_dat_pl: 'góðum',
     fem_nom_pl: 'góðar',     fem_acc_pl: 'góðar',     fem_dat_pl: 'góðum',
     neut_nom_pl: 'góð',      neut_acc_pl: 'góð',      neut_dat_pl: 'góðum',
-    weak: { nom_m_sg: 'góði', default_sg: 'góða', default_pl: 'góðu', dat_pl: 'góðum' },
-    comp: 'betri', sup: 'beztr',
   },
   'beautiful': {
     base: 'fagr',
@@ -1202,8 +1202,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
     fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
     neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
-    weak: { nom_m_sg: 'fagri', default_sg: 'fagra', default_pl: 'fagru', dat_pl: 'fagrum' },
-    comp: 'fegri', sup: 'fegrstr',
+    weakStem: 'fagr',
   },
   'dark': {
     base: 'dökkr',
@@ -1213,8 +1212,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'dökkir',   masc_acc_pl: 'dökka',    masc_dat_pl: 'dökkum',
     fem_nom_pl: 'dökkar',    fem_acc_pl: 'dökkar',    fem_dat_pl: 'dökkum',
     neut_nom_pl: 'dökk',     neut_acc_pl: 'dökk',     neut_dat_pl: 'dökkum',
-    weak: { nom_m_sg: 'dökki', default_sg: 'dökka', default_pl: 'dökku', dat_pl: 'dökkum' },
-    comp: 'dökkari', sup: 'dökkastr',
   },
   'bright': {
     base: 'bjártr',
@@ -1224,8 +1221,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'bjartir',  masc_acc_pl: 'bjarta',   masc_dat_pl: 'bjartum',
     fem_nom_pl: 'bjartar',   fem_acc_pl: 'bjartar',   fem_dat_pl: 'bjartum',
     neut_nom_pl: 'björt',    neut_acc_pl: 'björt',    neut_dat_pl: 'bjartum',
-    weak: { nom_m_sg: 'bjárti', default_sg: 'bjarta', default_pl: 'bjartu', dat_pl: 'bjartum' },
-    comp: 'bjártari', sup: 'bjártastr',
+    weakStem: 'bjárt',
   },
   'sweet': {
     base: 'sætr',
@@ -1235,8 +1231,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'sætir',    masc_acc_pl: 'sæta',     masc_dat_pl: 'sætum',
     fem_nom_pl: 'sætar',     fem_acc_pl: 'sætar',     fem_dat_pl: 'sætum',
     neut_nom_pl: 'sæt',      neut_acc_pl: 'sæt',      neut_dat_pl: 'sætum',
-    weak: { nom_m_sg: 'sæti', default_sg: 'sæta', default_pl: 'sætu', dat_pl: 'sætum' },
-    comp: 'sætari', sup: 'sætastr',
   },
   'yellow': {
     base: 'gulr',
@@ -1246,8 +1240,6 @@ const ADJECTIVES = {
     masc_nom_pl: 'gulir',    masc_acc_pl: 'gula',     masc_dat_pl: 'gulum',
     fem_nom_pl: 'gular',     fem_acc_pl: 'gular',     fem_dat_pl: 'gulum',
     neut_nom_pl: 'gul',      neut_acc_pl: 'gul',      neut_dat_pl: 'gulum',
-    weak: { nom_m_sg: 'guli', default_sg: 'gula', default_pl: 'gulu', dat_pl: 'gulum' },
-    comp: 'gulari', sup: 'gulastr',
   },
   'fair': {
     base: 'fagr',
@@ -1257,8 +1249,7 @@ const ADJECTIVES = {
     masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
     fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
     neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
-    weak: { nom_m_sg: 'fagri', default_sg: 'fagra', default_pl: 'fagru', dat_pl: 'fagrum' },
-    comp: 'fegri', sup: 'fegrstr',
+    weakStem: 'fagr',
   },
   'wild': {
     base: 'villr',
@@ -1268,9 +1259,19 @@ const ADJECTIVES = {
     masc_nom_pl: 'villir',   masc_acc_pl: 'vila',     masc_dat_pl: 'villum',
     fem_nom_pl: 'vilar',     fem_acc_pl: 'vilar',     fem_dat_pl: 'villum',
     neut_nom_pl: 'vil',      neut_acc_pl: 'vil',      neut_dat_pl: 'villum',
-    weak: { nom_m_sg: 'villi', default_sg: 'villa', default_pl: 'villu', dat_pl: 'villum' },
-    comp: 'villari', sup: 'villastr',
+    weakStem: 'vill',
   },
+};
+
+// Suppletive and irregular comparative/superlative pairs for ADJECTIVES entries.
+// All other adjectives derive comp/sup productively from weakStem/fem_nom_sg + 'ari'/'astr'.
+const COMP_SUP_EXCEPTIONS = {
+  'good':      { comp: 'betri',  sup: 'beztr'   },
+  'great':     { comp: 'meiri',  sup: 'mestr'   },
+  'old':       { comp: 'ellri',  sup: 'elztr'   },
+  'young':     { comp: 'yngri',  sup: 'yngstr'  },
+  'beautiful': { comp: 'fegri',  sup: 'fegrstr' },
+  'fair':      { comp: 'fegri',  sup: 'fegrstr' },
 };
 
 // ─── INTERJECTION SYSTEM ──────────────────────────────────────────────────────
@@ -6417,6 +6418,7 @@ class GrammarEngine {
     } else if (ADJECTIVES[value]) {
       analysis.wordType = 'adjective';
       analysis.adjectiveData = ADJECTIVES[value];
+      analysis.adjKey = value;
     } else if (NOUN_GENDER[value]) {
       analysis.wordType = 'noun';
       analysis.gender = NOUN_GENDER[value];
@@ -6722,8 +6724,9 @@ class GrammarEngine {
             }
             return true;
           })();
-          if (isImperative && VERB_IMP[verbLemma]) {
-            inflected.push({ ...item, inflected: VERB_IMP[verbLemma], mood: 'imp' });
+          const impForm = isImperative ? deriveImperative(verbLemma) : null;
+          if (impForm) {
+            inflected.push({ ...item, inflected: impForm, mood: 'imp' });
             break;
           }
           // Detect at-clause subjunctive: verb preceded by 'at' complementiser
@@ -6737,10 +6740,12 @@ class GrammarEngine {
             }
             return false;
           })();
-          if (inAtClause && VERB_PRES_SUBJ[verbLemma]) {
-            const subjForms = VERB_PRES_SUBJ[verbLemma];
-            inflected.push({ ...item, inflected: subjForms[conjugationIndex] || subjForms[2], mood: 'subj' });
-            break;
+          if (inAtClause) {
+            const subjForms = derivePresentSubjunctive(verbLemma);
+            if (subjForms) {
+              inflected.push({ ...item, inflected: subjForms[conjugationIndex] ?? subjForms[2], mood: 'subj' });
+              break;
+            }
           }
           if (item.tense === 'past') {
             // Passive detection: was/were + past participle → vara form + pp agreeing with subject
@@ -6815,7 +6820,7 @@ class GrammarEngine {
           }
           const adjectiveForm = this.getAdjectiveForm(
             item.adjectiveData, adjectiveGender, currentCase, adjectiveNumber,
-            { definite: npFeatures?.definite, degree }
+            { definite: npFeatures?.definite, degree, adjKey: item.adjKey }
           );
           inflected.push({
             ...item,
@@ -6997,17 +7002,21 @@ class GrammarEngine {
   
   // Get appropriate adjective form
   getAdjectiveForm(adjectiveData, gender, case_, number, options = {}) {
-    // Comparative/superlative: return the invariant form directly
-    if (options.degree === 'comp' && adjectiveData.comp) return adjectiveData.comp;
-    if (options.degree === 'sup' && adjectiveData.sup) return adjectiveData.sup;
+    // Comparative/superlative: derive from stem with exceptions for suppletive forms
+    if (options.degree) {
+      const exc = COMP_SUP_EXCEPTIONS[options.adjKey];
+      if (exc?.[options.degree]) return exc[options.degree];
+      const stem = adjectiveData.weakStem || adjectiveData.fem_nom_sg || adjectiveData.base;
+      return options.degree === 'sup' ? stem + 'astr' : stem + 'ari';
+    }
 
-    // Weak (definite) declension: simpler paradigm
-    if (options.definite && adjectiveData.weak) {
-      const w = adjectiveData.weak;
+    // Weak (definite) declension: derive from weakStem or fem_nom_sg
+    if (options.definite) {
+      const stem = adjectiveData.weakStem || adjectiveData.fem_nom_sg || adjectiveData.base;
       if (number === 'plural') {
-        return case_ === 'dat' ? w.dat_pl : w.default_pl;
+        return case_ === 'dat' ? adjectiveData.masc_dat_pl || stem + 'um' : stem + 'u';
       }
-      return (gender === 'm' && (case_ === 'nom' || !case_)) ? w.nom_m_sg : w.default_sg;
+      return (gender === 'm' && (case_ === 'nom' || !case_)) ? stem + 'i' : stem + 'a';
     }
 
     const genderKey = gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc';
