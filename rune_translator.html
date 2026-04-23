@@ -9581,16 +9581,8 @@ function toggleRef() {
 const LOADER_RUNES=['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ','ᛇ','ᛈ','ᛉ','ᛊ','ᛏ','ᛒ','ᛖ','ᛗ','ᛚ','ᛜ','ᛞ','ᛟ'];
 
 (function initOneTimeLoader(){
-  const key = 'runeTranslatorLoaderPlayed';
   const overlay = document.getElementById('loaderOverlay');
   if(!overlay) return;
-
-  let played = false;
-  try { played = localStorage.getItem(key) === '1'; } catch(_) {}
-  if(played){
-    overlay.remove();
-    return;
-  }
 
   document.body.classList.add('loader-active');
   overlay.classList.add('visible');
@@ -9674,7 +9666,6 @@ const LOADER_RUNES=['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ',
     const doneAt = 100;
 
     function finish(){
-      try { localStorage.setItem(key, '1'); } catch(_) {}
       overlay.classList.add('fade-out');
       setTimeout(()=>{
         overlay.remove();
