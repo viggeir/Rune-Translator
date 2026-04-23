@@ -6459,9 +6459,17 @@ class GrammarEngine {
         analysis.verbLemma = lemma;
         if (isLikelyPastVerbForm(value, lemma)) analysis.tense = 'past';
       } else if (EN_TO_ON[lemma]) {
-        analysis.wordType = 'dictionary';
-        analysis.translation = EN_TO_ON[lemma];
-        analysis.gender = NOUN_GENDER[lemma] || 'm';
+        const nounGender = NOUN_GENDER[lemma];
+        if (nounGender || NOUN_DECLENSION[lemma]) {
+          analysis.wordType = 'noun';
+          analysis.gender = nounGender || 'm';
+          analysis.nounData = { gender: analysis.gender };
+          analysis.translation = EN_TO_ON[lemma] || null;
+        } else {
+          analysis.wordType = 'dictionary';
+          analysis.translation = EN_TO_ON[lemma];
+          analysis.gender = 'm';
+        }
       } else {
         analysis.wordType = 'unknown';
       }
@@ -7124,7 +7132,7 @@ class GrammarEngine {
       return noun.translation; // Already translated phrase
     }
     
-    const declension = NOUN_DECLENSION[noun.value];
+    const declension = NOUN_DECLENSION[noun.value] || NOUN_DECLENSION[LEMMAS[noun.value]];
     if (declension) {
       const caseKey = case_ || 'nom';
       const numberKey = number === 'plural' ? 'pl' : 'sg';
