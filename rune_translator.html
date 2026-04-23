@@ -188,8 +188,8 @@ function getProtoGermanicForm(onWord) {
     } else if(typeof entry === 'object' && entry.base) {
       // Check if any form of this word matches the onWord
       const forms = [
-        entry.base, entry.nom_sg, entry.acc_sg, entry.dat_sg,
-        entry.nom_pl, entry.acc_pl, entry.dat_pl
+        entry.base, entry.nom_sg, entry.acc_sg, entry.dat_sg, entry.gen_sg,
+        entry.nom_pl, entry.acc_pl, entry.dat_pl, entry.gen_pl
       ];
 
       if(forms.includes(onWord) && entry.protoGermanic) {
@@ -591,27 +591,27 @@ function normalizeToPhonemes(onWord) {
 // Each personal pronoun has nominative (subject) and accusative (object) forms.
 // Dative included for prepositional contexts (to me, with him, etc.)
 const PRONOUNS = {
-  'i':    { nom:'ek',   acc:'mik',   dat:'mér' },
-  'me':   { nom:'ek',   acc:'mik',   dat:'mér' },
-  'you':  { nom:'þú',   acc:'þik',   dat:'þér' },
-  'he':   { nom:'hann', acc:'hann',  dat:'honum' },
-  'him':  { nom:'hann', acc:'hann',  dat:'honum' },
-  'she':  { nom:'hon',  acc:'hana',  dat:'henni' },
-  'her':  { nom:'hon',  acc:'hana',  dat:'henni' },
-  'it':   { nom:'þat',  acc:'þat',   dat:'því' },
-  'we':   { nom:'vér',  acc:'oss',   dat:'oss' },
-  'us':   { nom:'vér',  acc:'oss',   dat:'oss' },
-  'they': { nom:'þeir', acc:'þá',    dat:'þeim' },
-  'them': { nom:'þeir', acc:'þá',    dat:'þeim' },
+  'i':    { nom:'ek',   acc:'mik',   dat:'mér',   gen:'mín' },
+  'me':   { nom:'ek',   acc:'mik',   dat:'mér',   gen:'mín' },
+  'you':  { nom:'þú',   acc:'þik',   dat:'þér',   gen:'þín' },
+  'he':   { nom:'hann', acc:'hann',  dat:'honum',  gen:'hans' },
+  'him':  { nom:'hann', acc:'hann',  dat:'honum',  gen:'hans' },
+  'she':  { nom:'hon',  acc:'hana',  dat:'henni',  gen:'hennar' },
+  'her':  { nom:'hon',  acc:'hana',  dat:'henni',  gen:'hennar' },
+  'it':   { nom:'þat',  acc:'þat',   dat:'því',    gen:'þess' },
+  'we':   { nom:'vér',  acc:'oss',   dat:'oss',    gen:'vár' },
+  'us':   { nom:'vér',  acc:'oss',   dat:'oss',    gen:'vár' },
+  'they': { nom:'þeir', acc:'þá',    dat:'þeim',   gen:'þeirra' },
+  'them': { nom:'þeir', acc:'þá',    dat:'þeim',   gen:'þeirra' },
   // Reflexive pronouns — map to sik (acc) and sér (dat) regardless of person
-  'myself':     { nom:'ek',    acc:'sik',   dat:'sér' },
-  'yourself':   { nom:'þú',    acc:'sik',   dat:'sér' },
-  'himself':    { nom:'hann',  acc:'sik',   dat:'sér' },
-  'herself':    { nom:'hon',   acc:'sik',   dat:'sér' },
-  'itself':     { nom:'þat',   acc:'sik',   dat:'sér' },
-  'ourselves':  { nom:'vér',   acc:'sik',   dat:'sér' },
-  'yourselves': { nom:'þér',   acc:'sik',   dat:'sér' },
-  'themselves': { nom:'þeir',  acc:'sik',   dat:'sér' },
+  'myself':     { nom:'ek',    acc:'sik',   dat:'sér',  gen:'sín' },
+  'yourself':   { nom:'þú',    acc:'sik',   dat:'sér',  gen:'sín' },
+  'himself':    { nom:'hann',  acc:'sik',   dat:'sér',  gen:'sín' },
+  'herself':    { nom:'hon',   acc:'sik',   dat:'sér',  gen:'sín' },
+  'itself':     { nom:'þat',   acc:'sik',   dat:'sér',  gen:'sín' },
+  'ourselves':  { nom:'vér',   acc:'sik',   dat:'sér',  gen:'sín' },
+  'yourselves': { nom:'þér',   acc:'sik',   dat:'sér',  gen:'sín' },
+  'themselves': { nom:'þeir',  acc:'sik',   dat:'sér',  gen:'sín' },
 };
 
 // English subject pronouns — used to detect nominative position
@@ -636,13 +636,28 @@ const PREPOSITION_GOVERNED_CASE = {
   from: 'dat',
   by: 'dat',
   beside: 'dat',
-  within: 'dat',
+  within: 'gen',   // innan + genitive
   to: 'gen',
   for: 'dat',
   after: 'acc',
   before: 'dat',
-  between: 'acc',
+  between: 'gen',  // milli + genitive
   against: 'acc',
+  among: 'gen',    // meðal + genitive
+  near: 'dat',     // nær + dative
+  about: 'acc',    // um + accusative
+  around: 'acc',   // um + accusative
+  over: 'acc',     // yfir + accusative
+  off: 'dat',      // af + dative
+  of: 'gen',       // possessive "of" → genitive
+  without: 'gen',  // án + genitive
+  in: 'dat',       // í + dative (location; motion→acc via resolveGovernedCase)
+  on: 'dat',       // á + dative (location; motion→acc via resolveGovernedCase)
+  under: 'dat',    // undir + dative
+  into: 'acc',     // í + accusative (motion)
+  onto: 'acc',     // á + accusative (motion)
+  through: 'acc',  // í gegnum + accusative
+  beyond: 'dat',   // handan + dative
 };
 const CASED_PREPOSITIONS = new Set(Object.keys(PREPOSITION_GOVERNED_CASE));
 
@@ -665,7 +680,23 @@ function resolveGovernedCase(prepWord, tokens = [], prepIdx = -1) {
   // Basic rule fallback:
   // - static/abstract relation -> dative
   // - directional motion -> accusative
-  if (prep === 'to' || prep === 'for') {
+  // Dual-case prepositions: dative for location, accusative for motion
+  if (prep === 'in' || prep === 'on') {
+    const priorVerb = getNearestVerbBefore(tokens, prepIdx);
+    const priorVerbLemma = normalizeLexiconToken((priorVerb && (priorVerb.lemma || LEMMAS[priorVerb.en] || priorVerb.en)) || '');
+    if (priorVerbLemma && MOTION_VERBS.has(priorVerbLemma)) return 'acc';
+    return 'dat';
+  }
+
+  // 'to' → til + genitive; after motion verbs → accusative (á/í + acc)
+  if (prep === 'to') {
+    const priorVerb = getNearestVerbBefore(tokens, prepIdx);
+    const priorVerbLemma = normalizeLexiconToken((priorVerb && (priorVerb.lemma || LEMMAS[priorVerb.en] || priorVerb.en)) || '');
+    if (priorVerbLemma && MOTION_VERBS.has(priorVerbLemma)) return 'acc';
+    return 'gen';
+  }
+
+  if (prep === 'for') {
     const priorVerb = getNearestVerbBefore(tokens, prepIdx);
     const priorVerbLemma = normalizeLexiconToken((priorVerb && (priorVerb.lemma || LEMMAS[priorVerb.en] || priorVerb.en)) || '');
     if (priorVerbLemma && MOTION_VERBS.has(priorVerbLemma)) return 'acc';
@@ -741,6 +772,7 @@ const PHRASAL_VERB_LEMMAS = {
 // Past-tense paradigms (preterite) keyed by English lemma.
 // Structure: [ek, þú, hann/hon/þat, vér, þér, þeir/þær/þau]
 const PAST_CONJ = {
+  'be':    ['var',  'vart',  'var',   'várum',  'váruð',  'váru'],
   'break': ['braut', 'brauzt', 'braut', 'brutum', 'brutuð', 'brutu'],
   'turn':  ['breytta', 'breyttir', 'breytti', 'breyttum', 'breyttuð', 'breyttu'],
   'return':['snera', 'snerir', 'sneri', 'snerum', 'sneruð', 'sneru'],
@@ -901,6 +933,55 @@ const CONJ = {
   'kill':   ['drep',  'drepir','drepir','drepum', 'drepið', 'drepa'],
 };
 
+// Present subjunctive paradigms keyed by English infinitive
+// Structure: [ek, þú, hann/hon/þat, vér, þér, þeir]
+// Pattern for weak type 2: root + [-a,-ir,-i,-im,-ið,-i]
+// Pattern for strong: same as weak but with i-stem variation
+const VERB_PRES_SUBJ = {
+  'be':     ['sé',    'sér',   'sé',    'séum',   'séið',   'sé'],
+  'have':   ['hafa',  'hafir', 'hafi',  'hafim',  'hafið',  'hafi'],
+  'love':   ['elska', 'elskir','elski', 'elskim', 'elskið', 'elski'],
+  'see':    ['sjái',  'sjáir', 'sjái',  'sjáim',  'sjáið',  'sjái'],
+  'go':     ['fara',  'farir', 'fari',  'farim',  'farið',  'fari'],
+  'come':   ['koma',  'komir', 'komi',  'komim',  'komið',  'komi'],
+  'know':   ['vita',  'vitir', 'viti',  'vitim',  'vitið',  'viti'],
+  'give':   ['gefa',  'gefir', 'gefi',  'gefim',  'gefið',  'gefi'],
+  'take':   ['taka',  'takir', 'taki',  'takim',  'takið',  'taki'],
+  'say':    ['segja', 'segir', 'segi',  'segjum', 'segið',  'segi'],
+  'do':     ['gera',  'gerir', 'geri',  'gerim',  'gerið',  'geri'],
+  'make':   ['gera',  'gerir', 'geri',  'gerim',  'gerið',  'geri'],
+  'want':   ['vilja', 'vilir', 'vili',  'vilim',  'vilið',  'vili'],
+  'find':   ['finna', 'finnir','finni', 'finnim', 'finnið', 'finni'],
+  'walk':   ['ganga', 'gangir','gangi', 'gangim', 'gangið', 'gangi'],
+  'ride':   ['ríða',  'ríðir', 'ríði',  'ríðim',  'ríðið',  'ríði'],
+  'speak':  ['mæla',  'mælir', 'mæli',  'mælim',  'mælið',  'mæli'],
+  'hear':   ['heyra', 'heyrir','heyri', 'heyrim', 'heyrið', 'heyri'],
+  'kill':   ['drepa', 'drepir','drepi', 'drepim', 'drepið', 'drepi'],
+  'drink':  ['drekka','drekkir','drekki','drekkum','drekkið','drekki'],
+  'seek':   ['sœkja', 'sœkir', 'sœki',  'sœkjum','sœkið',  'sœki'],
+  'think':  ['hugsa', 'hugsir','hugsi', 'hugsim', 'hugsið', 'hugsi'],
+  'win':    ['vinna', 'vinnir','vinni', 'vinnim', 'vinnið', 'vinni'],
+};
+
+// 2nd person singular imperative forms keyed by English infinitive
+const VERB_IMP = {
+  'be':'ver',     'have':'haf',    'love':'elska',  'see':'sé',      'go':'far',
+  'come':'kom',   'know':'vit',    'give':'gef',    'take':'tak',    'say':'seg',
+  'do':'ger',     'make':'ger',    'want':'vil',    'will':'mun',    'shall':'skal',
+  'may':'má',     'can':'kann',    'must':'þarf',   'need':'þarf',   'find':'finn',
+  'feel':'finn',  'hold':'halt',   'keep':'halt',   'stand':'stat',  'walk':'gakk',
+  'ride':'ríð',   'fight':'berjsk','hunt':'jaga',   'run':'renn',    'prepare':'bú',
+  'end':'enda',   'lose':'tap',    'turn':'breyt',  'return':'snú',  'break':'brjót',
+  'win':'vinn',   'adore':'elska', 'cherish':'elska','speak':'mæl',  'hear':'heyr',
+  'live':'lif',   'sleep':'sof',   'drink':'drekk', 'eat':'et',      'trust':'trú',
+  'believe':'trú','fear':'óttumk', 'seek':'sœk',    'learn':'lær',  'teach':'lær',
+  'help':'hjálp', 'bless':'bless', 'curse':'bölv',  'sing':'syng',   'play':'leik',
+  'build':'bygg', 'carve':'rist',  'mark':'rist',   'open':'opna',   'close':'lok',
+  'call':'kalla', 'answer':'svar', 'ask':'spyr',    'request':'bið', 'promise':'heit',
+  'remember':'man','think':'hugsa','understand':'skil','dance':'dans','conquer':'sigr',
+  'endure':'þol', 'raise':'reis',  'kill':'drep',
+};
+
 // Map ON nominative pronoun → conjugation index (for CONJ arrays)
 const PRON_TO_IDX = {
   'ek':1, 'þú':2, 'hann':3, 'hon':3, 'þat':3, 'vér':4, 'þér':5, 'þeir':6,
@@ -1044,16 +1125,18 @@ const ADJECTIVES = {
     masc_nom_pl: 'allir',    masc_acc_pl: 'alla',     masc_dat_pl: 'öllum',
     fem_nom_pl: 'allar',     fem_acc_pl: 'allar',     fem_dat_pl: 'öllum',
     neut_nom_pl: 'öll',      neut_acc_pl: 'öll',      neut_dat_pl: 'öllum',
+    weak: { nom_m_sg: 'alli', default_sg: 'alla', default_pl: 'allu', dat_pl: 'öllum' },
   },
   'great': {
     base: 'mikill',
     masc_nom_sg: 'mikill',   masc_acc_sg: 'mikinn',   masc_dat_sg: 'mikl',
     fem_nom_sg: 'mikil',     fem_acc_sg: 'mikla',     fem_dat_sg: 'mikilli',
     neut_nom_sg: 'mikið',    neut_acc_sg: 'mikið',    neut_dat_sg: 'miklu',
-    // Plural forms
     masc_nom_pl: 'miklir',   masc_acc_pl: 'mikla',    masc_dat_pl: 'miklum',
     fem_nom_pl: 'miklar',    fem_acc_pl: 'miklar',    fem_dat_pl: 'miklum',
     neut_nom_pl: 'mikil',    neut_acc_pl: 'mikil',    neut_dat_pl: 'miklum',
+    weak: { nom_m_sg: 'mikli', default_sg: 'mikla', default_pl: 'miklu', dat_pl: 'miklum' },
+    comp: 'meiri', sup: 'mestr',
   },
   'old': {
     base: 'gamall',
@@ -1063,6 +1146,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'gamlir',   masc_acc_pl: 'gamla',    masc_dat_pl: 'gömlum',
     fem_nom_pl: 'gamlár',    fem_acc_pl: 'gamlár',    fem_dat_pl: 'gömlum',
     neut_nom_pl: 'gömul',    neut_acc_pl: 'gömul',    neut_dat_pl: 'gömlum',
+    weak: { nom_m_sg: 'gamli', default_sg: 'gamla', default_pl: 'gamlu', dat_pl: 'gömlum' },
+    comp: 'ellri', sup: 'elztr',
   },
   'young': {
     base: 'ungr',
@@ -1072,6 +1157,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'ungir',    masc_acc_pl: 'unga',     masc_dat_pl: 'ungum',
     fem_nom_pl: 'ungar',     fem_acc_pl: 'ungar',     fem_dat_pl: 'ungum',
     neut_nom_pl: 'ung',      neut_acc_pl: 'ung',      neut_dat_pl: 'ungum',
+    weak: { nom_m_sg: 'ungi', default_sg: 'unga', default_pl: 'ungu', dat_pl: 'ungum' },
+    comp: 'yngri', sup: 'yngstr',
   },
   'strong': {
     protoGermanic: 'starkaz',
@@ -1082,6 +1169,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'sterkir',  masc_acc_pl: 'sterka',   masc_dat_pl: 'sterkum',
     fem_nom_pl: 'sterkar',   fem_acc_pl: 'sterkar',   fem_dat_pl: 'sterkum',
     neut_nom_pl: 'sterk',    neut_acc_pl: 'sterk',    neut_dat_pl: 'sterkum',
+    weak: { nom_m_sg: 'sterki', default_sg: 'sterka', default_pl: 'sterku', dat_pl: 'sterkum' },
+    comp: 'sterkari', sup: 'sterkastr',
   },
   'brave': {
     base: 'hugaðr',
@@ -1091,6 +1180,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'hugaðir',  masc_acc_pl: 'huguda',   masc_dat_pl: 'hugdum',
     fem_nom_pl: 'hugaðar',   fem_acc_pl: 'hugaðar',   fem_dat_pl: 'hugdum',
     neut_nom_pl: 'hugud',    neut_acc_pl: 'hugud',    neut_dat_pl: 'hugdum',
+    weak: { nom_m_sg: 'hugaði', default_sg: 'hugaða', default_pl: 'hugaðu', dat_pl: 'hugaðum' },
+    comp: 'hugaðari', sup: 'hugaðastr',
   },
   'good': {
     base: 'góðr',
@@ -1100,6 +1191,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'góðir',    masc_acc_pl: 'góða',     masc_dat_pl: 'góðum',
     fem_nom_pl: 'góðar',     fem_acc_pl: 'góðar',     fem_dat_pl: 'góðum',
     neut_nom_pl: 'góð',      neut_acc_pl: 'góð',      neut_dat_pl: 'góðum',
+    weak: { nom_m_sg: 'góði', default_sg: 'góða', default_pl: 'góðu', dat_pl: 'góðum' },
+    comp: 'betri', sup: 'beztr',
   },
   'beautiful': {
     base: 'fagr',
@@ -1109,6 +1202,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
     fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
     neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
+    weak: { nom_m_sg: 'fagri', default_sg: 'fagra', default_pl: 'fagru', dat_pl: 'fagrum' },
+    comp: 'fegri', sup: 'fegrstr',
   },
   'dark': {
     base: 'dökkr',
@@ -1118,6 +1213,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'dökkir',   masc_acc_pl: 'dökka',    masc_dat_pl: 'dökkum',
     fem_nom_pl: 'dökkar',    fem_acc_pl: 'dökkar',    fem_dat_pl: 'dökkum',
     neut_nom_pl: 'dökk',     neut_acc_pl: 'dökk',     neut_dat_pl: 'dökkum',
+    weak: { nom_m_sg: 'dökki', default_sg: 'dökka', default_pl: 'dökku', dat_pl: 'dökkum' },
+    comp: 'dökkari', sup: 'dökkastr',
   },
   'bright': {
     base: 'bjártr',
@@ -1127,6 +1224,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'bjartir',  masc_acc_pl: 'bjarta',   masc_dat_pl: 'bjartum',
     fem_nom_pl: 'bjartar',   fem_acc_pl: 'bjartar',   fem_dat_pl: 'bjartum',
     neut_nom_pl: 'björt',    neut_acc_pl: 'björt',    neut_dat_pl: 'bjartum',
+    weak: { nom_m_sg: 'bjárti', default_sg: 'bjarta', default_pl: 'bjartu', dat_pl: 'bjartum' },
+    comp: 'bjártari', sup: 'bjártastr',
   },
   'sweet': {
     base: 'sætr',
@@ -1136,6 +1235,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'sætir',    masc_acc_pl: 'sæta',     masc_dat_pl: 'sætum',
     fem_nom_pl: 'sætar',     fem_acc_pl: 'sætar',     fem_dat_pl: 'sætum',
     neut_nom_pl: 'sæt',      neut_acc_pl: 'sæt',      neut_dat_pl: 'sætum',
+    weak: { nom_m_sg: 'sæti', default_sg: 'sæta', default_pl: 'sætu', dat_pl: 'sætum' },
+    comp: 'sætari', sup: 'sætastr',
   },
   'yellow': {
     base: 'gulr',
@@ -1145,6 +1246,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'gulir',    masc_acc_pl: 'gula',     masc_dat_pl: 'gulum',
     fem_nom_pl: 'gular',     fem_acc_pl: 'gular',     fem_dat_pl: 'gulum',
     neut_nom_pl: 'gul',      neut_acc_pl: 'gul',      neut_dat_pl: 'gulum',
+    weak: { nom_m_sg: 'guli', default_sg: 'gula', default_pl: 'gulu', dat_pl: 'gulum' },
+    comp: 'gulari', sup: 'gulastr',
   },
   'fair': {
     base: 'fagr',
@@ -1154,6 +1257,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'fagrir',   masc_acc_pl: 'fagra',    masc_dat_pl: 'fagrum',
     fem_nom_pl: 'fagrar',    fem_acc_pl: 'fagrar',    fem_dat_pl: 'fagrum',
     neut_nom_pl: 'fögur',    neut_acc_pl: 'fögur',    neut_dat_pl: 'fagrum',
+    weak: { nom_m_sg: 'fagri', default_sg: 'fagra', default_pl: 'fagru', dat_pl: 'fagrum' },
+    comp: 'fegri', sup: 'fegrstr',
   },
   'wild': {
     base: 'villr',
@@ -1163,6 +1268,8 @@ const ADJECTIVES = {
     masc_nom_pl: 'villir',   masc_acc_pl: 'vila',     masc_dat_pl: 'villum',
     fem_nom_pl: 'vilar',     fem_acc_pl: 'vilar',     fem_dat_pl: 'villum',
     neut_nom_pl: 'vil',      neut_acc_pl: 'vil',      neut_dat_pl: 'villum',
+    weak: { nom_m_sg: 'villi', default_sg: 'villa', default_pl: 'villu', dat_pl: 'villum' },
+    comp: 'villari', sup: 'villastr',
   },
 };
 
@@ -1257,95 +1364,95 @@ const NOUN_DECLENSION = {
   // Class: Strong masculine (like maðr, kappi, konungr)
   // Pattern: nom -r/-∅, acc -n/-∅, dat -i/-∅ (or -um/-um for plural)
   'man': { protoGermanic: 'manaz', base: 'maðr', nom_sg: 'maðr', acc_sg: 'mann', dat_sg: 'manni',
-           nom_pl: 'menn', acc_pl: 'menn', dat_pl: 'mönnum' },
+           gen_sg: 'manns', nom_pl: 'menn', acc_pl: 'menn', dat_pl: 'mönnum', gen_pl: 'manna' },
   'warrior': { base: 'kappi', nom_sg: 'kappi', acc_sg: 'kappa', dat_sg: 'kappa',
-               nom_pl: 'kappar', acc_pl: 'kappa', dat_pl: 'kappum' },
+               gen_sg: 'kappa', nom_pl: 'kappar', acc_pl: 'kappa', dat_pl: 'kappum', gen_pl: 'kappna' },
   'king': { base: 'konungr', nom_sg: 'konungr', acc_sg: 'konung', dat_sg: 'konungi',
-            nom_pl: 'konungar', acc_pl: 'konunga', dat_pl: 'konungum' },
+            gen_sg: 'konungs', nom_pl: 'konungar', acc_pl: 'konunga', dat_pl: 'konungum', gen_pl: 'konunga' },
   'son': { base: 'sonr', nom_sg: 'sonr', acc_sg: 'son', dat_sg: 'syni',
-           nom_pl: 'synir', acc_pl: 'sonu', dat_pl: 'sonum' },
+           gen_sg: 'sonar', nom_pl: 'synir', acc_pl: 'sonu', dat_pl: 'sonum', gen_pl: 'sona' },
   'friend': { base: 'vinr', nom_sg: 'vinr', acc_sg: 'vin', dat_sg: 'vini',
-              nom_pl: 'vinir', acc_pl: 'vina', dat_pl: 'vinum' },
+              gen_sg: 'vinar', nom_pl: 'vinir', acc_pl: 'vina', dat_pl: 'vinum', gen_pl: 'vina' },
   'enemy': { base: 'óvinr', nom_sg: 'óvinr', acc_sg: 'óvin', dat_sg: 'óvini',
-             nom_pl: 'óvinir', acc_pl: 'ófína', dat_pl: 'óvinum' },
+             gen_sg: 'óvinar', nom_pl: 'óvinir', acc_pl: 'ófína', dat_pl: 'óvinum', gen_pl: 'óvina' },
   'jarl': { base: 'jarl', nom_sg: 'jarl', acc_sg: 'jarl', dat_sg: 'jarli',
-            nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum' },
+            gen_sg: 'jarls', nom_pl: 'jarlar', acc_pl: 'jarla', dat_pl: 'jörlum', gen_pl: 'jarla' },
   'brother': { base: 'bróðir', nom_sg: 'bróðir', acc_sg: 'bróður', dat_sg: 'bróðri',
-               nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum' },
+               gen_sg: 'bróður', nom_pl: 'bræðr', acc_pl: 'bræðr', dat_pl: 'bræðrum', gen_pl: 'bræðra' },
   'stone': { base: 'steinn', nom_sg: 'steinn', acc_sg: 'stein', dat_sg: 'steini',
-             nom_pl: 'steinar', acc_pl: 'steina', dat_pl: 'steinum' },
+             gen_sg: 'steins', nom_pl: 'steinar', acc_pl: 'steina', dat_pl: 'steinum', gen_pl: 'steina' },
   'father': { protoGermanic: 'faderaz', base: 'faðir', nom_sg: 'faðir', acc_sg: 'föður', dat_sg: 'föður',
-              nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum' },
+              gen_sg: 'föður', nom_pl: 'feðr', acc_pl: 'feðr', dat_pl: 'föðrum', gen_pl: 'feðra' },
   'fire': { protoGermanic: 'aldiz', base: 'eldr', nom_sg: 'eldr', acc_sg: 'eld', dat_sg: 'eldi',
-            nom_pl: 'eldar', acc_pl: 'elda', dat_pl: 'eldum' },
+            gen_sg: 'elds', nom_pl: 'eldar', acc_pl: 'elda', dat_pl: 'eldum', gen_pl: 'elda' },
   'day': { base: 'dagr', nom_sg: 'dagr', acc_sg: 'dag', dat_sg: 'degi',
-           nom_pl: 'dagar', acc_pl: 'daga', dat_pl: 'dagum' },
+           gen_sg: 'dags', nom_pl: 'dagar', acc_pl: 'daga', dat_pl: 'dagum', gen_pl: 'daga' },
   'sky': { base: 'himinn', nom_sg: 'himinn', acc_sg: 'himin', dat_sg: 'himni',
-           nom_pl: 'himnar', acc_pl: 'himna', dat_pl: 'himnum' },
+           gen_sg: 'himins', nom_pl: 'himnar', acc_pl: 'himna', dat_pl: 'himnum', gen_pl: 'himna' },
   'wind': { base: 'vindr', nom_sg: 'vindr', acc_sg: 'vind', dat_sg: 'vindi',
-            nom_pl: 'vindar', acc_pl: 'vinda', dat_pl: 'vindum' },
+            gen_sg: 'vinds', nom_pl: 'vindar', acc_pl: 'vinda', dat_pl: 'vindum', gen_pl: 'vinda' },
   'shield': { base: 'skjöldr', nom_sg: 'skjöldr', acc_sg: 'skjöld', dat_sg: 'skildi',
-              nom_pl: 'skjöldir', acc_pl: 'skjöld', dat_pl: 'skildum' },
+              gen_sg: 'skjaldar', nom_pl: 'skjöldir', acc_pl: 'skjöld', dat_pl: 'skildum', gen_pl: 'skjalda' },
   'forest': { base: 'skógr', nom_sg: 'skógr', acc_sg: 'skog', dat_sg: 'skógi',
-              nom_pl: 'skógar', acc_pl: 'skóga', dat_pl: 'skógum' },
+              gen_sg: 'skógs', nom_pl: 'skógar', acc_pl: 'skóga', dat_pl: 'skógum', gen_pl: 'skóga' },
   'mountain': { base: 'fjall', nom_sg: 'fjall', acc_sg: 'fjall', dat_sg: 'fjalli',
-                nom_pl: 'fjöll', acc_pl: 'fjöll', dat_pl: 'fjöllum' },
+                gen_sg: 'fjalls', nom_pl: 'fjöll', acc_pl: 'fjöll', dat_pl: 'fjöllum', gen_pl: 'fjalla' },
   'wolf': { base: 'úlfr', nom_sg: 'úlfr', acc_sg: 'úlf', dat_sg: 'úlfi',
-            nom_pl: 'úlfar', acc_pl: 'úlfa', dat_pl: 'úlfum' },
+            gen_sg: 'úlfs', nom_pl: 'úlfar', acc_pl: 'úlfa', dat_pl: 'úlfum', gen_pl: 'úlfa' },
   'dog': { base: 'hundr', nom_sg: 'hundr', acc_sg: 'hund', dat_sg: 'hundi',
-           nom_pl: 'hundar', acc_pl: 'hunda', dat_pl: 'hundum' },
+           gen_sg: 'hunds', nom_pl: 'hundar', acc_pl: 'hunda', dat_pl: 'hundum', gen_pl: 'hunda' },
   'fish': { base: 'fiskr', nom_sg: 'fiskr', acc_sg: 'fisk', dat_sg: 'fiski',
-            nom_pl: 'fiskar', acc_pl: 'fiska', dat_pl: 'fiskum' },
+            gen_sg: 'fisks', nom_pl: 'fiskar', acc_pl: 'fiska', dat_pl: 'fiskum', gen_pl: 'fiska' },
   'raven': { base: 'hrafn', nom_sg: 'hrafn', acc_sg: 'hrafn', dat_sg: 'hrafni',
-             nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum' },
+             gen_sg: 'hrafns', nom_pl: 'hrafnar', acc_pl: 'hrafna', dat_pl: 'hrafnum', gen_pl: 'hrafna' },
   'viking': { base: 'víking', nom_sg: 'víking', acc_sg: 'víking', dat_sg: 'vítingi',
-              nom_pl: 'vítingar', acc_pl: 'vítinga', dat_pl: 'vítingum' },
+              gen_sg: 'vítings', nom_pl: 'vítingar', acc_pl: 'vítinga', dat_pl: 'vítingum', gen_pl: 'vítinga' },
 
   // ── Feminine o-stem ──
   'woman': { base: 'kona', nom_sg: 'kona', acc_sg: 'konu', dat_sg: 'konu',
-             nom_pl: 'konur', acc_pl: 'konur', dat_pl: 'konum' },
+             gen_sg: 'konu', nom_pl: 'konur', acc_pl: 'konur', dat_pl: 'konum', gen_pl: 'kvenna' },
   'hall': { base: 'höll', nom_sg: 'höll', acc_sg: 'höll', dat_sg: 'höll',
-            nom_pl: 'hollar', acc_pl: 'hollar', dat_pl: 'höllum' },
+            gen_sg: 'hallar', nom_pl: 'hollar', acc_pl: 'hollar', dat_pl: 'höllum', gen_pl: 'halla' },
   'gate': { base: 'hlið', nom_sg: 'hlið', acc_sg: 'hlið', dat_sg: 'hlið',
-            nom_pl: 'hliðir', acc_pl: 'hliðir', dat_pl: 'hliðum' },
+            gen_sg: 'hliðar', nom_pl: 'hliðir', acc_pl: 'hliðir', dat_pl: 'hliðum', gen_pl: 'hliða' },
   'river': { base: 'á', nom_sg: 'á', acc_sg: 'á', dat_sg: 'á',
-             nom_pl: 'ár', acc_pl: 'ár', dat_pl: 'árum' },
+             gen_sg: 'ár', nom_pl: 'ár', acc_pl: 'ár', dat_pl: 'árum', gen_pl: 'ána' },
   'earth': { base: 'jörð', nom_sg: 'jörð', acc_sg: 'jörð', dat_sg: 'jörð',
-             nom_pl: 'jarðir', acc_pl: 'jarðir', dat_pl: 'jarðum' },
+             gen_sg: 'jarðar', nom_pl: 'jarðir', acc_pl: 'jarðir', dat_pl: 'jarðum', gen_pl: 'jarða' },
   'axe': { base: 'øx', nom_sg: 'øx', acc_sg: 'øx', dat_sg: 'øx',
-           nom_pl: 'øxur', acc_pl: 'øxur', dat_pl: 'öxum' },
+           gen_sg: 'øxar', nom_pl: 'øxur', acc_pl: 'øxur', dat_pl: 'öxum', gen_pl: 'øxna' },
   'sister': { base: 'systir', nom_sg: 'systir', acc_sg: 'systur', dat_sg: 'systir',
-              nom_pl: 'systr', acc_pl: 'systr', dat_pl: 'systrum' },
+              gen_sg: 'systur', nom_pl: 'systr', acc_pl: 'systr', dat_pl: 'systrum', gen_pl: 'systra' },
   'mother': { base: 'móðir', nom_sg: 'móðir', acc_sg: 'móður', dat_sg: 'móður',
-              nom_pl: 'mæðr', acc_pl: 'mæðr', dat_pl: 'mæðrum' },
+              gen_sg: 'móður', nom_pl: 'mæðr', acc_pl: 'mæðr', dat_pl: 'mæðrum', gen_pl: 'mæðra' },
   'daughter': { base: 'dóttir', nom_sg: 'dóttir', acc_sg: 'dóttur', dat_sg: 'dóttur',
-                nom_pl: 'dætr', acc_pl: 'dætr', dat_pl: 'dóttrum' },
+                gen_sg: 'dóttur', nom_pl: 'dætr', acc_pl: 'dætr', dat_pl: 'dóttrum', gen_pl: 'dætra' },
   'night': { base: 'nótt', nom_sg: 'nótt', acc_sg: 'nótt', dat_sg: 'nótt',
-             nom_pl: 'nætr', acc_pl: 'nætr', dat_pl: 'nóttum' },
+             gen_sg: 'náttar', nom_pl: 'nætr', acc_pl: 'nætr', dat_pl: 'nóttum', gen_pl: 'nátta' },
 
   // ── Neuter consonant-stem ──
   'sword': { protoGermanic: 'swardiz', base: 'sverð', nom_sg: 'sverð', acc_sg: 'sverð', dat_sg: 'sverði',
-             nom_pl: 'sverd', acc_pl: 'sverd', dat_pl: 'sverðum' },
+             gen_sg: 'sverðs', nom_pl: 'sverd', acc_pl: 'sverd', dat_pl: 'sverðum', gen_pl: 'sverða' },
   'house': { base: 'hús', nom_sg: 'hús', acc_sg: 'hús', dat_sg: 'húsi',
-             nom_pl: 'hús', acc_pl: 'hús', dat_pl: 'húsum' },
+             gen_sg: 'húss', nom_pl: 'hús', acc_pl: 'hús', dat_pl: 'húsum', gen_pl: 'húsa' },
   'word': { base: 'orð', nom_sg: 'orð', acc_sg: 'orð', dat_sg: 'orði',
-            nom_pl: 'orð', acc_pl: 'orð', dat_pl: 'orðum' },
+            gen_sg: 'orðs', nom_pl: 'orð', acc_pl: 'orð', dat_pl: 'orðum', gen_pl: 'orða' },
   'sea': { base: 'haf', nom_sg: 'haf', acc_sg: 'haf', dat_sg: 'hafi',
-           nom_pl: 'höf', acc_pl: 'höf', dat_pl: 'höfum' },
+           gen_sg: 'hafs', nom_pl: 'höf', acc_pl: 'höf', dat_pl: 'höfum', gen_pl: 'hafa' },
   'child': { base: 'barn', nom_sg: 'barn', acc_sg: 'barn', dat_sg: 'barni',
-             nom_pl: 'börn', acc_pl: 'börn', dat_pl: 'börnum' },
+             gen_sg: 'barns', nom_pl: 'börn', acc_pl: 'börn', dat_pl: 'börnum', gen_pl: 'barna' },
   'ship': { base: 'skip', nom_sg: 'skip', acc_sg: 'skip', dat_sg: 'skipi',
-            nom_pl: 'skip', acc_pl: 'skip', dat_pl: 'skipum' },
+            gen_sg: 'skips', nom_pl: 'skip', acc_pl: 'skip', dat_pl: 'skipum', gen_pl: 'skipa' },
   'village': { base: 'þorp', nom_sg: 'þorp', acc_sg: 'þorp', dat_sg: 'þorpi',
-               nom_pl: 'þorp', acc_pl: 'þorp', dat_pl: 'þorpum' },
+               gen_sg: 'þorps', nom_pl: 'þorp', acc_pl: 'þorp', dat_pl: 'þorpum', gen_pl: 'þorpa' },
   'water': { base: 'vatn', nom_sg: 'vatn', acc_sg: 'vatn', dat_sg: 'vatni',
-             nom_pl: 'vötn', acc_pl: 'vötn', dat_pl: 'vötnum' },
+             gen_sg: 'vatns', nom_pl: 'vötn', acc_pl: 'vötn', dat_pl: 'vötnum', gen_pl: 'vatna' },
   'tree': { base: 'tré', nom_sg: 'tré', acc_sg: 'tré', dat_sg: 'tré',
-            nom_pl: 'trjóld', acc_pl: 'trjóld', dat_pl: 'trjóum' },
+            gen_sg: 'trés', nom_pl: 'trjóld', acc_pl: 'trjóld', dat_pl: 'trjóum', gen_pl: 'trjáa' },
   'land': { base: 'land', nom_sg: 'land', acc_sg: 'land', dat_sg: 'landi',
-            nom_pl: 'lönd', acc_pl: 'lönd', dat_pl: 'londum' },
+            gen_sg: 'lands', nom_pl: 'lönd', acc_pl: 'lönd', dat_pl: 'londum', gen_pl: 'landa' },
   'thing': { base: 'þing', nom_sg: 'þing', acc_sg: 'þing', dat_sg: 'þingi',
-             nom_pl: 'þing', acc_pl: 'þing', dat_pl: 'þingum' },
+             gen_sg: 'þings', nom_pl: 'þing', acc_pl: 'þing', dat_pl: 'þingum', gen_pl: 'þinga' },
 };
 
 // ─── LEMMATIZATION SYSTEM ────────────────────────────────────────────────────
@@ -6189,6 +6296,49 @@ function isLikelyPastVerbForm(word, lemma) {
 }
 
 
+// ─── DEFINITE ARTICLE SUFFIX ────────────────────────────────────────────────────────
+// Attaches the ON suffixed definite article (-inn/-in/-it etc.) to an inflected noun form.
+// §3.1.9: The article agrees with the noun in gender, case, and number.
+function attachDefiniteArticle(nounForm, gender, case_, number) {
+  if (!nounForm) return nounForm;
+  const g = gender || 'm';
+  const c = case_ || 'nom';
+  const isPlural = number === 'plural';
+  const VOWELS = new Set('aeiouáéíóúæøöǫ'.split(''));
+
+  if (isPlural) {
+    if (c === 'dat') {
+      return nounForm.endsWith('um') ? nounForm.slice(0, -2) + 'unum' : nounForm + 'num';
+    }
+    if (c === 'gen') return nounForm + 'nna';
+    if (g === 'm') return c === 'acc' ? nounForm + 'na' : nounForm + 'nir';
+    if (g === 'f') return nounForm + 'nar';
+    return nounForm + 'in'; // neuter nom/acc pl
+  }
+
+  // Singular suffixes
+  let suffix;
+  if (g === 'm') {
+    suffix = c === 'dat' ? 'inum' : c === 'gen' ? 'ins' : 'inn';
+  } else if (g === 'f') {
+    suffix = c === 'dat' ? 'inni' : c === 'gen' ? 'innar' : c === 'acc' ? 'ina' : 'in';
+  } else {
+    suffix = c === 'dat' ? 'inu' : c === 'gen' ? 'ins' : 'it';
+  }
+
+  let stem = nounForm;
+  // Drop nominative -r for masculine/neuter nouns before adding vocalic suffix
+  if (stem.endsWith('r') && (g === 'm' || g === 'n') && (c === 'nom' || c === 'acc')) {
+    stem = stem.slice(0, -1);
+  }
+  // If stem ends in a vowel, drop the initial 'i' of the suffix
+  if (VOWELS.has(stem[stem.length - 1]) && suffix[0] === 'i') {
+    suffix = suffix.slice(1);
+  }
+
+  return stem + suffix;
+}
+
 // ─── GRAMMAR ENGINE COMPONENT ───────────────────────────────────────────────────────
 // Handles agreement, case, conjugation, and grammatical rules
 class GrammarEngine {
@@ -6412,7 +6562,20 @@ class GrammarEngine {
         ? item.case
         : this.determineCaseForPosition(i, analysis, lastVerbIndex);
 
-      featureMap.set(i, { gender, number, case: caseForm });
+      // Scan left to detect preceding definite article "the"
+      let definite = false;
+      for (let left = i - 1; left >= 0; left--) {
+        const prev = analysis[left];
+        if (!prev || prev.type === 'space') continue;
+        if (prev.type === 'punctuation') break;
+        if (prev.wordType === 'article' && (prev.value === 'the' || prev.en === 'the')) {
+          definite = true;
+          break;
+        }
+        if (!isModifierLike(prev) && prev.wordType !== 'article') break;
+      }
+
+      featureMap.set(i, { gender, number, case: caseForm, definite });
 
       for (let left = i - 1; left >= 0; left--) {
         const prev = analysis[left];
@@ -6420,7 +6583,7 @@ class GrammarEngine {
         if (prev.type === 'punctuation') break;
         if (!isModifierLike(prev) && prev.wordType !== 'article') break;
         if (isModifierLike(prev)) {
-          featureMap.set(left, { gender, number, case: caseForm });
+          featureMap.set(left, { gender, number, case: caseForm, definite });
         }
       }
 
@@ -6543,9 +6706,71 @@ class GrammarEngine {
         case 'verb':
           lastVerbIndex = i;
           {
+          // Passive participle consumed by preceding 'be' — output the agreed form
+          if (item.passiveConsumed) {
+            inflected.push({ ...item, inflected: item.passiveConsumed });
+            break;
+          }
           const verbLemma = normalizeLexiconToken(item.verbLemma || LEMMAS[item.value] || item.value);
           const conjugationIndex = this.getConjugationIndex(currentSubject, currentNumber);
+          // Detect imperative: verb is the first real token and no subject has appeared
+          const isImperative = !currentSubject && (() => {
+            for (let j = 0; j < i; j++) {
+              const prev = analysis[j];
+              if (prev.type === 'space' || prev.type === 'punctuation') continue;
+              return false; // something came before
+            }
+            return true;
+          })();
+          if (isImperative && VERB_IMP[verbLemma]) {
+            inflected.push({ ...item, inflected: VERB_IMP[verbLemma], mood: 'imp' });
+            break;
+          }
+          // Detect at-clause subjunctive: verb preceded by 'at' complementiser
+          const inAtClause = (() => {
+            for (let j = i - 1; j >= 0; j--) {
+              const prev = analysis[j];
+              if (!prev || prev.type === 'space') continue;
+              if (prev.type === 'punctuation') break;
+              if (prev.value === 'that' || prev.value === 'at') return true;
+              break;
+            }
+            return false;
+          })();
+          if (inAtClause && VERB_PRES_SUBJ[verbLemma]) {
+            const subjForms = VERB_PRES_SUBJ[verbLemma];
+            inflected.push({ ...item, inflected: subjForms[conjugationIndex] || subjForms[2], mood: 'subj' });
+            break;
+          }
           if (item.tense === 'past') {
+            // Passive detection: was/were + past participle → vara form + pp agreeing with subject
+            if (verbLemma === 'be') {
+              let ppToken = null;
+              for (let j = i + 1; j < analysis.length; j++) {
+                const next = analysis[j];
+                if (!next || next.type === 'space') continue;
+                if (next.type === 'punctuation') break;
+                if (next.wordType === 'verb' && next.tense === 'past' && next.verbLemma !== 'be') {
+                  ppToken = next;
+                }
+                break;
+              }
+              if (ppToken) {
+                const ppLemma = normalizeLexiconToken(ppToken.verbLemma || LEMMAS[ppToken.value] || ppToken.value);
+                const ppEntry = PAST_PARTICIPLES[ppLemma];
+                if (ppEntry) {
+                  const pastBe = PAST_CONJ['be'];
+                  const varaForm = pastBe[conjugationIndex] || pastBe[2];
+                  const ppForm = currentGender === 'f' ? (ppEntry.fem_acc || ppEntry.base) :
+                                 currentGender === 'n' ? (ppEntry.neut || ppEntry.base) :
+                                 (ppEntry.masc_acc || ppEntry.base);
+                  inflected.push({ ...item, inflected: varaForm, passive: true });
+                  // Mark the pp token as consumed so it outputs the agreed form
+                  analysis[analysis.indexOf(ppToken)].passiveConsumed = ppForm;
+                  break;
+                }
+              }
+            }
             const pastForms = PAST_CONJ[verbLemma];
             if (pastForms) {
               inflected.push({ ...item, inflected: pastForms[conjugationIndex] || pastForms[2], conjugation: conjugationIndex });
@@ -6579,7 +6804,19 @@ class GrammarEngine {
           currentCase = npFeatures?.case || (item.case && item.case !== 'undetermined'
             ? item.case
             : this.determineCaseForPosition(i, analysis, lastVerbIndex));
-          const adjectiveForm = this.getAdjectiveForm(item.adjectiveData, adjectiveGender, currentCase, adjectiveNumber);
+          // Detect preceding degree adverb for comp/sup
+          let degree = null;
+          for (let j = i - 1; j >= 0; j--) {
+            const prev = analysis[j];
+            if (!prev || prev.type === 'space') continue;
+            if (prev.value === 'more') { degree = 'comp'; }
+            else if (prev.value === 'most') { degree = 'sup'; }
+            break;
+          }
+          const adjectiveForm = this.getAdjectiveForm(
+            item.adjectiveData, adjectiveGender, currentCase, adjectiveNumber,
+            { definite: npFeatures?.definite, degree }
+          );
           inflected.push({
             ...item,
             inflected: adjectiveForm
@@ -6667,7 +6904,10 @@ class GrammarEngine {
             ? item.case
             : this.determineCaseForPosition(i, analysis, lastVerbIndex));
           const nounNumber = npFeatures?.number || currentNumber;
-          const nounForm = this.getNounForm(item, currentCase, nounNumber);
+          let nounForm = this.getNounForm(item, currentCase, nounNumber);
+          if (npFeatures?.definite && nounForm) {
+            nounForm = attachDefiniteArticle(nounForm, item.gender, currentCase, nounNumber);
+          }
           inflected.push({
             ...item,
             inflected: nounForm,
@@ -6756,12 +6996,26 @@ class GrammarEngine {
   }
   
   // Get appropriate adjective form
-  getAdjectiveForm(adjectiveData, gender, case_, number) {
+  getAdjectiveForm(adjectiveData, gender, case_, number, options = {}) {
+    // Comparative/superlative: return the invariant form directly
+    if (options.degree === 'comp' && adjectiveData.comp) return adjectiveData.comp;
+    if (options.degree === 'sup' && adjectiveData.sup) return adjectiveData.sup;
+
+    // Weak (definite) declension: simpler paradigm
+    if (options.definite && adjectiveData.weak) {
+      const w = adjectiveData.weak;
+      if (number === 'plural') {
+        return case_ === 'dat' ? w.dat_pl : w.default_pl;
+      }
+      return (gender === 'm' && (case_ === 'nom' || !case_)) ? w.nom_m_sg : w.default_sg;
+    }
+
     const genderKey = gender === 'f' ? 'fem' : gender === 'n' ? 'neut' : 'masc';
     const caseKey = case_ || 'nom';
     const numberKey = number === 'plural' ? 'pl' : 'sg';
     const key = `${genderKey}_${caseKey}_${numberKey}`;
-    return adjectiveData[key] || adjectiveData.base;
+    // Fall back gracefully for genitive (not in strong table): use dat form
+    return adjectiveData[key] || adjectiveData[`${genderKey}_dat_${numberKey}`] || adjectiveData.base;
   }
   
   // Get appropriate possessive form
@@ -7370,10 +7624,14 @@ function realizeHeadNounPhrase(np, fallbackText = '', options = {}) {
 
   const lexicalHead = LEMMAS[np.headNoun] || np.headNoun;
   const gender = (typeof NOUN_GENDER_EN !== 'undefined' && NOUN_GENDER_EN[lexicalHead]) || NOUN_GENDER[lexicalHead] || 'm';
-  const demonstrative = gender === 'f' ? 'sú' : (gender === 'n' ? 'þat' : 'sá');
   if (!forceStructured && np.determiner !== 'the') return translated;
+  // Attach definite suffix to the last word of the translated noun phrase
+  const words = (translated.text || '').split(' ').filter(Boolean);
+  if (words.length > 0) {
+    words[words.length - 1] = attachDefiniteArticle(words[words.length - 1], gender, 'nom', 'singular');
+  }
   return {
-    text: `${demonstrative} ${translated.text}`.replace(/\s+/g, ' ').trim(),
+    text: words.join(' ').trim(),
     unknowns: translated.unknowns || []
   };
 }
