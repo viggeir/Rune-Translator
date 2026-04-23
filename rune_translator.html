@@ -6607,7 +6607,7 @@ class GrammarEngine {
             translation: EN_TO_ON[item.noun] || item.noun
           }, npCase, npNumber);
           const possessiveForm = item.possessiveData
-            ? this.getPossessiveForm(item.possessiveData, item.gender || 'm', this.isReflexivePossessive(i, analysis))
+            ? this.getPossessiveForm(item.possessiveData, item.gender || 'm', this.isReflexivePossessive(i, analysis), npNumber)
             : item.possessive;
           inflected.push({
             ...item,
@@ -6649,8 +6649,9 @@ class GrammarEngine {
 
           const npFeatures = nounPhraseFeatures.get(i);
           targetGender = npFeatures?.gender || targetGender;
+          const targetNumber = npFeatures?.number || 'singular';
           const isReflexive = !!item.forceReflexive || this.isReflexivePossessive(i, analysis);
-          const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender, isReflexive);
+          const possessiveForm = this.getPossessiveForm(item.possessiveData, targetGender, isReflexive, targetNumber);
           inflected.push({
             ...item,
             inflected: possessiveForm,
@@ -6764,17 +6765,20 @@ class GrammarEngine {
   }
   
   // Get appropriate possessive form
-  getPossessiveForm(possessiveData, gender, isReflexive = false) {
+  getPossessiveForm(possessiveData, gender, isReflexive = false, number = 'singular') {
     // Use reflexive form if available and reflexive is true
     if (isReflexive && possessiveData.reflexive) {
-      return gender === 'f' ? possessiveData.reflexive.fem_sg :
-             gender === 'n' ? possessiveData.reflexive.neut_sg :
-             possessiveData.reflexive.masc_sg;
+      const reflexiveForm = possessiveData.reflexive;
+      const numberSuffix = number === 'plural' ? '_pl' : '_sg';
+      return gender === 'f' ? (reflexiveForm[`fem${numberSuffix}`] || reflexiveForm.fem_sg) :
+             gender === 'n' ? (reflexiveForm[`neut${numberSuffix}`] || reflexiveForm.neut_sg) :
+             (reflexiveForm[`masc${numberSuffix}`] || reflexiveForm.masc_sg);
     }
     // Otherwise use standard form
-    return gender === 'f' ? possessiveData.fem_sg :
-           gender === 'n' ? possessiveData.neut_sg :
-           possessiveData.masc_sg;
+    const numberSuffix = number === 'plural' ? '_pl' : '_sg';
+    return gender === 'f' ? (possessiveData[`fem${numberSuffix}`] || possessiveData.fem_sg) :
+           gender === 'n' ? (possessiveData[`neut${numberSuffix}`] || possessiveData.neut_sg) :
+           (possessiveData[`masc${numberSuffix}`] || possessiveData.masc_sg);
   }
 
   // Check if a verb is a linking verb (be, become, seem, etc.)
